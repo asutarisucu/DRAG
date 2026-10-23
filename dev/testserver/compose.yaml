@@ -1,5 +1,10 @@
 services:
   testserver:
     build: .
+    # systemd を動かすのに要る
+    privileged: true
+    tmpfs:
+      - /run
+      - /run/lock
     ports:
       - "127.0.0.1:2222:22"
