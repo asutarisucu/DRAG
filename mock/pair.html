@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DRAG 端末の登録</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: auto; }
+  .pair-page {
+    min-height: 100dvh; display: grid; place-items: center; padding: 24px 20px;
+    background:
+      radial-gradient(600px 400px at 90% -10%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 60%),
+      radial-gradient(500px 360px at 0% 110%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      var(--desk);
+  }
+  .pair-card { width: min(380px, 100%); display: grid; gap: 16px; padding: 26px 22px; border-radius: 18px; border: 1px solid var(--border-strong); background: var(--panel); box-shadow: var(--shadow); }
+  .pair-brand { justify-self: center; font-size: 26px; padding-left: .2em; letter-spacing: .2em; }
+  .pair-mark { justify-self: center; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; }
+  .pair-mark .ic svg { width: 28px; height: 28px; }
+  .pair-mark.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .pair-mark.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .pair-mark.info { background: var(--accent-soft); color: var(--accent); }
+  .pair-title { text-align: center; font-size: 18px; font-weight: 650; }
+  .pair-text { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  .pair-server { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); }
+  .pair-server .mono { font-size: 12px; color: var(--muted); }
+  .pair-card .btn { height: 44px; font-size: 15px; text-decoration: none; }
+  .pair-foot { text-align: center; font-size: 12px; color: var(--faint); }
+  .pair-card .input { height: 42px; font-size: 16px; }
+</style>
+</head>
+<body>
+<main class="pair-page"><div class="pair-card" id="card"></div></main>
+<script src="pair.js"></script>
+</body>
+</html>
