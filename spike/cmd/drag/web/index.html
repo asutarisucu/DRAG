@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRAG 検証 スマホのターミナル</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0f13; color: #d7dee9; font: 13px system-ui, sans-serif; }
+  header { height: 40px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid #303a48; }
+  /* ターミナルは PC の幅のまま描き、はみ出した分を横にスクロールさせる */
+  #wrap { overflow-x: auto; overflow-y: hidden; }
+  #term { display: inline-block; }
+</style>
+</head>
+<body>
+<header id="title">DRAG</header>
+<div id="wrap"><div id="term"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js"></script>
+<script>
+  // ?id=<セッション>&cols=120&rows=30。resize を付けると PTY の大きさもこの値にする
+  const q = new URLSearchParams(location.search);
+  const cols = +q.get('cols') || 120, rows = +q.get('rows') || 30;
+  const term = new Terminal({ cols, rows, fontSize: 13, scrollback: 5000 });
+  term.open(document.getElementById('term'));
+  window.term = term;
+
+  const ws = new WebSocket(`ws://${location.host}/sessions/${q.get('id')}`);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { if (q.has('resize')) ws.send(JSON.stringify({ cols, rows })); };
+  ws.onmessage = e => term.write(new Uint8Array(e.data));
+  ws.onclose = e => { document.getElementById('title').textContent = `切断 ${e.code} ${e.reason}`; };
+  const enc = new TextEncoder();
+  term.onData(d => ws.send(enc.encode(d)));
+
+  // xterm.js 6.0.0 はタッチでスクロールバックを動かさない。
+  // 縦に動かしたときだけ受け取って行を送る。横は wrap の横スクロールに任せる
+  const el = document.getElementById('term');
+  let touch = null;
+  el.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    touch = { x: t.clientX, y: t.clientY, dir: null, rest: 0 };
+  }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (!touch || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if (!touch.dir) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      touch.dir = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+    }
+    if (touch.dir !== 'y') return;
+    e.preventDefault();
+    const rowH = document.querySelector('.xterm-screen').clientHeight / term.rows;
+    touch.rest += touch.y - t.clientY;
+    const n = Math.trunc(touch.rest / rowH);
+    if (n) { term.scrollLines(n); touch.rest -= n * rowH; }
+    touch.x = t.clientX; touch.y = t.clientY;
+  }, { passive: false });
+  el.addEventListener('touchend', () => { touch = null; });
+</script>
+</body>
+</html>

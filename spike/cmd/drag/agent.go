@@ -5,9 +5,11 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"embed"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -25,6 +27,11 @@ import (
 // シェルは持たないので、入れ替えても落ちてもセッションは残る
 
 var idPattern = regexp.MustCompile(`^[A-Z2-7]{26}$`)
+
+//go:embed web
+var webRoot embed.FS
+
+var webFS, _ = fs.Sub(webRoot, "web")
 
 func runAgent() error {
 	if err := os.MkdirAll(runDir(), 0o700); err != nil {
@@ -59,6 +66,15 @@ func runAgent() error {
 		fmt.Fprint(w, "bye")
 		time.AfterFunc(100*time.Millisecond, func() { os.Exit(0) })
 	})
+	// スマホの表示の検証用。認証が無いので、検証用のコンテナの中でだけ使う
+	if addr := os.Getenv("DRAG_LISTEN"); addr != "" {
+		mux.Handle("GET /", http.FileServerFS(webFS))
+		go func() {
+			if err := http.ListenAndServe(addr, mux); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
+		}()
+	}
 	return http.Serve(ln, mux)
 }
 

@@ -2,7 +2,7 @@
 # systemd を PID 1 で動かし、エージェントをサービスとして登録したときの動きを確かめる
 FROM ubuntu:24.04
 RUN apt-get update \
- && apt-get install -y --no-install-recommends systemd systemd-sysv dbus openssh-server screen tmux sudo procps ca-certificates \
+ && apt-get install -y --no-install-recommends systemd systemd-sysv dbus openssh-server screen tmux vim-tiny sudo procps ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && systemctl mask getty@tty1.service systemd-udevd.service \
  && systemctl enable ssh.service
