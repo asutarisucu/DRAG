@@ -85,3 +85,41 @@ vi を開いたままつなぎ直したときの表示は、スマホの表示�
 上り 10 Mbps の回線では、amd64 をそのまま送ると約 5.8 秒、gzip で送ると約 2.4 秒の計算です。
 検証用のコンテナ (Ubuntu 24.04 の最小構成) には gzip がありましたが、xz はありませんでした。
 配置では gzip で圧縮して送り、サーバーで展開します。
+
+## スマホでは PC の幅のまま横にスクロールでき、縦のスクロールはページ側で受ける
+
+xterm.js 6.0.0 を桁数 120、行数 30 で開き、外側の要素を `overflow-x: auto` にして横にスクロールさせました。
+Chrome のスマホの表示 (390 × 844、タッチあり) で、`spike/phonetest/phone.mjs` が次を確かめ、全部通りました。
+
+| 試したこと | 結果 |
+|---|---|
+| 120 桁を描く | ターミナルは幅 840 px で描かれ、ページ全体は 390 px のまま横にはみ出さない |
+| 横にスワイプする | 右端の 450 px まで動く |
+| 縦にスワイプする | 300 px で 23 行戻る。横の位置は動かない |
+| ターミナルをタップする | xterm.js の入力欄にフォーカスが移る |
+| 長いコマンドを打つ | 入力位置が見える位置まで、ブラウザが横に動かす |
+| vi を開いたまま別のページでつなぎ直す | 代替画面のまま、30 行とも元のページと同じ内容になる |
+
+縦のスクロールは、xterm.js だけでは動きませんでした。
+xterm.js 6.0.0 はタッチでスクロールバックを動かす処理を持っていません。
+`src/browser/Types.ts` に `handleTouchStart` の宣言だけがあり、実装はありません。
+VS Code から持ってきた `src/vs/base/browser/touch.ts` の Gesture も、登録する呼び出しがありません。
+試作のページでは、指の動きが縦向きのときだけ `touchmove` を受け、`term.scrollLines()` で行を送っています。
+横向きのときはブラウザの横スクロールに任せます。
+指を離したあとに慣性で流れる動きは、まだ入れていません。
+
+試した方法は次のとおりです。
+`drag` はあらかじめ `GOOS=linux go build ./cmd/drag` でビルドし、`docker cp` でコンテナの `/usr/local/bin/` に置きます。
+
+```
+docker compose exec -d -u asuta -e HOME=/home/asuta -e SHELL=/bin/bash -e DRAG_LISTEN=0.0.0.0:8080 testserver drag agent
+cd spike/phonetest && npm install && node phone.mjs
+```
+
+Chrome DevTools Protocol の `Input.synthesizeScrollGesture` では、素の横スクロールの要素でも動きませんでした。
+試験では `Input.dispatchTouchEvent` でタッチを1つずつ送っています。
+
+分かっていないことが2つあります。
+
+- iPhone の Safari と Android の Chrome の実機では試していません。Chrome のスマホの表示で試しただけです
+- 再送は直近の 512 KiB だけなので、全画面のアプリを開いてからそれ以上の出力があると、代替画面に切り替えた出力が再送から外れます。そのときの表示は試していません
