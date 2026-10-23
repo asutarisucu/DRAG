@@ -82,12 +82,20 @@ func main() {
 	ws.Write(context.Background(), websocket.MessageText, []byte(`{"cols":120,"rows":30}`))
 	ws.Write(context.Background(), websocket.MessageBinary, []byte("X=hello; cd /tmp; echo pid=$$\r"))
 	m := expect(ws, `pid=(\d+)`)
-	ws.CloseNow()
 	pid := ""
 	if m != nil {
 		pid = m[1]
 	}
 	check("セッションを作る", pid != "", "id="+id+" shell pid="+pid)
+	// ロケールが無いと、bash は打った日本語を \346\227\245 のように表示する
+	ws.Write(context.Background(), websocket.MessageBinary, []byte("echo 日本語 $LANG\r"))
+	m = expect(ws, `\$ echo 日本語 \$LANG\r\n[^日]*日本語 (\S+)\r`)
+	ws.CloseNow()
+	lang := ""
+	if m != nil {
+		lang = m[1]
+	}
+	check("サービスから起動したシェルで日本語を打てる", m != nil, "LANG="+lang)
 	same := func(name string) {
 		ws := p.attach(id)
 		if ws == nil {

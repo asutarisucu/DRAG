@@ -106,6 +106,7 @@ func spawnHolder() (string, error) {
 	}
 	defer log.Close()
 	cmd := exec.Command(exe, "hold", id)
+	cmd.Env = shellEnv()
 	cmd.Stdout, cmd.Stderr = log, log
 	// 新しいセッションにして、エージェントの端末やシグナルから切り離す
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -123,6 +124,31 @@ func spawnHolder() (string, error) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	return "", fmt.Errorf("holder %s did not start", id)
+}
+
+// systemd から起動したエージェントには、ロケールの環境変数が無い。
+// SSH でログインしたときに pam_env が読むファイルから補う。無ければ C.UTF-8 にする
+func shellEnv() []string {
+	env := os.Environ()
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "LANG=") || strings.HasPrefix(kv, "LC_ALL=") {
+			return env
+		}
+	}
+	for _, f := range []string{"/etc/default/locale", "/etc/locale.conf"} {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if ok && (k == "LANG" || k == "LANGUAGE" || strings.HasPrefix(k, "LC_")) {
+				env = append(env, k+"="+strings.Trim(v, `"'`))
+			}
+		}
+		return env
+	}
+	return append(env, "LANG=C.UTF-8")
 }
 
 // WebSocket の1本を保持役への接続1本につなぐ。
