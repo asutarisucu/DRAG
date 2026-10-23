@@ -1,0 +1,16 @@
+html, body {
+    margin: 0;
+    height: 100%;
+    background: #0c0f13;
+    color: #d7dee9;
+    font: 13px "Segoe UI", "Yu Gothic UI", sans-serif;
+}
+
+#status {
+    padding: 6px 10px;
+    border-bottom: 1px solid #303a48;
+}
+
+#term {
+    padding: 8px;
+}
