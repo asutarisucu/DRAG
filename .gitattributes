@@ -1,0 +1,2 @@
+# Linux で動かすファイルがあるので、改行は LF にそろえる
+* text=auto eol=lf
