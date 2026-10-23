@@ -64,14 +64,14 @@ KillMode=process
 
 vi を開いたままつなぎ直したときの表示は、スマホの表示の試験で確かめました。
 
-### サービスから起動するシェルには、ロケールを補う
+### サービスから起動したシェルでも日本語を打てる
 
-systemd から起動したエージェントには、LANG などのロケールの環境変数がありません。
-そのまま起動したシェルで `echo 日本語` と打つと、bash は打った行を `echo \346\227\245\346\234\254\350\252\236` と表示しました。
-SSH でログインしたときは、sshd の PAM の pam_env が `/etc/environment` と `/etc/default/locale` を読んで設定しています。
-試作のエージェントは、LANG と LC_ALL が無いときに `/etc/default/locale` か `/etc/locale.conf` を読んで補います。
-どちらも無ければ `LANG=C.UTF-8` にします。
-補ったあとは、打った日本語がそのまま表示されました。
+systemd のサービスにも LANG が渡ります。
+PID 1 の systemd が `/etc/locale.conf` を読んでいて、Ubuntu 24.04 では `/etc/default/locale` がそこへのリンクです。
+サービスから起動したシェルで `echo 日本語 $LANG` と打つと、打った行もそのまま表示され、LANG は `C.UTF-8` でした。
+
+LANG が無いと、bash は打った日本語を `echo \346\227\245\346\234\254\350\252\236` のように表示します。
+`docker exec` でエージェントを起動したときにこうなったので、そのときは `-e LANG=C.UTF-8` を付けます。
 
 ## 配置にかかる時間は回線の速さで決まり、gzip で送ると半分以下になる
 
@@ -121,7 +121,7 @@ VS Code から持ってきた `src/vs/base/browser/touch.ts` の Gesture も、�
 `drag` はあらかじめ `GOOS=linux go build ./cmd/drag` でビルドし、`docker cp` でコンテナの `/usr/local/bin/` に置きます。
 
 ```
-docker compose exec -d -u asuta -e HOME=/home/asuta -e SHELL=/bin/bash -e DRAG_LISTEN=0.0.0.0:8080 testserver drag agent
+docker compose exec -d -u asuta -e HOME=/home/asuta -e SHELL=/bin/bash -e LANG=C.UTF-8 -e DRAG_LISTEN=0.0.0.0:8080 testserver drag agent
 cd spike/phonetest && npm install && node phone.mjs
 ```
 

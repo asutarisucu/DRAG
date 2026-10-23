@@ -89,7 +89,7 @@ func main() {
 	check("セッションを作る", pid != "", "id="+id+" shell pid="+pid)
 	// ロケールが無いと、bash は打った日本語を \346\227\245 のように表示する
 	ws.Write(context.Background(), websocket.MessageBinary, []byte("echo 日本語 $LANG\r"))
-	m = expect(ws, `\$ echo 日本語 \$LANG\r\n[^日]*日本語 (\S+)\r`)
+	m = expect(ws, `echo 日本語 \$LANG\r\n[^日]*日本語 (\S+)\r`)
 	ws.CloseNow()
 	lang := ""
 	if m != nil {
