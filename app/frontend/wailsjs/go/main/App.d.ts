@@ -36,6 +36,8 @@ export function RestoreEntry(arg1:string,arg2:remote.TrashItem):Promise<string>;
 
 export function SavedServers():Promise<Array<store.Server>>;
 
+export function Sessions(arg1:string):Promise<Array<remote.Session>>;
+
 export function ShellCwd(arg1:string):Promise<string>;
 
 export function ShellInput(arg1:string,arg2:string):Promise<void>;

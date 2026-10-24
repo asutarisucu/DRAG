@@ -62,6 +62,18 @@ const ja = {
     moved: '{{cmd}} をウィンドウに移しました',
     dropHere: 'ここに移す',
     chipHint: 'ウィンドウへドラッグ',
+    returnHere: 'ここで離すとターミナルに戻す',
+    returned: '{{cmd}} をターミナルに戻しました',
+    openHere: 'ターミナルで開く',
+  },
+  sessions: {
+    title: 'セッション',
+    none: 'なし',
+    windows: 'DRAG のウィンドウ',
+    inWindow: 'ウィンドウ',
+    inTerminal: 'ターミナル',
+    shell: 'シェル',
+    windowsCount: '{{n}} ウィンドウ',
   },
   tabs: {
     close: '切断',

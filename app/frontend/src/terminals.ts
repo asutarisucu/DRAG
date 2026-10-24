@@ -5,6 +5,12 @@ export type TerminalApi = {
   // 前面のコマンドをデスクトップのウィンドウに移す。pos はデスクトップの中の位置
   popOut: (pos?: { x: number; y: number }) => void
   cwd: () => Promise<string>
+  // デスクトップのウィンドウのセッションをターミナルに戻す
+  takeBack: (winId: string) => void
+  // ウィンドウをドラッグしている間、ターミナルに「ここで離すと…」を出す
+  setDropLabel: (label: string) => void
+  // 前面のコマンド。シェル自身なら空
+  foreground: () => string
 }
 
 const terminals = new Map<string, TerminalApi>()

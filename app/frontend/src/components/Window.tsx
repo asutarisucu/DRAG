@@ -1,10 +1,12 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSettings } from '../settings'
+import { terminalOf } from '../terminals'
 import { focusWin, updateWin, type Rect, type Win } from '../windows'
 import { Icon } from './Icon'
 
 export type SnapMode = 'left' | 'right' | 'max' | null
+type DragMode = SnapMode | 'return'
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
@@ -34,7 +36,9 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
     bar.setPointerCapture(e.pointerId)
     const H = host()
     let start = { px: e.clientX, py: e.clientY, ...win.rect }
-    let moved = false, mode: SnapMode = null
+    let moved = false, mode: DragMode = null
+    // セッションのウィンドウは、右下のターミナルの上で離すとターミナルに戻す
+    const term = win.kind === 'session' && !win.ended ? document.querySelector<HTMLElement>(`[data-terminal="${win.serverId}"]`) : null
     const move = (ev: PointerEvent) => {
       if (!moved) {
         if (Math.hypot(ev.clientX - start.px, ev.clientY - start.py) < 4) return
@@ -50,18 +54,25 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
       const x = clamp(start.x + ev.clientX - start.px, -start.w + 90, H.width - 90)
       const y = clamp(start.y + ev.clientY - start.py, 0, H.height - 34)
       updateWin(win.id, { rect: { x, y, w: start.w, h: start.h } })
-      mode = !settings.snap ? null
+      const tr = term?.getBoundingClientRect()
+      const overTerm = !!tr && ev.clientX >= tr.left && ev.clientX <= tr.right && ev.clientY >= tr.top && ev.clientY <= tr.bottom
+      terminalOf(win.serverId)?.setDropLabel(overTerm ? t('desktop.returnHere') : '')
+      mode = overTerm ? 'return' : !settings.snap ? null
         : ev.clientX <= H.left + 8 ? 'left' : ev.clientX >= H.right - 8 ? 'right' : ev.clientY <= H.top + 6 ? 'max' : null
-      onSnapPreview(mode)
+      onSnapPreview(mode === 'return' ? null : mode)
     }
     const up = () => {
       bar.removeEventListener('pointermove', move)
       bar.removeEventListener('pointerup', up)
       bar.removeEventListener('pointercancel', up)
       onSnapPreview(null)
+      terminalOf(win.serverId)?.setDropLabel('')
       if (!moved) return
       const before: Rect = { x: start.x, y: start.y, w: start.w, h: start.h }
-      if (mode === 'max') updateWin(win.id, { max: true, prev: before })
+      if (mode === 'return') {
+        updateWin(win.id, { rect: before })
+        terminalOf(win.serverId)?.takeBack(win.id)
+      } else if (mode === 'max') updateWin(win.id, { max: true, prev: before })
       else if (mode) updateWin(win.id, { snapped: true, prev: before, rect: { x: mode === 'left' ? 0 : H.width / 2, y: 0, w: H.width / 2, h: H.height } })
     }
     bar.addEventListener('pointermove', move)

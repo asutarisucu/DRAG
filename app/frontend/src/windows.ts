@@ -19,6 +19,7 @@ export type Win = {
   ended: boolean
   detachable: boolean // screen と tmux。閉じてもセッションは残る
   replayFromIdle: boolean // 移したコマンドを打った行から描き直す
+  sessionKey?: string // screen か tmux のセッションなら "screen:名前" の形
 }
 
 let wins: Win[] = []

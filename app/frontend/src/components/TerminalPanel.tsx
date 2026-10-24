@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloseShell, OpenShell, ShellCwd, ShellInput, ShellResize } from '../../wailsjs/go/main/App'
-import { attachShell, foregroundOf, onForeground } from '../shellBus'
+import { CloseShell, OpenShell, ShellCwd, ShellInput, ShellReplay, ShellResize } from '../../wailsjs/go/main/App'
+import type { remote } from '../../wailsjs/go/models'
+import { attachCommand, sessionKeyOf } from '../sessions'
+import { attachShell, decode, foregroundOf, onForeground } from '../shellBus'
 import { useSettings } from '../settings'
 import { registerTerminal } from '../terminals'
 import { toast } from '../toasts'
-import { openWin } from '../windows'
+import { closeWin, openWin, winById } from '../windows'
 import { Icon } from './Icon'
 import { useXterm } from './useXterm'
 
@@ -31,11 +33,12 @@ const isDetachable = (cmdline: string) => ['screen', 'tmux'].includes(words(cmdl
 // 右下のターミナル。サーバーごとに1つシェルを開く。
 // generation は再接続のたびに増える。増えたら同じ画面のまま新しいシェルを開き直す。
 // 前面で動いているコマンドは見出しに出し、ドラッグかクリックでデスクトップのウィンドウに移す
-export function TerminalPanel({ serverId, generation, visible, fontSize }: {
+export function TerminalPanel({ serverId, generation, visible, fontSize, onForegroundChange }: {
   serverId: string
   generation: number
   visible: boolean
   fontSize: number
+  onForegroundChange: (cmdline: string) => void
 }) {
   const { t } = useTranslation()
   const settings = useSettings()
@@ -43,7 +46,16 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
   const { termRef, fitRef } = useXterm(host, fontSize)
   const shellRef = useRef('')
   const detachRef = useRef(() => {})
-  const [fg, setFg] = useState('')
+  const [fg, setFgState] = useState('')
+  const [dropLabel, setDropLabel] = useState('')
+  // ターミナルで開くセッションは、自動でウィンドウへ移さない
+  const noAutoRef = useRef(false)
+  const fgChangeRef = useRef(onForegroundChange)
+  fgChangeRef.current = onForegroundChange
+  const setFg = (c: string) => {
+    setFgState(c)
+    fgChangeRef.current(c)
+  }
   // 言語や設定を変えてもシェルを開き直さないよう、effect の中では ref から読む
   const tRef = useRef(t)
   tRef.current = t
@@ -102,7 +114,7 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
     const desk = document.querySelector<HTMLElement>(`[data-desktop="${serverId}"]`)?.getBoundingClientRect()
     openWin({
       serverId, kind: 'session', title: cmd, icon: 'terminal', shellId: id,
-      detachable: isDetachable(cmd), replayFromIdle: true, rect: pos,
+      detachable: isDetachable(cmd), replayFromIdle: true, rect: pos, sessionKey: sessionKeyOf(cmd) || undefined,
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
     open(await ShellCwd(id).catch(() => ''))
   }
@@ -113,8 +125,53 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
     if (id !== shellRef.current) return
     setFg(cmdline)
     const s = settingsRef.current
-    if (cmdline && s.autoOn && matchesAuto(cmdline, s.autoCmds)) popOutRef.current()
+    if (cmdline && noAutoRef.current) noAutoRef.current = false
+    else if (cmdline && s.autoOn && matchesAuto(cmdline, s.autoCmds)) popOutRef.current()
   }), [])
+
+  // ウィンドウのセッションをターミナルに戻す。今のシェルは何も動いていなければ閉じ、ウィンドウのチャネルに付け替える
+  const takeBack = async (winId: string) => {
+    const w = winById(winId)
+    const term = termRef.current
+    if (!w || w.ended || !term) return
+    if (shellRef.current && foregroundOf(shellRef.current)) {
+      toast(tRef.current('toast.busy'), 'warn')
+      return
+    }
+    detachRef.current()
+    if (shellRef.current) CloseShell(shellRef.current)
+    closeWin(w.id)
+    term.reset()
+    const r = await ShellReplay(w.shellId, false)
+    term.write(decode(r.data))
+    shellRef.current = w.shellId
+    detachRef.current = attachShell(w.shellId, {
+      out: data => term.write(data),
+      exit: () => {
+        if (shellRef.current === w.shellId) shellRef.current = ''
+        dim(tRef.current('terminal.ended'))
+      },
+    }, r.end)
+    setFg(foregroundOf(w.shellId))
+    ShellResize(w.shellId, term.cols, term.rows)
+    dim(tRef.current('desktop.returned', { cmd: w.title }))
+    term.focus()
+  }
+  const takeBackRef = useRef(takeBack)
+  takeBackRef.current = takeBack
+
+  // セッションの一覧からドラッグしてきたものを、ここで開く
+  const openSession = (s: { kind: string; name: string }) => {
+    const id = shellRef.current
+    if (!id) return
+    if (foregroundOf(id)) {
+      toast(tRef.current('toast.busy'), 'warn')
+      return
+    }
+    noAutoRef.current = true
+    ShellInput(id, attachCommand(s) + '\r')
+    termRef.current?.focus()
+  }
 
   // ファイルツリーから cd やパスを送る窓口。前面で別のコマンドが動いているときは送らない
   useEffect(() => {
@@ -132,6 +189,9 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
       cd: path => send(`cd ${path}\r`),
       insert: text => send(text),
       popOut: pos => popOutRef.current(pos),
+      takeBack: winId => takeBackRef.current(winId),
+      setDropLabel,
+      foreground: () => shellRef.current ? foregroundOf(shellRef.current) : '',
       cwd: () => shellRef.current ? ShellCwd(shellRef.current) : Promise.resolve(''),
     })
   }, [serverId, termRef])
@@ -144,7 +204,23 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
   }, [visible, fitRef, termRef])
 
   return (
-    <section className="flex min-h-0 flex-col border-t border-line bg-term">
+    <section
+      data-terminal={serverId}
+      className="relative flex min-h-0 flex-col border-t border-line bg-term"
+      onDragOver={e => {
+        if (!e.dataTransfer.types.includes('application/x-drag-session')) return
+        e.preventDefault()
+        setDropLabel(t('desktop.openHere'))
+      }}
+      onDragLeave={() => setDropLabel('')}
+      onDrop={e => {
+        setDropLabel('')
+        const data = e.dataTransfer.getData('application/x-drag-session')
+        if (!data) return
+        e.preventDefault()
+        openSession(JSON.parse(data) as remote.Session)
+      }}
+    >
       <div className="flex h-[34px] flex-none items-center gap-2.5 border-b border-line bg-panel pr-2 pl-3.5">
         <span className="text-[11px] font-semibold tracking-[.08em] text-muted">{t('terminal.title')}</span>
         {fg && (
@@ -166,6 +242,11 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
         )}
       </div>
       <div ref={host} className="min-h-0 flex-1" />
+      {dropLabel && (
+        <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold text-text">
+          <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{dropLabel}</span>
+        </div>
+      )}
     </section>
   )
 }

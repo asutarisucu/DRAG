@@ -188,6 +188,24 @@ export namespace remote {
 	        this.target = source["target"];
 	    }
 	}
+	export class Session {
+	    kind: string;
+	    name: string;
+	    attached: boolean;
+	    desc: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Session(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.name = source["name"];
+	        this.attached = source["attached"];
+	        this.desc = source["desc"];
+	    }
+	}
 	export class TrashItem {
 	    name: string;
 	    from: string;

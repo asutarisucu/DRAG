@@ -63,6 +63,18 @@ const en: Messages = {
     moved: 'Moved {{cmd}} to a window',
     dropHere: 'Move here',
     chipHint: 'Drag to the desktop',
+    returnHere: 'Release to return it to the terminal',
+    returned: 'Returned {{cmd}} to the terminal',
+    openHere: 'Open in the terminal',
+  },
+  sessions: {
+    title: 'Sessions',
+    none: 'None',
+    windows: 'DRAG windows',
+    inWindow: 'Window',
+    inTerminal: 'Terminal',
+    shell: 'Shell',
+    windowsCount: '{{n}} windows',
   },
   tabs: {
     close: 'Disconnect',

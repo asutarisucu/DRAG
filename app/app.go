@@ -418,6 +418,15 @@ func (a *App) Stat(serverID, p string) (remote.Props, error) {
 	return s.Stat(p)
 }
 
+// Sessions は screen と tmux のセッションの一覧
+func (a *App) Sessions(serverID string) ([]remote.Session, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return nil, err
+	}
+	return s.Sessions()
+}
+
 func (a *App) shell(id string) *remote.Shell {
 	a.mu.Lock()
 	defer a.mu.Unlock()

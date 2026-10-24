@@ -66,6 +66,10 @@ export function SavedServers() {
   return window['go']['main']['App']['SavedServers']();
 }
 
+export function Sessions(arg1) {
+  return window['go']['main']['App']['Sessions'](arg1);
+}
+
 export function ShellCwd(arg1) {
   return window['go']['main']['App']['ShellCwd'](arg1);
 }

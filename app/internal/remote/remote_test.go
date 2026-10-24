@@ -306,6 +306,33 @@ func TestForegroundAndReplay(t *testing.T) {
 	}
 }
 
+func TestSessionsListsScreenAndTmux(t *testing.T) {
+	s := dialTrusted(t)
+	run := func(cmd string) {
+		sess, _ := s.ssh.NewSession()
+		defer sess.Close()
+		sess.Run(cmd)
+	}
+	run("screen -dmS drag-t1; tmux new -d -s drag-t2")
+	t.Cleanup(func() { run("screen -S drag-t1 -X quit; tmux kill-session -t drag-t2") })
+	list, err := s.Sessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scr, tm *Session
+	for i := range list {
+		switch {
+		case list[i].Kind == "screen" && strings.HasSuffix(list[i].Name, ".drag-t1"):
+			scr = &list[i]
+		case list[i].Kind == "tmux" && list[i].Name == "drag-t2":
+			tm = &list[i]
+		}
+	}
+	if scr == nil || tm == nil || scr.Attached || tm.Attached || tm.Desc != "1" || scr.Desc == "" {
+		t.Fatalf("%+v", list)
+	}
+}
+
 func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	s := dialTrusted(t)
 	var mu sync.Mutex

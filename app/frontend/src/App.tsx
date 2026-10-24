@@ -8,6 +8,9 @@ import { Desktop } from './components/Desktop'
 import { FileTree } from './components/FileTree'
 import { Icon, type IconName } from './components/Icon'
 import { Resizer } from './components/Resizer'
+import { SessionsView } from './components/SessionsView'
+import { openSessionWindow } from './openSession'
+import { sessionKeyOf } from './sessions'
 import { SettingsDialog } from './components/SettingsDialog'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Toasts } from './components/Toasts'
@@ -144,23 +147,31 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
 }) {
   const { t } = useTranslation()
   const st = useSettings()
+  const [view, setView] = useState<'files' | 'sessions'>('files')
+  const [termFg, setTermFg] = useState('')
   return (
     <div className={`absolute inset-0 grid ${visible ? '' : 'invisible'}`} style={{ gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }} data-server={s.id}>
       <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
-        <ActButton icon="files" title={t('activity.files')} active />
-        <ActButton icon="layers" title={t('activity.sessions')} />
+        <ActButton icon="files" title={t('activity.files')} active={view === 'files'} onClick={() => setView('files')} />
+        <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions'} onClick={() => setView('sessions')} />
         <div className="flex-1" />
         <ActButton icon="gear" title={t('activity.settings')} onClick={onSettings} />
       </nav>
       <aside className="flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel">
-        <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{t('files.title')}</div>
-        <FileTree serverId={s.id} root={s.home} generation={s.gen} />
+        <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{view === 'files' ? t('files.title') : t('sessions.title')}</div>
+        {/* ツリーの開き具合を残すため、隠すだけにする */}
+        <div className={`flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
+          <FileTree serverId={s.id} root={s.home} generation={s.gen} />
+        </div>
+        {view === 'sessions' && (
+          <SessionsView serverId={s.id} visible={visible} terminalKey={sessionKeyOf(termFg)} onOpen={x => openSessionWindow(s.id, x)} />
+        )}
       </aside>
       <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />
       <main className="grid min-h-0 min-w-0" style={{ gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}>
         <Desktop serverId={s.id} />
         <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />
-        <TerminalPanel serverId={s.id} generation={s.gen} visible={visible} fontSize={st.termSize} />
+        <TerminalPanel serverId={s.id} generation={s.gen} visible={visible} fontSize={st.termSize} onForegroundChange={setTermFg} />
       </main>
       {s.conn !== 'ok' && <ConnBanner server={s} onReconnect={onReconnect} onClose={onClose} />}
     </div>

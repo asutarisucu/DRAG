@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
+import { openSessionWindow } from '../openSession'
 import { onForeground } from '../shellBus'
 import { useSettings } from '../settings'
 import { terminalOf } from '../terminals'
@@ -79,17 +80,24 @@ export function Desktop({ serverId }: { serverId: string }) {
         data-desktop={serverId}
         className="desk-bg relative isolate flex-1 overflow-hidden"
         onDragOver={e => {
-          if (!e.dataTransfer.types.includes('application/x-drag-fg')) return
+          const types = e.dataTransfer.types
+          if (!types.includes('application/x-drag-fg') && !types.includes('application/x-drag-session')) return
           e.preventDefault()
           setDropOn(true)
         }}
         onDragLeave={() => setDropOn(false)}
         onDrop={e => {
           setDropOn(false)
-          if (!e.dataTransfer.types.includes('application/x-drag-fg')) return
-          e.preventDefault()
           const r = host()
-          terminalOf(serverId)?.popOut({ x: e.clientX - r.left - 40, y: e.clientY - r.top - 16 })
+          const pos = { x: e.clientX - r.left - 40, y: e.clientY - r.top - 16 }
+          const session = e.dataTransfer.getData('application/x-drag-session')
+          if (session) {
+            e.preventDefault()
+            openSessionWindow(serverId, JSON.parse(session), pos)
+          } else if (e.dataTransfer.types.includes('application/x-drag-fg')) {
+            e.preventDefault()
+            terminalOf(serverId)?.popOut(pos)
+          }
         }}
       >
         {wins.length === 0 && <div className="pointer-events-none absolute inset-0 grid place-items-center text-faint select-none">{t('desktop.empty')}</div>}
@@ -101,7 +109,7 @@ export function Desktop({ serverId }: { serverId: string }) {
         {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}
         {dropOn && (
           <div className="pointer-events-none absolute inset-2 z-[2147483001] grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold">
-            {t('desktop.dropHere')}
+            <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{t('desktop.dropHere')}</span>
           </div>
         )}
       </div>
