@@ -3,7 +3,6 @@ module pcapp
 go 1.26.0
 
 require (
-	github.com/coder/websocket v1.8.15
 	github.com/wailsapp/wails/v2 v2.17.0
 	golang.org/x/crypto v0.58.0
 )

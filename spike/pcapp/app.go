@@ -3,25 +3,20 @@ package main
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"io"
-	"net"
-	"net/http"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/coder/websocket"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/ssh"
 )
 
 // App は PC アプリの試作。検証用サーバーに SSH でつなぎ、
-// エージェントのセッションを1つ開いて xterm.js に流す
+// PTY 付きのシェルを1つ開いて xterm.js に流す
 type App struct {
-	ctx context.Context
-	sc  *ssh.Client
-	ws  *websocket.Conn
+	ctx  context.Context
+	sess *ssh.Session
+	in   io.Writer
 }
 
 func NewApp() *App {
@@ -39,8 +34,9 @@ func env(key, def string) string {
 	return def
 }
 
-// Connect は検証用サーバーにつなぎ、セッションを開く。失敗したらエラーの文を返す。
-// 接続先は DRAG_ADDR、DRAG_USER、DRAG_PASS で変えられる
+// Connect は検証用サーバーにつなぎ、シェルを開く。失敗したらエラーの文を返す。
+// 接続先は DRAG_ADDR、DRAG_USER、DRAG_PASS で変えられる。
+// DRAG_OUTLOG にファイルを指定すると、シェルの出力をそのまま書き足す
 func (a *App) Connect(cols, rows int) string {
 	sc, err := ssh.Dial("tcp", env("DRAG_ADDR", "127.0.0.1:2222"), &ssh.ClientConfig{
 		User:            env("DRAG_USER", "asuta"),
@@ -51,57 +47,41 @@ func (a *App) Connect(cols, rows int) string {
 	if err != nil {
 		return err.Error()
 	}
-	a.sc = sc
-	home, err := a.run("echo $HOME")
+	s, err := sc.NewSession()
 	if err != nil {
 		return err.Error()
 	}
-	sock := strings.TrimSpace(home) + "/.drag/agent.sock"
-	hc := &http.Client{Transport: &http.Transport{
-		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return sc.DialContext(ctx, "unix", sock)
-		},
-	}}
+	// 検証用サーバーには既定のロケールが無いので、日本語を打てるように UTF-8 にする
+	s.Setenv("LANG", "C.UTF-8")
+	if err := s.RequestPty("xterm-256color", rows, cols, nil); err != nil {
+		return err.Error()
+	}
+	in, _ := s.StdinPipe()
+	out, _ := s.StdoutPipe()
+	if err := s.Shell(); err != nil {
+		return err.Error()
+	}
+	a.sess, a.in = s, in
 
-	// エージェントが応答しなければ、置いてある実行ファイルを起動する
-	if _, err := a.get(hc, "/version"); err != nil {
-		a.run("setsid -f ~/.drag/bin/drag agent </dev/null >/dev/null 2>&1")
-		for i := 0; ; i++ {
-			if _, err = a.get(hc, "/version"); err == nil {
-				break
-			}
-			if i == 50 {
-				return "エージェントが起動しない: " + err.Error()
-			}
-			time.Sleep(100 * time.Millisecond)
+	var log io.Writer = io.Discard
+	if p := os.Getenv("DRAG_OUTLOG"); p != "" {
+		if f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
+			log = f
 		}
 	}
-
-	res, err := hc.Post("http://drag/sessions", "", nil)
-	if err != nil {
-		return err.Error()
-	}
-	b, _ := io.ReadAll(res.Body)
-	res.Body.Close()
-	id := strings.TrimSpace(string(b))
-
-	ws, _, err := websocket.Dial(a.ctx, "ws://drag/sessions/"+id, &websocket.DialOptions{HTTPClient: hc})
-	if err != nil {
-		return err.Error()
-	}
-	ws.SetReadLimit(-1)
-	a.ws = ws
-	a.Resize(cols, rows)
-
 	go func() {
+		b := make([]byte, 32*1024)
 		for {
-			_, p, err := ws.Read(a.ctx)
+			n, err := out.Read(b)
+			if n > 0 {
+				log.Write(b[:n])
+				// UTF-8 の途中で切れたバイト列も壊さずに渡すため、base64 にする
+				runtime.EventsEmit(a.ctx, "out", base64.StdEncoding.EncodeToString(b[:n]))
+			}
 			if err != nil {
 				runtime.EventsEmit(a.ctx, "closed", err.Error())
 				return
 			}
-			// UTF-8 の途中で切れたバイト列も壊さずに渡すため、base64 にする
-			runtime.EventsEmit(a.ctx, "out", base64.StdEncoding.EncodeToString(p))
 		}
 	}()
 	return ""
@@ -109,33 +89,13 @@ func (a *App) Connect(cols, rows int) string {
 
 // Input は xterm.js の onData をそのまま送る
 func (a *App) Input(data string) {
-	if a.ws != nil {
-		a.ws.Write(a.ctx, websocket.MessageBinary, []byte(data))
+	if a.in != nil {
+		io.WriteString(a.in, data)
 	}
 }
 
 func (a *App) Resize(cols, rows int) {
-	if a.ws != nil {
-		a.ws.Write(a.ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"cols":%d,"rows":%d}`, cols, rows)))
+	if a.sess != nil {
+		a.sess.WindowChange(rows, cols)
 	}
-}
-
-func (a *App) run(cmd string) (string, error) {
-	s, err := a.sc.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer s.Close()
-	out, err := s.CombinedOutput(cmd)
-	return string(out), err
-}
-
-func (a *App) get(hc *http.Client, path string) (string, error) {
-	res, err := hc.Get("http://drag" + path)
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-	b, err := io.ReadAll(res.Body)
-	return string(b), err
 }

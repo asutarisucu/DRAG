@@ -239,7 +239,7 @@ Wails は v2 が安定版で、v3 は 2026-10 の時点でベータです。
 
 | 検証 | 状態 |
 |---|---|
-| Wails の WebView2 の上で、xterm.js に日本語入力が通るか | Meltype では通る。Microsoft IME と Google 日本語入力は未確認 |
+| Wails の WebView2 の上で、xterm.js に日本語入力が通るか | Meltype、Microsoft IME、Google 日本語入力のどれでも通る |
 | PC の幅のターミナルを、スマホで横スクロールさせて表示できるか | できる。Android の実機でも動いた。iPhone は未確認 |
 | 前面で動いているコマンドを、SSH の別のチャネルから調べて切り出せるか | できる。bash・zsh・fish で、打ってから 0.25 秒前後で分かる |
 | sudo モードで、ファイルの操作とコマンドを sudo の権限で行えるか | できる |

@@ -5,7 +5,7 @@
 
 | 検証 | 状態 |
 |---|---|
-| Wails の WebView2 の上で、xterm.js に日本語入力が通るか | Meltype では通る。Microsoft IME と Google 日本語入力は未確認 (2026-10-24) |
+| Wails の WebView2 の上で、xterm.js に日本語入力が通るか | Meltype、Microsoft IME、Google 日本語入力のどれでも通る (2026-10-24) |
 | PC の幅のターミナルを、スマホで横スクロールさせて表示できるか | できる。縦のスクロールは自前の処理が要る。Android の Chrome の実機でも動いた。iPhone は未確認 (2026-10-24) |
 | 前面で動いているコマンドを、SSH の別のチャネルから調べて切り出せるか | できる。bash・zsh・fish で、打ってから 0.25 秒前後で分かる (2026-10-24) |
 | sudo モードで、ファイルの操作とコマンドを sudo の権限で行えるか | できる。パスワードが違うときと NOPASSWD のときに手当てが要る (2026-10-24) |
@@ -18,7 +18,7 @@
 - エージェントを入れ替えても、シェルが切れずに残るか。unit に `KillMode=process` を書けば残った
 - エージェントの転送から起動までにかかる時間。ローカルのコンテナで 0.4 秒前後だった
 
-スマホの横スクロールと Wails の日本語入力の試験では、表示と入力を試すために、エージェントの試作 (`spike/cmd/drag`) をサーバー側の中継に使っています。
+スマホの横スクロールの試験と、Wails の日本語入力の Meltype での試験では、表示と入力を試すために、エージェントの試作 (`spike/cmd/drag`) をサーバー側の中継に使っています。
 
 ## 検証の環境
 
@@ -70,7 +70,8 @@ Chrome DevTools Protocol の `Input.synthesizeScrollGesture` では、素の横�
 
 ## Wails の上の xterm.js で、IME の変換と確定が通る
 
-`spike/pcapp` は Wails v2.17.0 の vanilla のひな形から作った試作で、SSH でつないでエージェントのセッションを xterm.js 6.0.0 に表示します。
+`spike/pcapp` は Wails v2.17.0 の vanilla のひな形から作った試作で、SSH でつないだシェルを xterm.js 6.0.0 に表示します。
+最初はエージェントのセッションを表示していて、2026-10-24 に、PTY 付きのシェルへ直接つなぐ形に直しました。
 WebView2 は 155.0.4283.62 です。
 この PC の既定の IME の Meltype で、`echo ` に続けて にほんご と打ち、変換して確定し、実行しました。
 
@@ -80,7 +81,13 @@ WebView2 は 155.0.4283.62 です。
 
 キーは SendInput の仮想キーで送り、IME の開け閉めは WM_IME_CONTROL で行いました。
 Unicode の文字として送るツールでは IME を通らず、英字のまま入りました。
-Microsoft IME と Google 日本語入力では、まだ試していません。
+
+同じ日に、シェルへ直接つなぐ形に直した試作で、Microsoft IME と Google 日本語入力も試しました。
+どちらも同じ手順で打ち、変換中の文字と候補の窓はカーソルの位置に出ました。
+実行すると 日本語 と出力され、シェルの出力にも `echo 日本語` と `日本語` がそのまま届いていました。
+
+IME の切り替えは、`ITfInputProcessorProfileMgr::ActivateProfile` を `TF_IPPMF_FORSESSION` で呼んで行いました。
+切り替えたあと `GetActiveProfile` で、キーボードの入力方式が切り替えた IME になったことを確かめています。
 
 ## 前面のコマンドは、SSH の別のチャネルで /proc を読めば分かる
 
