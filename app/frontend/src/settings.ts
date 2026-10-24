@@ -8,9 +8,10 @@ export type Settings = {
   termSize: number
   sidebarW: number
   terminalH: number
+  uploadConflict: 'ask' | 'overwrite' | 'keep' | 'skip'
 }
 
-export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230 }
+export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask' }
 const KEY = 'drag-settings'
 
 function load(): Settings {

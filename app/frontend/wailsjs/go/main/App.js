@@ -14,8 +14,16 @@ export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
 
+export function Download(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Download'](arg1, arg2, arg3);
+}
+
 export function ListDir(arg1, arg2) {
   return window['go']['main']['App']['ListDir'](arg1, arg2);
+}
+
+export function LocalEntries(arg1) {
+  return window['go']['main']['App']['LocalEntries'](arg1);
 }
 
 export function NewEntry(arg1, arg2, arg3, arg4) {
@@ -28,6 +36,10 @@ export function OpenShell(arg1, arg2, arg3, arg4) {
 
 export function PasteEntry(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['PasteEntry'](arg1, arg2, arg3, arg4);
+}
+
+export function PickUploadFiles() {
+  return window['go']['main']['App']['PickUploadFiles']();
 }
 
 export function Probe(arg1) {
@@ -66,6 +78,14 @@ export function ShellResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['ShellResize'](arg1, arg2, arg3);
 }
 
+export function Stat(arg1, arg2) {
+  return window['go']['main']['App']['Stat'](arg1, arg2);
+}
+
 export function TrashEntry(arg1, arg2) {
   return window['go']['main']['App']['TrashEntry'](arg1, arg2);
+}
+
+export function Upload(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['Upload'](arg1, arg2, arg3, arg4, arg5);
 }

@@ -80,6 +80,25 @@ export namespace main {
 		    return a;
 		}
 	}
+	
+	export class LocalEntry {
+	    path: string;
+	    name: string;
+	    dir: boolean;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.name = source["name"];
+	        this.dir = source["dir"];
+	        this.size = source["size"];
+	    }
+	}
 
 }
 
@@ -129,6 +148,30 @@ export namespace remote {
 	        this.docker = source["docker"];
 	        this.screen = source["screen"];
 	        this.tmux = source["tmux"];
+	    }
+	}
+	export class Props {
+	    type: string;
+	    size: number;
+	    mode: string;
+	    owner: string;
+	    group: string;
+	    modTime: number;
+	    target: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Props(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.type = source["type"];
+	        this.size = source["size"];
+	        this.mode = source["mode"];
+	        this.owner = source["owner"];
+	        this.group = source["group"];
+	        this.modTime = source["modTime"];
+	        this.target = source["target"];
 	    }
 	}
 	export class TrashItem {

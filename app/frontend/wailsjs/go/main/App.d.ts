@@ -10,13 +10,19 @@ export function Connect(arg1:main.ConnectRequest):Promise<main.ConnectResult>;
 
 export function Disconnect(arg1:string):Promise<void>;
 
+export function Download(arg1:string,arg2:string,arg3:string):Promise<string>;
+
 export function ListDir(arg1:string,arg2:string):Promise<Array<remote.Entry>>;
+
+export function LocalEntries(arg1:Array<string>):Promise<Array<main.LocalEntry>>;
 
 export function NewEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
 export function OpenShell(arg1:string,arg2:number,arg3:number,arg4:string):Promise<string>;
 
 export function PasteEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
+
+export function PickUploadFiles():Promise<Array<string>>;
 
 export function Probe(arg1:string):Promise<remote.Info>;
 
@@ -36,4 +42,8 @@ export function ShellInput(arg1:string,arg2:string):Promise<void>;
 
 export function ShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 
+export function Stat(arg1:string,arg2:string):Promise<remote.Props>;
+
 export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;
+
+export function Upload(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<string>;

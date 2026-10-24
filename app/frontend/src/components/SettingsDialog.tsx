@@ -27,8 +27,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const s = useSettings()
-  const [page, setPage] = useState<'look' | 'term'>('look')
-  const pages: ['look' | 'term', IconName][] = [['look', 'window'], ['term', 'terminal']]
+  const [page, setPage] = useState<'look' | 'term' | 'ops'>('look')
+  const pages: ['look' | 'term' | 'ops', IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear']]
 
   return (
     <Modal title={t('settings.title')} width={780} onClose={onClose}>
@@ -40,7 +40,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </button>
           ))}
           <div className="flex-1" />
-          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize })}>
+          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict })}>
             {t('settings.reset')}
           </button>
         </div>
@@ -54,6 +54,20 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               <Seg value={s.theme} options={[['dark', t('settings.dark')], ['light', t('settings.light')]]} onPick={theme => setSettings({ theme })} />
             </Row>
           </>}
+          {page === 'ops' && (
+            <Row label={t('settings.uploadConflict')}>
+              <select
+                className="field h-8 min-w-[140px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+                value={s.uploadConflict}
+                onChange={e => setSettings({ uploadConflict: e.target.value as typeof s.uploadConflict })}
+              >
+                <option value="ask">{t('settings.conflictAsk')}</option>
+                <option value="overwrite">{t('upload.overwrite')}</option>
+                <option value="keep">{t('upload.keep')}</option>
+                <option value="skip">{t('upload.skip')}</option>
+              </select>
+            </Row>
+          )}
           {page === 'term' && (
             <Row label={t('settings.termSize')}>
               <div className="flex items-center gap-2.5">

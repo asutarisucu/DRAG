@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Disconnect, Reconnect, SavedServers } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
-import { EventsOn } from '../wailsjs/runtime/runtime'
+import { EventsOn, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime'
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
 import { FileTree } from './components/FileTree'
 import { Icon, type IconName } from './components/Icon'
@@ -34,6 +34,17 @@ export default function App() {
   useEffect(() => EventsOn('server:closed', (id: string) => {
     update(id, s => s.conn === 'ok' ? { conn: 'lost', retry: 1, wait: 3, error: '' } : {})
   }), [])
+
+  // PC のファイルのドロップ。落ちた位置の行からフォルダを決め、そのサーバーのファイルツリーに渡す
+  useEffect(() => {
+    OnFileDrop((x, y, paths) => {
+      const target = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop-dir]')
+      const server = target?.closest<HTMLElement>('[data-server]')
+      if (!target || !server) return
+      window.dispatchEvent(new CustomEvent('drag:file-drop', { detail: { serverId: server.dataset.server, dir: target.dataset.dropDir, paths } }))
+    }, false)
+    return () => OnFileDropOff()
+  }, [])
 
   // 切れているサーバーの待ち時間を1秒ずつ減らし、0 になったらつなぎ直す
   const waiting = servers.some(s => s.conn === 'lost' && !s.error)
@@ -133,7 +144,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   const { t } = useTranslation()
   const st = useSettings()
   return (
-    <div className={`absolute inset-0 grid ${visible ? '' : 'invisible'}`} style={{ gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }}>
+    <div className={`absolute inset-0 grid ${visible ? '' : 'invisible'}`} style={{ gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }} data-server={s.id}>
       <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
         <ActButton icon="files" title={t('activity.files')} active />
         <ActButton icon="layers" title={t('activity.sessions')} />

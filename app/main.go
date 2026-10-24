@@ -24,8 +24,10 @@ func main() {
 		},
 		// 画面の --bg と同じ色。読み込むまでの間に白く光らないように
 		BackgroundColour: &options.RGBA{R: 12, G: 15, B: 19, A: 1},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		// PC のファイルをファイルツリーへドロップしてアップロードする
+		DragAndDrop: &options.DragAndDrop{EnableFileDrop: true},
+		OnStartup:   app.startup,
+		OnShutdown:  app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

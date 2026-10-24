@@ -1,10 +1,13 @@
 package remote
 
 import (
+	"archive/zip"
+	"bytes"
 	"crypto/ed25519"
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -188,6 +191,71 @@ func TestFileOps(t *testing.T) {
 	}
 	if s.exists("/home/asuta/.local/share/Trash/info/" + item.Name + ".trashinfo") {
 		t.Fatal("trashinfo が残っている")
+	}
+}
+
+func TestUploadDownloadAndStat(t *testing.T) {
+	s := dialTrusted(t)
+	d := testDir(t, s)
+
+	// PC の側にフォルダを作って送る
+	local := filepath.Join(t.TempDir(), "up dir")
+	os.MkdirAll(filepath.Join(local, "sub"), 0o755)
+	os.WriteFile(filepath.Join(local, "a.txt"), []byte("hello"), 0o644)
+	os.WriteFile(filepath.Join(local, "sub", "日本語.txt"), bytes.Repeat([]byte("x"), 300000), 0o644)
+	var last, total int64
+	p, err := s.Upload(local, d, true, func(done, tot int64) { last, total = done, tot })
+	if err != nil || p != d+"/up dir" {
+		t.Fatalf("%q %v", p, err)
+	}
+	if last != 300005 || total != 300005 {
+		t.Fatalf("進み %d / %d", last, total)
+	}
+	// 同じ名前でもう一度。keep なら番号を足し、上書きなら同じ場所に混ぜる
+	if p, _ := s.Upload(local, d, true, func(int64, int64) {}); p != d+"/up dir (2)" {
+		t.Fatalf("keep %q", p)
+	}
+	os.WriteFile(filepath.Join(local, "b.txt"), []byte("new"), 0o644)
+	if p, _ := s.Upload(local, d, false, func(int64, int64) {}); p != d+"/up dir" {
+		t.Fatalf("上書き %q", p)
+	}
+	ents, _ := s.ListDir(d + "/up dir")
+	if len(ents) != 3 {
+		t.Fatalf("混ぜたあと %+v", ents)
+	}
+
+	// フォルダを zip にして受け取る
+	zipPath := filepath.Join(t.TempDir(), "out.zip")
+	if err := s.Download(d+"/up dir", zipPath, func(int64, int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range zr.File {
+		names = append(names, f.Name)
+	}
+	zr.Close()
+	slices.Sort(names)
+	want := []string{"up dir/", "up dir/a.txt", "up dir/b.txt", "up dir/sub/", "up dir/sub/日本語.txt"}
+	if !slices.Equal(names, want) {
+		t.Fatalf("zip の中 %q", names)
+	}
+
+	// ファイルはそのまま受け取る
+	filePath := filepath.Join(t.TempDir(), "a.txt")
+	if err := s.Download(d+"/up dir/a.txt", filePath, func(int64, int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(filePath); string(b) != "hello" {
+		t.Fatalf("中身 %q", b)
+	}
+
+	pr, err := s.Stat(d + "/up dir/a.txt")
+	if err != nil || pr.Owner != "asuta" || pr.Size != 5 || !strings.HasPrefix(pr.Mode, "-rw") {
+		t.Fatalf("%+v %v", pr, err)
 	}
 }
 

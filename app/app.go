@@ -309,6 +309,85 @@ func (a *App) RestoreEntry(serverID string, item remote.TrashItem) (string, erro
 	return s.Restore(item)
 }
 
+// progress は送った量を "transfer:progress" (key, done, total) のイベントで送る。多すぎないよう 0.1 秒に1回まで
+func (a *App) progress(key string) remote.Progress {
+	var last time.Time
+	return func(done, total int64) {
+		if done < total && time.Since(last) < 100*time.Millisecond {
+			return
+		}
+		last = time.Now()
+		runtime.EventsEmit(a.ctx, "transfer:progress", key, done, total)
+	}
+}
+
+// PickUploadFiles は、アップロードするファイルを PC から選ぶ窓を出す
+func (a *App) PickUploadFiles() ([]string, error) {
+	return runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{})
+}
+
+type LocalEntry struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+	Dir  bool   `json:"dir"`
+	Size int64  `json:"size"`
+}
+
+// LocalEntries は、ドロップされたり選ばれたりした PC のファイルの名前と大きさを返す
+func (a *App) LocalEntries(paths []string) ([]LocalEntry, error) {
+	out := make([]LocalEntry, 0, len(paths))
+	for _, p := range paths {
+		fi, err := os.Stat(p)
+		if err != nil {
+			return nil, err
+		}
+		size, err := remote.LocalSize(p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, LocalEntry{Path: p, Name: filepath.Base(p), Dir: fi.IsDir(), Size: size})
+	}
+	return out, nil
+}
+
+// Upload は PC のファイルかフォルダを dir へ送り、置いたパスを返す。keep なら同じ名前を避け、そうでなければ上書きする
+func (a *App) Upload(serverID, local, dir string, keep bool, key string) (string, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	return s.Upload(local, dir, keep, a.progress(key))
+}
+
+// Download は保存先を PC で選んでもらい、そこへ書く。フォルダは zip にする。やめたら空を返す
+func (a *App) Download(serverID, p, key string) (string, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	props, err := s.Stat(p)
+	if err != nil {
+		return "", err
+	}
+	name := path.Base(p)
+	if strings.HasPrefix(props.Mode, "d") {
+		name += ".zip"
+	}
+	local, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{DefaultFilename: name})
+	if err != nil || local == "" {
+		return "", err
+	}
+	return local, s.Download(p, local, a.progress(key))
+}
+
+func (a *App) Stat(serverID, p string) (remote.Props, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return remote.Props{}, err
+	}
+	return s.Stat(p)
+}
+
 // ShellBusy は、ターミナルで別のコマンドが前面にいるかを返す。調べられないときは false
 func (a *App) ShellBusy(serverID, shellID string) bool {
 	s, err := a.server(serverID)
