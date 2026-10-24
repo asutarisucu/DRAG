@@ -76,6 +76,8 @@ const en: Messages = {
     lostEnded: 'Ended because the connection was lost',
     reattached: 'Reconnected and reattached to the session',
     dropHere: 'Move here',
+    dropOpen: 'Open here',
+    dropShell: 'Open a shell',
     chipHint: 'Drag to the desktop',
     returnHere: 'Release to return it to the terminal',
     returned: 'Returned {{cmd}} to the terminal',
@@ -226,6 +228,7 @@ const en: Messages = {
     needSudo: 'Turn on sudo mode to control services',
   },
   dk: {
+    dragShell: 'Drag to the desktop to open a shell',
     containers: 'Containers',
     images: 'Images',
     volumes: 'Volumes',

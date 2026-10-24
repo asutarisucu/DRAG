@@ -10,7 +10,7 @@ import { DockerView } from './DockerView'
 import { MonitorView } from './Monitor'
 import { ServicesView } from './Services'
 import { TrashView } from './TrashView'
-import { openTool, TOOLS } from '../tools'
+import { openContainerShell, openTool, TOOLS } from '../tools'
 import { onForeground } from '../shellBus'
 import { useMobile } from '../mobile'
 import { useSettings } from '../settings'
@@ -30,7 +30,8 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
   const wins = useWins(serverId)
   const layer = useRef<HTMLDivElement>(null)
   const [snap, setSnap] = useState<SnapMode>(null)
-  const [dropOn, setDropOn] = useState(false)
+  // デスクトップへドラッグしている間に出す案内。空なら出さない
+  const [dropOn, setDropOn] = useState('')
   const termCount = useRef(0)
   const host = () => layer.current!.getBoundingClientRect()
   const focused = topWin(serverId)?.id
@@ -75,8 +76,20 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
     }
   }, [generation])
 
+  // 閉じるときは、ウィンドウの写しを薄くしながら消す。本体はすぐに閉じる (mock/ と同じ動き)
+  const fade = (id: string) => {
+    const node = layer.current?.querySelector<HTMLElement>(`[data-win="${id}"]`)
+    if (mobile || !node) return
+    const ghost = node.cloneNode(true) as HTMLElement
+    ghost.removeAttribute('data-win')
+    ghost.style.pointerEvents = 'none'
+    layer.current!.append(ghost)
+    ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.96)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' }).onfinish = () => ghost.remove()
+  }
+
   const close = async (w: Win) => {
     if (!(await canClose(w.id))) return
+    fade(w.id)
     if (w.shellId && !w.shared) CloseShell(w.shellId)
     if (w.detachable && !w.ended) toast(t('desktop.detached', { title: w.title }))
     closeWin(w.id)
@@ -118,18 +131,27 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
         className="desk-bg relative isolate flex-1 overflow-hidden"
         onDragOver={e => {
           const types = e.dataTransfer.types
-          if (!['application/x-drag-fg', 'application/x-drag-session', 'application/x-drag-path'].some(x => types.includes(x))) return
+          const label = types.includes('application/x-drag-fg') ? t('desktop.dropHere')
+            : types.includes('application/x-drag-container') ? t('desktop.dropShell')
+              : types.includes('application/x-drag-session') ? t('desktop.dropOpen')
+                : types.includes('application/x-drag-path') && !types.includes('application/x-drag-dir') && !types.includes('application/x-drag-bin') ? t('desktop.dropOpen')
+                  : ''
+          if (!label) return
           e.preventDefault()
-          setDropOn(true)
+          setDropOn(label)
         }}
-        onDragLeave={() => setDropOn(false)}
+        onDragLeave={() => setDropOn('')}
         onDrop={e => {
-          setDropOn(false)
+          setDropOn('')
           const r = host()
           const pos = { x: e.clientX - r.left - 40, y: e.clientY - r.top - 16 }
           const session = e.dataTransfer.getData('application/x-drag-session')
           const file = e.dataTransfer.getData('application/x-drag-path')
-          if (file) {
+          const container = e.dataTransfer.getData('application/x-drag-container')
+          if (container) {
+            e.preventDefault()
+            openContainerShell(serverId, container, pos)
+          } else if (file) {
             e.preventDefault()
             openFile(serverId, JSON.parse(file), pos)
           } else if (session) {
@@ -163,7 +185,7 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
         {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}
         {dropOn && (
           <div className="pointer-events-none absolute inset-2 z-[2147483001] grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold">
-            <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{t('desktop.dropHere')}</span>
+            <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{dropOn}</span>
           </div>
         )}
       </div>
@@ -185,6 +207,10 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
   const mobile = useMobile()
   const box = useRef<HTMLDivElement>(null)
   const dragged = useRef(false)
+  // 前面のウィンドウの項目が見えるようにスクロールする
+  useEffect(() => {
+    if (focused) box.current?.querySelector(`[data-task="${focused}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [focused])
 
   // スマホではウィンドウを1つずつ出すので、押したものを前に出すだけにする
   const click = (w: Win) => {

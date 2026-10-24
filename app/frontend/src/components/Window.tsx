@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { setMTab, useMobile } from '../mobile'
 import { useSettings } from '../settings'
@@ -27,6 +27,38 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
   const settings = useSettings()
   const mobile = useMobile()
   const el = useRef<HTMLDivElement>(null)
+
+  // 開くとき・最小化・元に戻すときの動き (mock/ と同じ)。最小化は、タスクバーの項目へ縮めてから隠す
+  const [hidden, setHidden] = useState(win.min)
+  const wasMin = useRef(win.min)
+  useEffect(() => {
+    if (!mobile) el.current?.animate([{ opacity: 0, transform: 'scale(.97) translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 170, easing: 'cubic-bezier(.2,.8,.2,1)' })
+  }, [])
+  useEffect(() => {
+    if (wasMin.current === win.min) return
+    wasMin.current = win.min
+    const node = el.current
+    const toTask = () => {
+      const t = document.querySelector(`[data-task="${win.id}"]`)?.getBoundingClientRect()
+      const r = node?.getBoundingClientRect()
+      return t && r?.width ? `translate(${t.left + t.width / 2 - (r.left + r.width / 2)}px, ${t.top + t.height / 2 - (r.top + r.height / 2)}px) scale(.12)` : ''
+    }
+    if (win.min) {
+      const to = toTask()
+      if (!to) return setHidden(true)
+      const a = node!.animate([{ transform: 'none', opacity: 1 }, { transform: to, opacity: 0 }], { duration: 200, easing: 'cubic-bezier(.4,0,.8,.4)', fill: 'forwards' })
+      a.onfinish = () => {
+        setHidden(true)
+        a.cancel()
+      }
+    } else {
+      setHidden(false)
+      requestAnimationFrame(() => {
+        const from = toTask()
+        if (from) node!.animate([{ transform: from, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 200, easing: 'cubic-bezier(.2,.6,.2,1)' })
+      })
+    }
+  }, [win.min])
 
   const toggleMax = () => win.max
     ? updateWin(win.id, { max: false, rect: win.prev ?? win.rect })
@@ -127,7 +159,7 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
     <div
       ref={el}
       data-win={win.id}
-      className={`absolute flex min-h-[150px] min-w-[260px] flex-col overflow-hidden border bg-[var(--win-bg)] shadow-win ${win.max ? 'inset-0 rounded-none' : 'rounded-[10px]'} ${focused ? 'border-[color-mix(in_srgb,var(--accent)_50%,transparent)]' : 'border-line-strong'} ${win.min ? 'hidden' : ''}`}
+      className={`absolute flex min-h-[150px] min-w-[260px] flex-col overflow-hidden border bg-[var(--win-bg)] shadow-win ${win.max ? 'inset-0 rounded-none' : 'rounded-[10px]'} ${focused ? 'border-[color-mix(in_srgb,var(--accent)_50%,transparent)]' : 'border-line-strong'} ${hidden ? 'hidden' : ''}`}
       style={{ left: r.x, top: r.y, width: r.w, height: r.h, zIndex: win.z }}
       onPointerDownCapture={() => { if (!focused) focusWin(win.id) }}
     >

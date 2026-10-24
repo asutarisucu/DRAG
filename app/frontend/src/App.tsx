@@ -302,7 +302,14 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
 }) {
   const { t } = useTranslation()
   const st = useSettings()
-  const [view, setView] = useState<'files' | 'sessions'>('files')
+  const [view, setViewState] = useState<'files' | 'sessions'>('files')
+  // 左端で、いま出している一覧のボタンをもう一度押すと、サイドバーを畳む
+  const [collapsed, setCollapsed] = useState(false)
+  const setView = (v: 'files' | 'sessions') => {
+    setCollapsed(false)
+    setViewState(v)
+  }
+  const pick = (v: 'files' | 'sessions') => view === v ? setCollapsed(c => !c) : setView(v)
   // ほかの窓の「ツリーで表示」で、ファイルの一覧に切り替える
   useEffect(() => {
     const onReveal = (e: Event) => {
@@ -330,18 +337,18 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   return (
     <div
       className={`absolute inset-0 ${mobile ? 'flex flex-col' : 'grid'} ${visible ? '' : 'invisible'}`}
-      style={mobile ? undefined : { gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }}
+      style={mobile ? undefined : { gridTemplateColumns: collapsed ? '48px 0 0 minmax(0,1fr)' : `48px ${st.sidebarW}px 4px minmax(0,1fr)` }}
       data-server={s.id}
     >
       {!mobile && (
         <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
-          <ActButton icon="files" title={t('activity.files')} active={view === 'files'} onClick={() => setView('files')} />
-          <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions'} onClick={() => setView('sessions')} />
+          <ActButton icon="files" title={t('activity.files')} active={view === 'files' && !collapsed} onClick={() => pick('files')} />
+          <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions' && !collapsed} onClick={() => pick('sessions')} />
           <div className="flex-1" />
           <ActButton icon="gear" title={t('activity.settings')} onClick={onSettings} />
         </nav>
       )}
-      <aside className={mobile ? (mtab === 'files' ? 'flex min-h-0 flex-1 flex-col bg-panel' : 'hidden') : 'flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel'}>
+      <aside className={mobile ? (mtab === 'files' ? 'flex min-h-0 flex-1 flex-col bg-panel' : 'hidden') : `flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel ${collapsed ? 'invisible' : ''}`}>
         {mobile
           ? (
             <div className="mx-3 mt-2.5 mb-0.5 flex gap-1 rounded-[10px] border border-line bg-field p-[3px]">
@@ -359,7 +366,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
           <SessionsView serverId={s.id} visible={visible} terminalKey={sessionKeyOf(termFg)} onOpen={x => openSessionWindow(s.id, x)} />
         )}
       </aside>
-      {!mobile && <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />}
+      {!mobile && (collapsed ? <div /> : <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />)}
       <main
         className={mobile ? (mtab === 'files' ? 'hidden' : 'flex min-h-0 flex-1 flex-col') : 'grid min-h-0 min-w-0'}
         style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}

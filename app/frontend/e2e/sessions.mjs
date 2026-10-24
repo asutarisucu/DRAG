@@ -75,6 +75,8 @@ ok('デタッチするとチップが消える', await waitFor(async () => (awai
 const desk = await page.$eval('[data-desktop]', e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y }; });
 await screenItem.dragTo(page.locator('[data-desktop]'), { targetPosition: { x: 400, y: 200 } });
 await page.waitForSelector('[data-win]', { timeout: 5000 }).catch(() => {});
+// 開くときの動きが終わってから測る
+await page.waitForTimeout(300);
 const scrRect = await page.$eval('[data-win]', e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y) }; }).catch(() => null);
 ok('デスクトップへドラッグするとその位置に開く', !!scrRect && Math.abs(scrRect.x - (desk.x + 360)) <= 2 && Math.abs(scrRect.y - (desk.y + 184)) <= 2, JSON.stringify(scrRect));
 await page.click('[data-win] button[title="閉じる"]');

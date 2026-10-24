@@ -496,6 +496,8 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
             dragging.current = e.path
             ev.dataTransfer.setData('application/x-drag-path', JSON.stringify({ path: e.path, name: e.name, dir: e.dir }))
             if (e.dir) ev.dataTransfer.setData('application/x-drag-dir', '1')
+            // デスクトップで開けないもの
+            if (fileKind(e.name, e.dir) === 'bin') ev.dataTransfer.setData('application/x-drag-bin', '1')
             ev.dataTransfer.effectAllowed = 'copyMove'
           }}
           onDragEnd={() => {

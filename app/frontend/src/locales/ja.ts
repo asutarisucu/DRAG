@@ -75,6 +75,8 @@ const ja = {
     lostEnded: '接続が切れたため、終了しました',
     reattached: '再接続して、セッションにつなぎ直しました',
     dropHere: 'ここに移す',
+    dropOpen: 'ここで開く',
+    dropShell: 'シェルを開く',
     chipHint: 'ウィンドウへドラッグ',
     returnHere: 'ここで離すとターミナルに戻す',
     returned: '{{cmd}} をターミナルに戻しました',
@@ -225,6 +227,7 @@ const ja = {
     needSudo: 'サービスを操作するには sudo モードを ON にしてください',
   },
   dk: {
+    dragShell: 'デスクトップへドラッグするとシェルを開く',
     containers: 'コンテナ',
     images: 'イメージ',
     volumes: 'ボリューム',

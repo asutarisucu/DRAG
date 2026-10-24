@@ -1,6 +1,10 @@
 import i18n from './i18n'
+import { OpenShell } from '../wailsjs/go/main/App'
 import type { IconName } from './components/Icon'
 import { setMTab } from './mobile'
+import { sendInput } from './shellInput'
+import { sudoOn } from './sudo'
+import { toast } from './toasts'
 import { focusWin, openWin, updateWin, winsOf, type Win } from './windows'
 
 // リソース監視・サービス・Docker・ゴミ箱のウィンドウ。サーバーごとに1つずつ開き、開いていれば前に出す。
@@ -24,6 +28,21 @@ export function openStreamLog(serverId: string, kind: 'journal' | 'docker', name
     serverId, kind: 'log', title: i18n.t('svc.logOf', { name }), icon: 'log', shellId: '', detachable: false, replayFromIdle: false, path,
     rect: { w: 560, h: 320 },
   }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
+}
+
+// コンテナの中のシェルをウィンドウで開く。
+// docker のグループに入っていない利用者は、sudo モードのときに sudo を付ける。パスワードはウィンドウの中で聞かれる
+export async function openContainerShell(serverId: string, name: string, pos?: { x: number; y: number }) {
+  setMTab('desktop')
+  const desk = document.querySelector<HTMLElement>(`[data-desktop="${serverId}"]`)?.getBoundingClientRect()
+  const cmd = `${sudoOn(serverId) ? 'sudo ' : ''}docker exec -it ${name} sh`
+  try {
+    const id = await OpenShell(serverId, 100, 30, '')
+    openWin({ serverId, kind: 'session', title: cmd, icon: 'box', shellId: id, detachable: false, replayFromIdle: false, rect: { ...pos, w: 600, h: 340 } }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
+    sendInput(id, cmd + '\r')
+  } catch (e) {
+    toast(String(e).replace(/^Error: /, ''), 'warn')
+  }
 }
 
 // ツリーで path を開いて選び、ファイルの一覧に切り替える。open ならそのフォルダも開く

@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Docker, DockerAction, DockerMounts, DockerStats, OpenShell } from '../../wailsjs/go/main/App'
+import { Docker, DockerAction, DockerMounts, DockerStats } from '../../wailsjs/go/main/App'
 import type { remote } from '../../wailsjs/go/models'
 import { openFile } from '../openFile'
-import { sendInput } from '../shellInput'
-import { isDenied, requireSudo, sudoOn, useSudo, withSudo } from '../sudo'
-import { toast } from '../toasts'
-import { openStreamLog, revealInTree } from '../tools'
-import { openWin } from '../windows'
+import { useMobile } from '../mobile'
+import { isDenied, requireSudo, useSudo, withSudo } from '../sudo'
+import { openContainerShell, openStreamLog, revealInTree } from '../tools'
 import { Icon } from './Icon'
 import { useFoot } from './Services'
 
@@ -18,6 +16,7 @@ type Tab = 'containers' | 'images' | 'volumes'
 export function DockerView({ serverId, home }: { serverId: string; home: string }) {
   const { t } = useTranslation()
   const sudo = useSudo(serverId)
+  const mobile = useMobile()
   const [info, setInfo] = useState<remote.DockerInfo | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>('containers')
@@ -61,18 +60,7 @@ export function DockerView({ serverId, home }: { serverId: string; home: string 
       load()
     })
   }
-  const shell = async (name: string) => {
-    const desk = document.querySelector<HTMLElement>(`[data-desktop="${serverId}"]`)?.getBoundingClientRect()
-    // docker のグループに入っていない利用者は、sudo モードのときに sudo を付ける。パスワードはウィンドウの中で聞かれる
-    const cmd = `${sudoOn(serverId) ? 'sudo ' : ''}docker exec -it ${name} sh`
-    try {
-      const id = await OpenShell(serverId, 100, 30, '')
-      openWin({ serverId, kind: 'session', title: cmd, icon: 'box', shellId: id, detachable: false, replayFromIdle: false, rect: { w: 600, h: 340 } }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
-      sendInput(id, cmd + '\r')
-    } catch (e) {
-      toast(errText(e), 'warn')
-    }
-  }
+  const shell = (name: string) => openContainerShell(serverId, name)
 
   if (!info) {
     if (error === 'このサーバーには Docker が入っていません') return <div className="tool-empty">{t('dk.none')}</div>
@@ -99,7 +87,17 @@ export function DockerView({ serverId, home }: { serverId: string; home: string 
     const st = stats[c.Names]
     return (
       <div key={c.ID} className={`dk-item ${isOpen ? 'open' : ''}`} data-container={c.Names}>
-        <div className="dk-row" onClick={e => { if (!(e.target as HTMLElement).closest('button')) setOpen(o => ({ ...o, [c.Names]: !isOpen })) }}>
+        <div
+          className="dk-row"
+          onClick={e => { if (!(e.target as HTMLElement).closest('button')) setOpen(o => ({ ...o, [c.Names]: !isOpen })) }}
+          // 動いているコンテナは、デスクトップへドラッグするとシェルを開く
+          draggable={run && !mobile}
+          title={run && !mobile ? t('dk.dragShell') : undefined}
+          onDragStart={e => {
+            e.dataTransfer.setData('application/x-drag-container', c.Names)
+            e.dataTransfer.effectAllowed = 'copy'
+          }}
+        >
           <span className={`text-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}><Icon name="chevron" size={13} /></span>
           <span className={`svc-dot ${isBusy ? 'busy' : run ? 'on' : 'off'}`} />
           <div className="dk-name"><div className="font-mono text-[12.5px]">{c.Names}</div><div className="text-[11.5px] text-muted">{c.Image} · {c.Status}</div></div>

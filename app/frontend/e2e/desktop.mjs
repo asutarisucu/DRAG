@@ -111,6 +111,8 @@ await bar(sshWin).dblclick({ position: { x: 100, y: 15 } });
 const r3 = await rect(sshWin);
 ok('ダブルクリックで最大化', Math.abs(r3.w - desk.w) <= 2, JSON.stringify(r3));
 await page.click(`[data-win="${sshWin}"] button[title="最小化"]`);
+// タスクバーへ縮める動きのあとに隠れる
+await page.waitForSelector(`[data-win="${sshWin}"]`, { state: 'hidden', timeout: 2000 }).catch(() => {});
 ok('最小化するとタスクバーに残る', !(await page.isVisible(`[data-win="${sshWin}"]`)) && await page.isVisible(`[data-task="${sshWin}"]`));
 await page.click(`[data-task="${sshWin}"]`);
 ok('タスクバーで元に戻る', await page.isVisible(`[data-win="${sshWin}"]`));
