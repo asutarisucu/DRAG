@@ -6,7 +6,8 @@ export type Rect = { x: number; y: number; w: number; h: number }
 export type Win = {
   id: string
   serverId: string
-  kind: 'session' | 'terminal'
+  kind: 'session' | 'terminal' | 'editor' | 'log' | 'image' | 'archive'
+  path?: string // ファイルのウィンドウで開いているファイル
   title: string
   icon: IconName
   shellId: string
@@ -23,6 +24,18 @@ export type Win = {
 }
 
 let wins: Win[] = []
+// 閉じる前に確かめることがあるウィンドウ (保存していないエディターなど)。false を返したら閉じない
+const guards = new Map<string, () => Promise<boolean>>()
+
+export function setCloseGuard(id: string, fn: (() => Promise<boolean>) | null) {
+  if (fn) guards.set(id, fn)
+  else guards.delete(id)
+}
+
+export async function canClose(id: string) {
+  const g = guards.get(id)
+  return g ? g() : true
+}
 let seq = 0
 let zTop = 1
 const cascade = new Map<string, number>()

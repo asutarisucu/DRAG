@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { ShellInput, ShellReplay, ShellResize } from '../../wailsjs/go/main/App'
+import { ShellReplay, ShellResize } from '../../wailsjs/go/main/App'
 import { attachShell, decode } from '../shellBus'
+import { sendInput } from '../shellInput'
 import { useXterm } from './useXterm'
 
 // ウィンドウの中のシェル。開くときに、残っている出力で画面を描き直してから続きを受け取る
@@ -27,7 +28,7 @@ export function ShellView({ shellId, fromIdle, fontSize, focused, onExit }: {
       // 移した先の大きさに合わせる。全画面のアプリはここで描き直す
       ShellResize(shellId, term.cols, term.rows)
     }, () => exitRef.current())
-    const onData = term.onData(d => ShellInput(shellId, d))
+    const onData = term.onData(d => sendInput(shellId, d))
     const onResize = term.onResize(({ cols, rows }) => ShellResize(shellId, cols, rows))
     return () => {
       disposed = true

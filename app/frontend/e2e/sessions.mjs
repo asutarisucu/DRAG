@@ -7,12 +7,28 @@ const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
 const ok = (name, cond, extra = '') => results.push(`${cond ? 'OK ' : 'NG '} ${name}${extra ? '  ' + extra : ''}`);
 const errors = [];
-const sh = cmd => { try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim(); } catch (e) { return 'ERR ' + String(e.stderr ?? e.message).trim(); } };
+let page;
+// 途中で止まっても、そこまでの結果と画面を残す
+process.on('uncaughtException', async e => {
+  console.log(results.join('\n'));
+  console.log('止まった: ' + e.message.split('\n')[0]);
+  await page?.screenshot({ path: path.join(import.meta.dirname, 'out', 'sessions-failed.png') }).catch(() => {});
+  process.exit(1);
+});
+// この PC では、desktop.mjs の直後にプロセスを起こすと EPERM で失敗することがあるので、少し待ってやり直す
+const sh = cmd => {
+  for (let i = 0; ; i++) {
+    try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim(); } catch (e) {
+      if (e.code === 'EPERM' && i < 5) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000); continue; }
+      return 'ERR ' + String(e.stderr ?? e.message).trim();
+    }
+  }
+};
 sh('screen -S e2e-s -X quit; tmux kill-session -t e2e-t; true');
 sh('screen -dmS e2e-s; tmux new -d -s e2e-t');
 
 const browser = await chromium.launch({ channel: 'chrome' });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on('pageerror', e => { if (!e.stack.includes('/wails/ipc.js')) errors.push('pageerror ' + e.stack); });
 page.on('console', m => { if (m.type() === 'error' && !m.text().includes('404')) errors.push('console ' + m.text()); });
 await page.goto('http://localhost:34115');

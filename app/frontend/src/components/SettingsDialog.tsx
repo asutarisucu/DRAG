@@ -90,7 +90,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </button>
           ))}
           <div className="flex-1" />
-          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap })}>
+          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog })}>
             {t('settings.reset')}
           </button>
         </div>
@@ -111,6 +111,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <AutoCmds list={s.autoCmds} onChange={autoCmds => setSettings({ autoCmds })} />
             <Row label={t('settings.snap')} desc={t('settings.snapDesc')}>
               <Switch on={s.snap} onChange={snap => setSettings({ snap })} />
+            </Row>
+            <Row label={t('settings.followLog')}>
+              <Switch on={s.followLog} onChange={followLog => setSettings({ followLog })} />
             </Row>
             <Row label={t('settings.uploadConflict')}>
               <select

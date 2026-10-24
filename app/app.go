@@ -27,6 +27,7 @@ type App struct {
 	next    int
 	servers map[string]*conn
 	shells  map[string]*remote.Shell
+	fs      *fileState
 }
 
 // conn はつないでいるサーバー1台。再接続に使うので、接続の設定 (パスワードを含む) をメモリーにだけ持つ
@@ -48,6 +49,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.closeFiles()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, c := range a.servers {

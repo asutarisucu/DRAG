@@ -169,9 +169,9 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
       </aside>
       <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />
       <main className="grid min-h-0 min-w-0" style={{ gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}>
-        <Desktop serverId={s.id} />
+        <Desktop serverId={s.id} home={s.home} />
         <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />
-        <TerminalPanel serverId={s.id} generation={s.gen} visible={visible} fontSize={st.termSize} onForegroundChange={setTermFg} />
+        <TerminalPanel serverId={s.id} home={s.home} generation={s.gen} visible={visible} fontSize={st.termSize} onForegroundChange={setTermFg} />
       </main>
       {s.conn !== 'ok' && <ConnBanner server={s} onReconnect={onReconnect} onClose={onClose} />}
     </div>

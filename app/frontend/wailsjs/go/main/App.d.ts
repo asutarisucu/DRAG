@@ -4,6 +4,12 @@ import {main} from '../models';
 import {remote} from '../models';
 import {store} from '../models';
 
+export function ArchiveClose(arg1:string):Promise<void>;
+
+export function ArchiveOpen(arg1:string,arg2:string):Promise<main.ArchiveInfo>;
+
+export function ArchiveRead(arg1:string,arg2:string):Promise<string>;
+
 export function CloseShell(arg1:string):Promise<void>;
 
 export function Connect(arg1:main.ConnectRequest):Promise<main.ConnectResult>;
@@ -16,15 +22,25 @@ export function ListDir(arg1:string,arg2:string):Promise<Array<remote.Entry>>;
 
 export function LocalEntries(arg1:Array<string>):Promise<Array<main.LocalEntry>>;
 
+export function LogFollow(arg1:string,arg2:string,arg3:number):Promise<string>;
+
+export function LogStop(arg1:string):Promise<void>;
+
+export function LogTail(arg1:string,arg2:string,arg3:number,arg4:number):Promise<remote.LogChunk>;
+
 export function NewEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
 export function OpenShell(arg1:string,arg2:number,arg3:number,arg4:string):Promise<string>;
+
+export function OpenText(arg1:string,arg2:string):Promise<remote.TextFile>;
 
 export function PasteEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
 export function PickUploadFiles():Promise<Array<string>>;
 
 export function Probe(arg1:string):Promise<remote.Info>;
+
+export function ReadImage(arg1:string,arg2:string):Promise<string>;
 
 export function Reconnect(arg1:string):Promise<main.ConnectResult>;
 
@@ -33,6 +49,8 @@ export function RemoveSavedServer(arg1:string):Promise<void>;
 export function RenameEntry(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function RestoreEntry(arg1:string,arg2:remote.TrashItem):Promise<string>;
+
+export function SaveText(arg1:string,arg2:string,arg3:string,arg4:number,arg5:boolean):Promise<number>;
 
 export function SavedServers():Promise<Array<store.Server>>;
 

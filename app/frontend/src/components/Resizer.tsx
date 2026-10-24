@@ -17,6 +17,9 @@ export function Resizer({ dir, value, min, max, onChange, invert = false }: {
     <div
       className={`relative z-10 transition-colors hover:bg-accent ${active ? 'bg-accent' : ''} ${dir === 'v' ? 'cursor-col-resize' : 'cursor-row-resize'}`}
       onPointerDown={e => {
+        // 幅が変わると押した位置の下にツリーの行が来て、ブラウザーがその行のドラッグを始めてしまう。
+        // ここで止めると mousedown が出ず、ドラッグは始まらない
+        e.preventDefault()
         e.currentTarget.setPointerCapture(e.pointerId)
         start.current = { pos: pos(e), value }
         setActive(true)

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -306,6 +307,83 @@ func TestForegroundAndReplay(t *testing.T) {
 	}
 }
 
+func TestTextFileAndLog(t *testing.T) {
+	s := dialTrusted(t)
+	d := testDir(t, s)
+	write := func(p string, b []byte) {
+		f, err := s.sftp.Create(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Write(b)
+		f.Close()
+	}
+
+	write(d+"/a.txt", []byte("こんにちは\n"))
+	write(d+"/bin", []byte{1, 0, 2})
+	write(d+"/sjis", []byte{0x82, 0xa0})
+	tf, err := s.ReadText(d+"/a.txt", 1024)
+	if err != nil || tf.Text != "こんにちは\n" {
+		t.Fatalf("%+v %v", tf, err)
+	}
+	if _, err := s.ReadText(d+"/bin", 1024); !errors.Is(err, ErrBinary) {
+		t.Fatalf("バイナリ %v", err)
+	}
+	if _, err := s.ReadText(d+"/sjis", 1024); !errors.Is(err, ErrNotUTF8) {
+		t.Fatalf("UTF-8 でない %v", err)
+	}
+	if _, err := s.ReadText(d+"/a.txt", 4); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("大きい %v", err)
+	}
+	// 開いたあとに書き換えられていたら、force なしでは書かない
+	time.Sleep(1100 * time.Millisecond)
+	write(d+"/a.txt", []byte("changed\n"))
+	if _, err := s.WriteText(d+"/a.txt", "mine\n", tf.ModTime, false); !errors.Is(err, ErrChanged) {
+		t.Fatalf("変わったのに書いた %v", err)
+	}
+	if _, err := s.WriteText(d+"/a.txt", "mine\n", 0, true); err != nil {
+		t.Fatal(err)
+	}
+	if tf, _ := s.ReadText(d+"/a.txt", 1024); tf.Text != "mine\n" {
+		t.Fatalf("%q", tf.Text)
+	}
+
+	// ログは末尾から行の頭で区切って読み、前を読み足せる
+	var lines []byte
+	for i := 1; i <= 100; i++ {
+		lines = fmt.Appendf(lines, "line %03d\n", i)
+	}
+	write(d+"/app.log", lines)
+	c, err := s.ReadTail(d+"/app.log", -1, 100)
+	if err != nil || !strings.HasPrefix(c.Text, "line 0") || !strings.HasSuffix(c.Text, "line 100\n") || c.End != int64(len(lines)) {
+		t.Fatalf("末尾 %+v %v", c, err)
+	}
+	prev, _ := s.ReadTail(d+"/app.log", c.Start, 100)
+	if prev.End != c.Start || !strings.HasSuffix(prev.Text, "\n") || !strings.HasPrefix(prev.Text, "line ") {
+		t.Fatalf("前 %+v", prev)
+	}
+
+	// 追記を受け取る
+	got := make(chan string, 10)
+	stop, err := s.Follow(d+"/app.log", c.End, func(b []byte) { got <- string(b) }, func(error) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	time.Sleep(500 * time.Millisecond)
+	sess, _ := s.ssh.NewSession()
+	sess.Run("echo 'line 101' >> " + d + "/app.log")
+	sess.Close()
+	select {
+	case g := <-got:
+		if g != "line 101\n" {
+			t.Fatalf("追記 %q", g)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("追記が届かない")
+	}
+}
+
 func TestSessionsListsScreenAndTmux(t *testing.T) {
 	s := dialTrusted(t)
 	run := func(cmd string) {
@@ -363,5 +441,49 @@ func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	defer mu.Unlock()
 	if !strings.Contains(out.String(), "/var/log\r\n") || strings.Contains(out.String(), "DRAG-") {
 		t.Fatalf("出力 %q", out.String())
+	}
+}
+
+// 画面からの入力は並行して届く。重なって書いても接続が切れず、どの入力も届くこと
+func TestShellWriteFromManyGoroutines(t *testing.T) {
+	s := dialTrusted(t)
+	var mu sync.Mutex
+	var out strings.Builder
+	exited := make(chan struct{})
+	sh, err := s.OpenShell(80, 24, "", ShellEvents{
+		Output: func(p []byte, _ int64) {
+			mu.Lock()
+			out.Write(p)
+			mu.Unlock()
+		},
+		Foreground: func(string) {},
+		Exit:       func() { close(exited) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sh.Write([]byte("cat > /dev/null\r"))
+	var wg sync.WaitGroup
+	// 長さを変えておくと、重なったときにパケットの長さの欄と中身が食い違う
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				sh.Write([]byte(strings.Repeat("x", i+j+1)))
+			}
+		}()
+	}
+	wg.Wait()
+	sh.Write([]byte("\r\x04echo DONE-$((6*7)); exit\r"))
+	select {
+	case <-exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("シェルが終わらない")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(out.String(), "DONE-42") {
+		t.Fatalf("出力の末尾 %q", out.String()[max(0, out.Len()-300):])
 	}
 }

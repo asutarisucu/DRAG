@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
+import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
+import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
 import { onForeground } from '../shellBus'
 import { useSettings } from '../settings'
 import { terminalOf } from '../terminals'
 import { toast } from '../toasts'
-import { closeWin, focusWin, openWin, reorderWin, topWin, updateWin, useWins, winById, winsOf, type Win } from '../windows'
+import { canClose, closeWin, focusWin, openWin, reorderWin, topWin, updateWin, useWins, winById, winsOf, type Win } from '../windows'
 import { Icon } from './Icon'
 import { ShellView } from './ShellView'
 import { Window, type SnapMode } from './Window'
 
 // 右上のデスクトップ。ウィンドウを重ねて置き、下のタスクバーで切り替える
-export function Desktop({ serverId }: { serverId: string }) {
+export function Desktop({ serverId, home }: { serverId: string; home: string }) {
   const { t } = useTranslation()
   const settings = useSettings()
   const wins = useWins(serverId)
@@ -39,8 +41,9 @@ export function Desktop({ serverId }: { serverId: string }) {
     }
   }), [serverId, t])
 
-  const close = (w: Win) => {
-    CloseShell(w.shellId)
+  const close = async (w: Win) => {
+    if (!(await canClose(w.id))) return
+    if (w.shellId) CloseShell(w.shellId)
     if (w.detachable && !w.ended) toast(t('desktop.detached', { title: w.title }))
     closeWin(w.id)
   }
@@ -81,7 +84,7 @@ export function Desktop({ serverId }: { serverId: string }) {
         className="desk-bg relative isolate flex-1 overflow-hidden"
         onDragOver={e => {
           const types = e.dataTransfer.types
-          if (!types.includes('application/x-drag-fg') && !types.includes('application/x-drag-session')) return
+          if (!['application/x-drag-fg', 'application/x-drag-session', 'application/x-drag-path'].some(x => types.includes(x))) return
           e.preventDefault()
           setDropOn(true)
         }}
@@ -91,7 +94,11 @@ export function Desktop({ serverId }: { serverId: string }) {
           const r = host()
           const pos = { x: e.clientX - r.left - 40, y: e.clientY - r.top - 16 }
           const session = e.dataTransfer.getData('application/x-drag-session')
-          if (session) {
+          const file = e.dataTransfer.getData('application/x-drag-path')
+          if (file) {
+            e.preventDefault()
+            openFile(serverId, JSON.parse(file), pos)
+          } else if (session) {
             e.preventDefault()
             openSessionWindow(serverId, JSON.parse(session), pos)
           } else if (e.dataTransfer.types.includes('application/x-drag-fg')) {
@@ -103,7 +110,11 @@ export function Desktop({ serverId }: { serverId: string }) {
         {wins.length === 0 && <div className="pointer-events-none absolute inset-0 grid place-items-center text-faint select-none">{t('desktop.empty')}</div>}
         {wins.map(w => (
           <Window key={w.id} win={w} focused={w.id === focused} host={host} onSnapPreview={setSnap} onMinimize={() => minimize(w)} onClose={() => close(w)}>
-            <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />
+            {w.kind === 'editor' ? <EditorView win={w} serverId={serverId} home={home} />
+              : w.kind === 'log' ? <LogView win={w} serverId={serverId} home={home} />
+                : w.kind === 'image' ? <ImageView win={w} serverId={serverId} />
+                  : w.kind === 'archive' ? <ArchiveView win={w} serverId={serverId} home={home} />
+                    : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
           </Window>
         ))}
         {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}

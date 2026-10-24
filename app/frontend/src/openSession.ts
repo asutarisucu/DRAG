@@ -1,5 +1,6 @@
-import { OpenShell, ShellInput } from '../wailsjs/go/main/App'
+import { OpenShell } from '../wailsjs/go/main/App'
 import { attachCommand, sameSession, sessionKeyOf } from './sessions'
+import { sendInput } from './shellInput'
 import { terminalOf } from './terminals'
 import { toast } from './toasts'
 import { focusWin, openWin, winsOf } from './windows'
@@ -24,7 +25,7 @@ export async function openSessionWindow(serverId: string, s: { kind: string; nam
       serverId, kind: 'session', title: s.name, icon: 'layers', shellId: id,
       detachable: true, replayFromIdle: false, sessionKey: key, rect: pos,
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
-    ShellInput(id, attachCommand(s) + '\r')
+    sendInput(id, attachCommand(s) + '\r')
   } catch (e) {
     toast(String(e), 'warn')
   }

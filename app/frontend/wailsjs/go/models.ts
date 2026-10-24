@@ -1,5 +1,58 @@
+export namespace archive {
+	
+	export class Entry {
+	    path: string;
+	    size: number;
+	    dir: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.size = source["size"];
+	        this.dir = source["dir"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
+	export class ArchiveInfo {
+	    id: string;
+	    entries: archive.Entry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ArchiveInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.entries = this.convertValues(source["entries"], archive.Entry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ConnectRequest {
 	    name: string;
 	    host: string;
@@ -164,6 +217,22 @@ export namespace remote {
 	        this.tmux = source["tmux"];
 	    }
 	}
+	export class LogChunk {
+	    text: string;
+	    start: number;
+	    end: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogChunk(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.start = source["start"];
+	        this.end = source["end"];
+	    }
+	}
 	export class Props {
 	    type: string;
 	    size: number;
@@ -204,6 +273,20 @@ export namespace remote {
 	        this.name = source["name"];
 	        this.attached = source["attached"];
 	        this.desc = source["desc"];
+	    }
+	}
+	export class TextFile {
+	    text: string;
+	    modTime: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TextFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.text = source["text"];
+	        this.modTime = source["modTime"];
 	    }
 	}
 	export class TrashItem {

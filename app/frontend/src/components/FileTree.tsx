@@ -8,24 +8,15 @@ import { useSettings } from '../settings'
 import { progressToast, toast } from '../toasts'
 import { withProgress } from '../transfers'
 import { ConflictDialog, PropsDialog, type ConflictAnswer } from './FileDialogs'
-import { Icon, type IconName } from './Icon'
+import { Icon } from './Icon'
 import { Menu, type MenuItem } from './Menu'
+import { KIND_ICON, fileKind } from '../fileKind'
+import { openFile } from '../openFile'
 
 type Entry = remote.Entry
 type Dir = { entries?: Entry[]; error?: string; loading: boolean }
 // 右クリックのメニューと名前の変更は、ツリーの1行を「パスとフォルダかどうか」で扱う
 type Node = { path: string; name: string; dir: boolean; root: boolean }
-
-// 種類ごとのアイコンと色。mock/app.js の fileKind と同じ分け方
-function kindOf(e: { name: string; dir: boolean }): [IconName, string] {
-  if (e.dir) return ['folder', 'f-dir']
-  const n = e.name.toLowerCase()
-  if (n.endsWith('.log')) return ['log', 'f-log']
-  if (/\.(png|jpe?g|gif|webp)$/.test(n)) return ['image', 'f-img']
-  if (/\.(gz|tgz|tar|zip|jar|7z)$/.test(n)) return ['archive', 'f-arc']
-  if (/\.(sh|json|ya?ml|toml|properties|js|ts|py|env|conf|ini)$/.test(n)) return ['code', 'f-code']
-  return ['file', 'f-file']
-}
 
 const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
 const baseOf = (p: string) => p.slice(p.lastIndexOf('/') + 1)
@@ -185,6 +176,8 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
 
   // エクスプローラーと同じ並び。開く系 → 新規 → 切り取り・コピー・貼り付け → 名前・削除 → パス
   const menuItems = (n: Node): (MenuItem | false)[] => [
+    !n.dir && fileKind(n.name, false) === 'arc' && { icon: 'archive', label: t('open.extract'), fn: () => openFile(serverId, n) },
+    !n.dir && !['arc', 'bin'].includes(fileKind(n.name, false)) && { icon: 'window', label: t('open.onDesktop'), fn: () => openFile(serverId, n) },
     n.dir
       ? { icon: 'terminal', label: t('menu.cd'), fn: () => terminalOf(serverId)?.cd(pathArg(root, n.path)) }
       : { icon: 'terminal', label: t('menu.insertPath'), fn: () => terminalOf(serverId)?.insert(pathArg(root, n.path)) },
@@ -257,7 +250,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     if (d.error) return [<Note key={path + ':err'} depth={depth} text={t('files.error', { error: d.error })} err />]
     if (d.entries!.length === 0 && !uploads.some(u => u.dir === path)) return [<Note key={path + ':empty'} depth={depth} text={t('files.empty')} />]
     return [...d.entries!.flatMap(e => {
-      const [icon, color] = kindOf(e)
+      const [icon, color] = KIND_ICON[fileKind(e.name, e.dir)]
       const isOpen = !!open[e.path]
       const cut = clip?.move && clip.path === e.path
       return [
@@ -269,6 +262,13 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           data-path={e.path}
           {...dropProps(e.dir ? e.path : path)}
           onClick={() => click(e)}
+          onDoubleClick={() => { if (!e.dir) openFile(serverId, e) }}
+          draggable={renaming !== e.path}
+          onDragStart={ev => {
+            ev.dataTransfer.setData('application/x-drag-path', JSON.stringify({ path: e.path, name: e.name, dir: e.dir }))
+            if (e.dir) ev.dataTransfer.setData('application/x-drag-dir', '1')
+            ev.dataTransfer.effectAllowed = 'copyMove'
+          }}
           onContextMenu={ev => contextMenu(ev, { path: e.path, name: e.name, dir: e.dir, root: false })}
           title={e.path}
         >
@@ -301,7 +301,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       {rows(root, 0)}
       {menu && <Menu x={menu.x} y={menu.y} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
       {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
-      {props && <PropsDialog name={props.node.name} path={props.node.path} kind={kindOf({ name: props.node.name, dir: props.props.mode.startsWith('d') })} props={props.props} onClose={() => setProps(null)} />}
+      {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
     </div>
   )
 }

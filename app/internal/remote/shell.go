@@ -44,6 +44,7 @@ type Shell struct {
 	tpgid  int
 	noProc bool
 
+	writeMu   sync.Mutex
 	closeOnce sync.Once
 }
 
@@ -182,7 +183,12 @@ func (sh *Shell) Cwd() (string, error) {
 	return string(bytes.TrimSpace(out)), nil
 }
 
+// Write はシェルへ書く。Wails は画面からの呼び出しを並行して動かすので、ここで1つずつにする。
+// x/crypto/ssh のチャネルの書き込みは送る前のバッファを共有していて、重なると壊れたパケットになり、
+// sshd が「unexpected bytes remain after decoding」で接続ごと切る
 func (sh *Shell) Write(p []byte) (int, error) {
+	sh.writeMu.Lock()
+	defer sh.writeMu.Unlock()
 	return sh.in.Write(p)
 }
 

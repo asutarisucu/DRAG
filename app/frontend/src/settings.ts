@@ -12,10 +12,11 @@ export type Settings = {
   autoOn: boolean
   autoCmds: string[]
   snap: boolean
+  followLog: boolean
 }
 
 export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
-  autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'], snap: true,
+  autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'], snap: true, followLog: true,
 }
 const KEY = 'drag-settings'
 

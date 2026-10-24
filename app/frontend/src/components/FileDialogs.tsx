@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { remote } from '../../wailsjs/go/models'
 import { fmtSize } from '../toasts'
-import { Icon, type IconName } from './Icon'
+import { KIND_ICON, KIND_LABEL, type Kind } from '../fileKind'
+import { Icon } from './Icon'
 import { Modal } from './Modal'
 
 const btn = 'h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover'
@@ -36,14 +37,14 @@ export function ConflictDialog({ path, more, onAnswer }: { path: string; more: b
 export function PropsDialog({ name, path, kind, props, onClose }: {
   name: string
   path: string
-  kind: [IconName, string]
+  kind: Kind
   props: remote.Props
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const dir = props.mode.startsWith('d')
   const rows: [string, string][] = [
-    [t('props.kind'), t(`props.${kind[0]}`)],
+    [t('props.kind'), t(KIND_LABEL[kind])],
     [t('props.where'), path.slice(0, path.lastIndexOf('/')) || '/'],
     ...(dir ? [] : [[t('props.size'), fmtSize(props.size)] as [string, string]]),
     [t('props.owner'), `${props.owner}:${props.group}`],
@@ -54,7 +55,7 @@ export function PropsDialog({ name, path, kind, props, onClose }: {
   return (
     <Modal title={t('props.title')} width={460} onClose={onClose}>
       <div className="mb-3.5 flex items-center gap-2.5 text-[15px] font-semibold">
-        <Icon name={kind[0]} size={22} className={kind[1]} />
+        <Icon name={KIND_ICON[kind][0]} size={22} className={KIND_ICON[kind][1]} />
         <span className="break-all">{name || '/'}</span>
       </div>
       <div className="grid grid-cols-[90px_minmax(0,1fr)] gap-x-3.5 gap-y-2 text-[12.5px] [overflow-wrap:anywhere]">

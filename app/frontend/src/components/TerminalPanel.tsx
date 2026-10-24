@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CloseShell, OpenShell, ShellCwd, ShellInput, ShellReplay, ShellResize } from '../../wailsjs/go/main/App'
+import { CloseShell, OpenShell, ShellCwd, ShellReplay, ShellResize } from '../../wailsjs/go/main/App'
 import type { remote } from '../../wailsjs/go/models'
 import { attachCommand, sessionKeyOf } from '../sessions'
 import { attachShell, decode, foregroundOf, onForeground } from '../shellBus'
+import { sendInput } from '../shellInput'
 import { useSettings } from '../settings'
-import { registerTerminal } from '../terminals'
+import { pathArg, registerTerminal, terminalOf } from '../terminals'
 import { toast } from '../toasts'
 import { closeWin, openWin, winById } from '../windows'
 import { Icon } from './Icon'
@@ -33,8 +34,9 @@ const isDetachable = (cmdline: string) => ['screen', 'tmux'].includes(words(cmdl
 // 右下のターミナル。サーバーごとに1つシェルを開く。
 // generation は再接続のたびに増える。増えたら同じ画面のまま新しいシェルを開き直す。
 // 前面で動いているコマンドは見出しに出し、ドラッグかクリックでデスクトップのウィンドウに移す
-export function TerminalPanel({ serverId, generation, visible, fontSize, onForegroundChange }: {
+export function TerminalPanel({ serverId, home, generation, visible, fontSize, onForegroundChange }: {
   serverId: string
+  home: string
   generation: number
   visible: boolean
   fontSize: number
@@ -90,7 +92,7 @@ export function TerminalPanel({ serverId, generation, visible, fontSize, onForeg
     const term = termRef.current!
     if (generation > 0) dim(tRef.current('terminal.reopened'))
     open('')
-    const onData = term.onData(d => { if (shellRef.current) ShellInput(shellRef.current, d) })
+    const onData = term.onData(d => { if (shellRef.current) sendInput(shellRef.current, d) })
     const onResize = term.onResize(({ cols, rows }) => { if (shellRef.current) ShellResize(shellRef.current, cols, rows) })
     return () => {
       onData.dispose()
@@ -169,7 +171,7 @@ export function TerminalPanel({ serverId, generation, visible, fontSize, onForeg
       return
     }
     noAutoRef.current = true
-    ShellInput(id, attachCommand(s) + '\r')
+    sendInput(id, attachCommand(s) + '\r')
     termRef.current?.focus()
   }
 
@@ -182,7 +184,7 @@ export function TerminalPanel({ serverId, generation, visible, fontSize, onForeg
         toast(tRef.current('toast.busy'), 'warn')
         return
       }
-      ShellInput(id, text)
+      sendInput(id, text)
       termRef.current?.focus()
     }
     return registerTerminal(serverId, {
@@ -208,17 +210,28 @@ export function TerminalPanel({ serverId, generation, visible, fontSize, onForeg
       data-terminal={serverId}
       className="relative flex min-h-0 flex-col border-t border-line bg-term"
       onDragOver={e => {
-        if (!e.dataTransfer.types.includes('application/x-drag-session')) return
+        const types = e.dataTransfer.types
+        if (types.includes('application/x-drag-session')) setDropLabel(t('desktop.openHere'))
+        else if (types.includes('application/x-drag-path')) setDropLabel(types.includes('application/x-drag-dir') ? t('open.cdHere') : t('open.insertHere'))
+        else return
         e.preventDefault()
-        setDropLabel(t('desktop.openHere'))
       }}
       onDragLeave={() => setDropLabel('')}
       onDrop={e => {
         setDropLabel('')
         const data = e.dataTransfer.getData('application/x-drag-session')
-        if (!data) return
-        e.preventDefault()
-        openSession(JSON.parse(data) as remote.Session)
+        const file = e.dataTransfer.getData('application/x-drag-path')
+        if (data) {
+          e.preventDefault()
+          openSession(JSON.parse(data) as remote.Session)
+        } else if (file) {
+          // ツリーのフォルダなら cd、ファイルならパスを入力する
+          e.preventDefault()
+          const f = JSON.parse(file) as { path: string; dir: boolean }
+          const api = terminalOf(serverId)
+          if (f.dir) api?.cd(pathArg(home, f.path))
+          else api?.insert(pathArg(home, f.path))
+        }
       }}
     >
       <div className="flex h-[34px] flex-none items-center gap-2.5 border-b border-line bg-panel pr-2 pl-3.5">
