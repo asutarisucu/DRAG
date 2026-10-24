@@ -58,8 +58,8 @@ func (s *Server) EnableSudo(password string) error {
 		return err
 	}
 	s.mu.Lock()
-	old := s.sudo
-	s.sudo = &sudoMode{password: password, fc: fc, sess: sess}
+	old := s.sudo[s.dev]
+	s.sudo[s.dev] = &sudoMode{password: password, fc: fc, sess: sess}
 	s.mu.Unlock()
 	if old != nil {
 		old.close()
@@ -70,8 +70,8 @@ func (s *Server) EnableSudo(password string) error {
 // DisableSudo は sudo モードを OFF にし、持っていたパスワードを捨てる
 func (s *Server) DisableSudo() {
 	s.mu.Lock()
-	m := s.sudo
-	s.sudo = nil
+	m := s.sudo[s.dev]
+	delete(s.sudo, s.dev)
 	s.mu.Unlock()
 	if m != nil {
 		m.close()
@@ -82,25 +82,37 @@ func (s *Server) DisableSudo() {
 func (s *Server) Sudo() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.sudo != nil
+	return s.sudo[s.dev] != nil
 }
 
 // SudoPassword は ON にしたときのパスワード。つなぎ直したあとに ON に戻すのに使う
 func (s *Server) SudoPassword() (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.sudo == nil {
+	m := s.sudo[s.dev]
+	if m == nil {
 		return "", false
 	}
-	return s.sudo.password, true
+	return m.password, true
+}
+
+// SudoPasswords は、sudo モードが ON の端末ごとのパスワード。つなぎ直したあとに ON に戻すのに使う
+func (s *Server) SudoPasswords() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]string{}
+	for dev, m := range s.sudo {
+		out[dev] = m.password
+	}
+	return out
 }
 
 // fs はファイルの操作に使う SFTP。sudo モードなら sudo で起動した sftp-server
 func (s *Server) fs() *sftp.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.sudo != nil {
-		return s.sudo.fc
+	if m := s.sudo[s.dev]; m != nil {
+		return m.fc
 	}
 	return s.sftp
 }
@@ -109,7 +121,7 @@ func (s *Server) fs() *sftp.Client {
 // 返す stdin の頭には、sudo に読ませるパスワードの行が入る。sudo はその1行だけを読み、残りはスクリプトに渡る
 func (s *Server) command(script, stdin string) (string, string) {
 	s.mu.Lock()
-	m := s.sudo
+	m := s.sudo[s.dev]
 	s.mu.Unlock()
 	switch {
 	case m == nil:

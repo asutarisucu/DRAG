@@ -512,6 +512,12 @@ func TestSudoMode(t *testing.T) {
 	if _, err := s.ListDir("/root"); err != nil {
 		t.Fatalf("/root を開けない: %v", err)
 	}
+	// sudo モードは端末ごと。同じ接続でも、ほかの端末からは OFF に見える
+	if phone := s.As("phone"); phone.Sudo() {
+		t.Fatal("ほかの端末でも ON になった")
+	} else if _, err := phone.ListDir("/root"); err == nil {
+		t.Fatal("ほかの端末から /root を開けた")
+	}
 	etc, err := s.ListDir("/etc")
 	if err != nil {
 		t.Fatal(err)

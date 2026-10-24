@@ -7,8 +7,6 @@ import (
 	"path"
 	"sync"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"github.com/asutarisucu/DRAG/app/internal/archive"
 	"github.com/asutarisucu/DRAG/app/internal/remote"
 )
@@ -93,7 +91,7 @@ func (a *App) LogFollow(serverID, p string, from int64) (string, error) {
 	a.mu.Unlock()
 	fs := a.files()
 	stop, err := s.Follow(p, from,
-		func(b []byte) { runtime.EventsEmit(a.ctx, "log:out", id, string(b)) },
+		func(b []byte) { a.emit("log:out", id, string(b)) },
 		func(err error) {
 			fs.mu.Lock()
 			delete(fs.follows, id)
@@ -102,7 +100,7 @@ func (a *App) LogFollow(serverID, p string, from int64) (string, error) {
 			if err != nil {
 				msg = err.Error()
 			}
-			runtime.EventsEmit(a.ctx, "log:end", id, msg)
+			a.emit("log:end", id, msg)
 		})
 	if err != nil {
 		return "", err

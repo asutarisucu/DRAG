@@ -40,8 +40,15 @@ func (e *HostKeyError) Error() string {
 	return "サーバーの鍵がまだ登録されていません (" + e.Fingerprint + ")"
 }
 
-// Server は1台のサーバーとの接続。SSH の上に SFTP を1本持つ
+// Server は1台のサーバーとの接続を、1つの端末から見たもの。
+// 接続は PC とスマホで共有し、sudo モードだけを端末ごとに持つ
 type Server struct {
+	*link
+	dev string // どの端末の sudo モードを使うか。PC の画面なら空
+}
+
+// link は1台のサーバーとの接続。SSH の上に SFTP を1本持つ
+type link struct {
 	cfg  Config
 	ssh  *ssh.Client
 	sftp *sftp.Client
@@ -49,8 +56,16 @@ type Server struct {
 
 	mu     sync.Mutex
 	closed bool
-	sudo   *sudoMode // sudo モードが OFF なら nil
+	sudo   map[string]*sudoMode // 端末ごとの sudo モード。OFF の端末は入らない
 }
+
+// As は、同じ接続を dev の端末から見たものを返す
+func (s *Server) As(dev string) *Server {
+	return &Server{link: s.link, dev: dev}
+}
+
+// Closed は、閉じたか切れたあとに閉じた接続か
+func (s *Server) Closed() bool { return s.isClosed() }
 
 func (s *Server) isClosed() bool {
 	s.mu.Lock()
@@ -162,7 +177,7 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 		sc.Close()
 		return nil, fmt.Errorf("SFTP を開けません: %w", err)
 	}
-	s := &Server{cfg: cfg, ssh: sc, sftp: fc}
+	s := &Server{link: &link{cfg: cfg, ssh: sc, sftp: fc, sudo: map[string]*sudoMode{}}}
 	// 見張れなくても、ターミナルとファイルは使える
 	s.startMonitor()
 	return s, nil
@@ -210,10 +225,10 @@ func (s *Server) Close() {
 		return
 	}
 	s.closed = true
-	if s.sudo != nil {
-		s.sudo.close()
-		s.sudo = nil
+	for _, m := range s.sudo {
+		m.close()
 	}
+	clear(s.sudo)
 	s.sftp.Close()
 	s.ssh.Close()
 }

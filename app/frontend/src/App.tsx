@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Disconnect, Reconnect, SavedServers } from '../wailsjs/go/main/App'
+import { Disconnect, PhoneState, Reconnect, SavedServers, Servers } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
 import { EventsOn, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime'
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
 import { Desktop } from './components/Desktop'
 import { FileTree } from './components/FileTree'
+import { PairDialog, usePhoneDevices } from './components/PairDialog'
 import { Icon, type IconName } from './components/Icon'
 import { Resizer } from './components/Resizer'
 import { SessionsView } from './components/SessionsView'
@@ -16,6 +17,7 @@ import { SudoDialog } from './components/SudoDialog'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Toasts } from './components/Toasts'
 import { setSettings, useSettings } from './settings'
+import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
 
@@ -36,11 +38,39 @@ export default function App() {
   const [active, setActive] = useState('')
   const [connecting, setConnecting] = useState<{ preset?: store.Server } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [pairOpen, setPairOpen] = useState(false)
+  // スマホの待ち受けが止まっていれば、登録の窓の代わりに設定を案内する
+  const openPair = () => PhoneState().then(s => s.status.running ? setPairOpen(true) : toast(t('pair.off'), 'warn'))
   const update = (id: string, f: (s: Server) => Partial<Server>) => setServers(list => list.map(s => s.id === id ? { ...s, ...f(s) } : s))
 
   useEffect(() => EventsOn('server:closed', (id: string) => {
     update(id, s => s.conn === 'ok' ? { conn: 'lost', retry: 1, wait: 3, error: '' } : {})
   }), [])
+
+  // 接続は PC とスマホで共有する。ほかの端末がつないだサーバーはタブを足し、切ったものは外す
+  const addServer = (c: Connected, activate: boolean) => {
+    setServers(list => list.some(s => s.id === c.id) ? list : [...list, { ...c, conn: 'ok', retry: 0, wait: 0, gen: 0, error: '' }])
+    setActive(a => activate || !a ? c.id : a)
+  }
+  useEffect(() => EventsOn('server:opened', (c: Connected) => addServer(c, false)), [])
+  useEffect(() => EventsOn('server:removed', (id: string) => {
+    setServers(list => {
+      const rest = list.filter(s => s.id !== id)
+      setActive(a => a === id ? rest.at(-1)?.id ?? '' : a)
+      return rest
+    })
+  }), [])
+  // スマホの画面は、開いたときに PC アプリがつないでいるサーバーを並べる
+  const [linkLost, setLinkLost] = useState(false)
+  useEffect(() => {
+    if (!isRemote) return
+    Servers().then(list => list.forEach(c => addServer(c as Connected, false)))
+    if (new URLSearchParams(location.search).has('paired')) {
+      toast(t('pair.registered'), 'ok')
+      history.replaceState(null, '', '/')
+    }
+    return onLink(l => setLinkLost(l === 'lost'))
+  }, [])
 
   // PC のファイルのドロップ。落ちた位置の行からフォルダを決め、そのサーバーのファイルツリーに渡す
   useEffect(() => {
@@ -79,12 +109,12 @@ export default function App() {
   }, [servers, reconnect])
 
   const added = (c: Connected) => {
-    setServers(list => [...list, { ...c, conn: 'ok', retry: 0, wait: 0, gen: 0, error: '' }])
-    setActive(c.id)
+    addServer(c, true)
     setConnecting(null)
   }
+  // スマホではタブを閉じるだけにする。接続は PC アプリのもので、PC の画面でも使っている
   const close = (id: string) => {
-    Disconnect(id)
+    if (!isRemote) Disconnect(id)
     setSudo(id, false)
     setServers(list => {
       const rest = list.filter(s => s.id !== id)
@@ -136,6 +166,11 @@ export default function App() {
             </span>
           </button>
         )}
+        {cur && !isRemote && (
+          <button className="inline-flex h-7 flex-none items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" onClick={openPair}>
+            <Icon name="qr" size={15} />{t('pair.open')}
+          </button>
+        )}
       </header>
 
       <div className="relative min-h-0">
@@ -152,13 +187,29 @@ export default function App() {
             <span className="font-mono">{cur.user}@{cur.host}</span>
           </span>
         )}
+        {cur && !isRemote && <PhoneCount onClick={openPair} />}
       </footer>
 
+      {linkLost && (
+        <div className="fixed inset-x-0 top-0 z-[60] bg-err px-3 py-2 text-center text-[12.5px] text-white" role="alert">{t('pair.linkLost')}</div>
+      )}
       {connecting && <ConnectDialog preset={connecting.preset} onClose={() => setConnecting(null)} onConnected={added} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {pairOpen && <PairDialog onClose={() => setPairOpen(false)} />}
       <SudoDialog who={id => { const s = servers.find(x => x.id === id); return s ? `${s.user}@${s.name}` : '' }} />
       <Toasts />
     </div>
+  )
+}
+
+// 下の欄の「スマホ N台」。押すとスマホの登録の窓を開く
+function PhoneCount({ onClick }: { onClick: () => void }) {
+  const { t } = useTranslation()
+  const { devices } = usePhoneDevices()
+  return (
+    <button className="flex h-[22px] items-center gap-1.5 rounded px-1.5 whitespace-nowrap hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t('pair.open')} onClick={onClick}>
+      <Icon name="phone" size={13} />{t('pair.count', { n: devices.length })}
+    </button>
   )
 }
 

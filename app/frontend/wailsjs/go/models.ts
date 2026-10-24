@@ -154,6 +154,70 @@ export namespace main {
 	        this.size = source["size"];
 	    }
 	}
+	export class Pairing {
+	    url: string;
+	    expires: number;
+	    path: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pairing(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.expires = source["expires"];
+	        this.path = source["path"];
+	        this.size = source["size"];
+	    }
+	}
+	export class PhoneSettings {
+	    lan: boolean;
+	    port: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PhoneSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lan = source["lan"];
+	        this.port = source["port"];
+	    }
+	}
+	export class PhoneState {
+	    settings: PhoneSettings;
+	    status: phone.Status;
+	
+	    static createFrom(source: any = {}) {
+	        return new PhoneState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.settings = this.convertValues(source["settings"], PhoneSettings);
+	        this.status = this.convertValues(source["status"], phone.Status);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Replay {
 	    data: string;
 	    end: number;
@@ -166,6 +230,150 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.data = source["data"];
 	        this.end = source["end"];
+	    }
+	}
+	export class ServerInfo {
+	    id: string;
+	    name: string;
+	    user: string;
+	    host: string;
+	    home: string;
+	    info?: remote.Info;
+	
+	    static createFrom(source: any = {}) {
+	        return new ServerInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.user = source["user"];
+	        this.host = source["host"];
+	        this.home = source["home"];
+	        this.info = this.convertValues(source["info"], remote.Info);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace phone {
+	
+	export class Device {
+	    id: string;
+	    name: string;
+	    hash: string;
+	    route: string;
+	    // Go type: time
+	    created: any;
+	    // Go type: time
+	    lastSeen: any;
+	    lastIP: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Device(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.hash = source["hash"];
+	        this.route = source["route"];
+	        this.created = this.convertValues(source["created"], null);
+	        this.lastSeen = this.convertValues(source["lastSeen"], null);
+	        this.lastIP = source["lastIP"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Login {
+	    // Go type: time
+	    time: any;
+	    kind: string;
+	    device: string;
+	    ip: string;
+	    route: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Login(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.time = this.convertValues(source["time"], null);
+	        this.kind = source["kind"];
+	        this.device = source["device"];
+	        this.ip = source["ip"];
+	        this.route = source["route"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Status {
+	    running: boolean;
+	    url: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.running = source["running"];
+	        this.url = source["url"];
+	        this.error = source["error"];
 	    }
 	}
 

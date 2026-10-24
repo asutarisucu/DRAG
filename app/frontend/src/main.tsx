@@ -1,3 +1,5 @@
+// ほかのモジュールが読み込み時にイベントを待ち受けるので、いちばん先に読む
+import './remote'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import './i18n'

@@ -3,9 +3,11 @@ module github.com/asutarisucu/DRAG/app
 go 1.26.0
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/pkg/sftp v1.13.12
 	github.com/wailsapp/wails/v2 v2.17.0
 	golang.org/x/crypto v0.58.0
+	rsc.io/qr v0.2.0
 )
 
 require (

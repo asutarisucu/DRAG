@@ -62,6 +62,10 @@ export function NewEntry(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['NewEntry'](arg1, arg2, arg3, arg4);
 }
 
+export function NewPairing() {
+  return window['go']['main']['App']['NewPairing']();
+}
+
 export function OpenShell(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenShell'](arg1, arg2, arg3, arg4);
 }
@@ -72,6 +76,18 @@ export function OpenText(arg1, arg2) {
 
 export function PasteEntry(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['PasteEntry'](arg1, arg2, arg3, arg4);
+}
+
+export function PhoneDevices() {
+  return window['go']['main']['App']['PhoneDevices']();
+}
+
+export function PhoneHistory() {
+  return window['go']['main']['App']['PhoneHistory']();
+}
+
+export function PhoneState() {
+  return window['go']['main']['App']['PhoneState']();
 }
 
 export function PickUploadFiles() {
@@ -102,6 +118,10 @@ export function RestoreEntry(arg1, arg2) {
   return window['go']['main']['App']['RestoreEntry'](arg1, arg2);
 }
 
+export function RevokePhone(arg1) {
+  return window['go']['main']['App']['RevokePhone'](arg1);
+}
+
 export function SaveText(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['SaveText'](arg1, arg2, arg3, arg4, arg5);
 }
@@ -110,8 +130,16 @@ export function SavedServers() {
   return window['go']['main']['App']['SavedServers']();
 }
 
+export function Servers() {
+  return window['go']['main']['App']['Servers']();
+}
+
 export function Sessions(arg1) {
   return window['go']['main']['App']['Sessions'](arg1);
+}
+
+export function SetPhoneLAN(arg1) {
+  return window['go']['main']['App']['SetPhoneLAN'](arg1);
 }
 
 export function ShellCwd(arg1) {

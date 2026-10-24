@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { PhoneState, SetPhoneLAN } from '../../wailsjs/go/main/App'
+import type { main } from '../../wailsjs/go/models'
+import { isRemote } from '../remote'
 import { DEFAULTS, setSettings, useSettings } from '../settings'
 import { Icon, type IconName } from './Icon'
 import { Modal } from './Modal'
@@ -73,12 +76,32 @@ function AutoCmds({ list, onChange }: { list: string[]; onChange: (l: string[]) 
   )
 }
 
+type Page = 'look' | 'term' | 'ops' | 'phone'
+
+// スマホの待ち受け。PC の設定フォルダに置き、Go の側で切り替える
+function PhonePage() {
+  const { t } = useTranslation()
+  const [st, setSt] = useState<main.PhoneState | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => { PhoneState().then(setSt) }, [])
+  if (!st) return null
+  const desc = [st.status.url || `:${st.settings.port}`, t('settings.selfSigned')].join(' · ')
+  return (
+    <>
+      <Row label={t('settings.phoneLan')} desc={error || st.status.error || desc}>
+        <Switch on={st.settings.lan} onChange={on => SetPhoneLAN(on).then(s => { setSt(s); setError('') }, e => { setError(String(e)); PhoneState().then(setSt) })} />
+      </Row>
+    </>
+  )
+}
+
 // 設定。ページを替えても文字の大きさを変えても、窓の高さは変えない
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const s = useSettings()
-  const [page, setPage] = useState<'look' | 'term' | 'ops'>('look')
-  const pages: ['look' | 'term' | 'ops', IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear']]
+  const [page, setPage] = useState<Page>('look')
+  // スマホの待ち受けは PC アプリの設定なので、スマホの画面には出さない
+  const pages: [Page, IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear'], ...(isRemote ? [] : [['phone', 'phone'] as [Page, IconName]])]
 
   return (
     <Modal title={t('settings.title')} width={780} onClose={onClose}>
@@ -128,6 +151,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               </select>
             </Row>
           </>}
+          {page === 'phone' && <PhonePage />}
           {page === 'term' && (
             <Row label={t('settings.termSize')}>
               <div className="flex items-center gap-2.5">

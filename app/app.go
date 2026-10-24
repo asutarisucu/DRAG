@@ -1,12 +1,15 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"errors"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,14 +17,22 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/asutarisucu/DRAG/app/internal/phone"
 	"github.com/asutarisucu/DRAG/app/internal/remote"
 	"github.com/asutarisucu/DRAG/app/internal/store"
 )
 
-// App は画面から呼ばれる窓口。サーバーとシェルを番号で持つ
+// App は画面から呼ばれる窓口。サーバーとシェルを番号で持つ。
+// PC の画面とスマホの画面で core を共有し、dev で呼んだ端末を分ける
 type App struct {
+	*core
+	dev string // 呼んだ端末。PC の画面なら空
+}
+
+type core struct {
 	ctx   context.Context
 	saved *store.Servers
+	phone *phone.Server
 
 	mu      sync.Mutex
 	next    int
@@ -34,21 +45,26 @@ type App struct {
 type conn struct {
 	req    ConnectRequest
 	server *remote.Server
+	info   *remote.Info
+	// つなぎ直しは PC とスマホの両方から来るので、1つずつにする
+	redial sync.Mutex
 }
 
 func NewApp() *App {
-	return &App{
+	return &App{core: &core{
 		saved:   store.NewServers(configDir()),
 		servers: map[string]*conn{},
 		shells:  map[string]*remote.Shell{},
-	}
+	}}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.startPhone()
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.phone.Stop()
 	a.closeFiles()
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -126,13 +142,61 @@ func (a *App) dial(req ConnectRequest) (*remote.Server, ConnectResult) {
 // watch は接続が切れたら "server:closed" を送る。切断や再接続で入れ替えたあとの古い接続では送らない
 func (a *App) watch(id string, s *remote.Server) {
 	s.Wait(15*time.Second, 10*time.Second)
+	s.Close()
 	a.mu.Lock()
 	c := a.servers[id]
 	current := c != nil && c.server == s
 	a.mu.Unlock()
 	if current {
-		runtime.EventsEmit(a.ctx, "server:closed", id)
+		a.emit("server:closed", id)
 	}
+}
+
+// emit は PC の画面とスマホの画面の両方にイベントを送る
+func (a *App) emit(name string, args ...any) {
+	runtime.EventsEmit(a.ctx, name, args...)
+	a.phone.Broadcast(name, args...)
+}
+
+// emitOthers は、呼んだ端末を除いた画面にイベントを送る
+func (a *App) emitOthers(name string, args ...any) {
+	if a.dev != "" {
+		runtime.EventsEmit(a.ctx, name, args...)
+	}
+	a.phone.BroadcastExcept(a.dev, name, args...)
+}
+
+// ServerInfo はつないでいるサーバー1台。スマホの画面が開いたときに、PC でつないだサーバーを並べるのに使う
+type ServerInfo struct {
+	ID   string       `json:"id"`
+	Name string       `json:"name"`
+	User string       `json:"user"`
+	Host string       `json:"host"`
+	Home string       `json:"home"`
+	Info *remote.Info `json:"info"`
+}
+
+func serverInfo(id string, c *conn) ServerInfo {
+	home, _ := c.server.Home()
+	return ServerInfo{ID: id, Name: c.req.Name, User: c.req.User, Host: c.req.Host, Home: home, Info: c.info}
+}
+
+// Servers はつないでいるサーバーを、つないだ順に返す
+func (a *App) Servers() []ServerInfo {
+	a.mu.Lock()
+	conns := maps.Clone(a.servers)
+	a.mu.Unlock()
+	out := []ServerInfo{}
+	for _, id := range slices.SortedFunc(maps.Keys(conns), func(x, y string) int { return cmp.Compare(idNum(x), idNum(y)) }) {
+		out = append(out, serverInfo(id, conns[id]))
+	}
+	return out
+}
+
+// idNum は "s12" のような番号の数の部分
+func idNum(id string) int {
+	n, _ := strconv.Atoi(strings.TrimLeft(id, "abcdefghijklmnopqrstuvwxyz"))
+	return n
 }
 
 // Connect はサーバーにつなぎ、保存済みのサーバーに書く。
@@ -144,9 +208,12 @@ func (a *App) Connect(req ConnectRequest) ConnectResult {
 	}
 	a.mu.Lock()
 	id := a.newID("s")
-	a.servers[id] = &conn{req: req, server: s}
+	c := &conn{req: req, server: s}
+	a.servers[id] = c
 	a.mu.Unlock()
 	go a.watch(id, s)
+	// ほかの端末の画面にもタブを足す。開いた端末は、接続の手順を見せてから自分で足す
+	a.emitOthers("server:opened", serverInfo(id, c))
 	if _, err := a.saved.Put(store.Server{Name: req.Name, Host: req.Host, Port: req.Port, User: req.User, Auth: req.Auth, KeyFile: req.KeyFile}); err != nil {
 		runtime.LogWarningf(a.ctx, "保存済みのサーバーに書けません: %v", err)
 	}
@@ -160,10 +227,19 @@ func (a *App) Probe(id string) (remote.Info, error) {
 	if err != nil {
 		return remote.Info{}, err
 	}
-	return s.Probe()
+	info, err := s.Probe()
+	if err == nil {
+		a.mu.Lock()
+		if c := a.servers[id]; c != nil {
+			c.info = &info
+		}
+		a.mu.Unlock()
+	}
+	return info, err
 }
 
-// Reconnect は、切れたサーバーに同じ設定でつなぎ直す。番号はそのまま使う
+// Reconnect は、切れたサーバーに同じ設定でつなぎ直す。番号はそのまま使う。
+// ほかの端末が先につなぎ直していれば、その接続を使う
 func (a *App) Reconnect(id string) ConnectResult {
 	a.mu.Lock()
 	c := a.servers[id]
@@ -171,15 +247,24 @@ func (a *App) Reconnect(id string) ConnectResult {
 	if c == nil {
 		return ConnectResult{Error: "サーバーにつながっていません"}
 	}
+	c.redial.Lock()
+	defer c.redial.Unlock()
+	if !c.server.Closed() {
+		home, _ := c.server.Home()
+		return ConnectResult{ID: id, Home: home, Info: c.info, Sudo: c.server.As(a.dev).Sudo()}
+	}
 	req := c.req
 	req.Trust = ""
 	s, r := a.dial(req)
 	if s == nil {
 		return r
 	}
-	// sudo モードは、切れる前に ON なら同じパスワードで ON に戻す。パスワードが変わっていたら OFF のまま
-	if pw, on := c.server.SudoPassword(); on {
-		r.Sudo = s.EnableSudo(pw) == nil
+	// sudo モードは、切れる前に ON だった端末ごとに、同じパスワードで ON に戻す。パスワードが変わっていたら OFF のまま
+	for dev, pw := range c.server.SudoPasswords() {
+		ok := s.As(dev).EnableSudo(pw) == nil
+		if dev == a.dev {
+			r.Sudo = ok
+		}
 	}
 	a.mu.Lock()
 	old := c.server
@@ -217,7 +302,7 @@ func (a *App) server(id string) (*remote.Server, error) {
 	if !ok {
 		return nil, errors.New("サーバーにつながっていません")
 	}
-	return c.server, nil
+	return c.server.As(a.dev), nil
 }
 
 func (a *App) Disconnect(id string) {
@@ -227,6 +312,7 @@ func (a *App) Disconnect(id string) {
 	a.mu.Unlock()
 	if c != nil {
 		c.server.Close()
+		a.emitOthers("server:removed", id)
 	}
 }
 
@@ -260,14 +346,14 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 	sh, err := s.OpenShell(cols, rows, cwd, remote.ShellEvents{
 		// UTF-8 の途中で切れたバイト列も壊さずに渡すため、base64 にする
 		Output: func(p []byte, end int64) {
-			runtime.EventsEmit(a.ctx, "shell:out", id, base64.StdEncoding.EncodeToString(p), end)
+			a.emit("shell:out", id, base64.StdEncoding.EncodeToString(p), end)
 		},
-		Foreground: func(cmdline string) { runtime.EventsEmit(a.ctx, "shell:fg", id, cmdline) },
+		Foreground: func(cmdline string) { a.emit("shell:fg", id, cmdline) },
 		Exit: func() {
 			a.mu.Lock()
 			delete(a.shells, id)
 			a.mu.Unlock()
-			runtime.EventsEmit(a.ctx, "shell:exit", id)
+			a.emit("shell:exit", id)
 		},
 	})
 	if err != nil {
@@ -373,7 +459,7 @@ func (a *App) progress(key string) remote.Progress {
 			return
 		}
 		last = time.Now()
-		runtime.EventsEmit(a.ctx, "transfer:progress", key, done, total)
+		a.emit("transfer:progress", key, done, total)
 	}
 }
 
