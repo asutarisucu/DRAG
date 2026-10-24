@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/pkg/sftp"
 )
 
 var (
@@ -24,7 +22,7 @@ var (
 type TextFile struct {
 	Text    string `json:"text"`
 	ModTime int64  `json:"modTime"` // 保存するときに、開いたあとに変わっていないかを見る
-	Root    bool   `json:"root"`    // root の持ち物。保存には sudo モードが要る
+	Locked  bool   `json:"locked"`  // ログインしたユーザーでは書けない。保存には sudo モードが要る
 }
 
 // CheckText は、エディターで扱える中身かを見る。NUL を含むものはバイナリ、UTF-8 として読めないものは文字化けするので断る
@@ -58,11 +56,7 @@ func (s *Server) ReadText(p string, limit int64) (TextFile, error) {
 	if err := CheckText(b); err != nil {
 		return TextFile{}, err
 	}
-	tf := TextFile{Text: string(b), ModTime: fi.ModTime().Unix()}
-	if st, ok := fi.Sys().(*sftp.FileStat); ok {
-		tf.Root = st.UID == 0
-	}
-	return tf, nil
+	return TextFile{Text: string(b), ModTime: fi.ModTime().Unix(), Locked: !s.id.writable(fi)}, nil
 }
 
 // ReadBytes はファイルを読む。limit を超えるものは読まない

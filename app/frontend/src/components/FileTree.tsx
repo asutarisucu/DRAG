@@ -7,7 +7,8 @@ import { pathArg, terminalOf } from '../terminals'
 import { useSettings } from '../settings'
 import { setMTab, useMobile } from '../mobile'
 import { isRemote } from '../remote'
-import { requireSudo, useSudo } from '../sudo'
+import i18n from '../i18n'
+import { isDenied, useSudo, withSudo } from '../sudo'
 import { progressToast, toast } from '../toasts'
 import { withProgress } from '../transfers'
 import { ConflictDialog, PropsDialog, type ConflictAnswer } from './FileDialogs'
@@ -49,11 +50,20 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   const mobile = useMobile()
   const longPressed = useRef(false)
 
-  const load = useCallback((path: string) => {
+  // フォルダの中を読む。読めればから文字列、読めなければその理由を返す。
+  // ask なら、権限で読めないときに sudo モードを ON にするかを聞く。開いたときにだけ聞き、読み直しでは聞かない
+  const load = useCallback((path: string, ask = false): Promise<string> => {
     setDirs(d => ({ ...d, [path]: { ...d[path], loading: true } }))
-    return ListDir(serverId, path).then(
-      entries => setDirs(d => ({ ...d, [path]: { entries: entries ?? [], loading: false } })),
-      err => setDirs(d => ({ ...d, [path]: { error: errText(err), loading: false } })),
+    const list = () => ListDir(serverId, path)
+    return (ask ? withSudo(serverId, i18n.t('sudo.openDir', { dir: path }), list) : list()).then(
+      entries => {
+        setDirs(d => ({ ...d, [path]: { entries: entries ?? [], loading: false } }))
+        return ''
+      },
+      err => {
+        setDirs(d => ({ ...d, [path]: { error: errText(err), loading: false } }))
+        return errText(err)
+      },
     )
   }, [serverId])
 
@@ -66,36 +76,30 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   }, [generation])
 
   // sudo モードを切り替えると見えるものが変わるので、開いているフォルダを読み直す。
-  // OFF にしたときにホームの外を見ていたら、ホームに戻す
-  const inHome = (p: string) => p === root || p.startsWith(root + '/')
+  // OFF にして、いちばん上のフォルダを読めなくなったら、ホームに戻す
   const prevSudo = useRef(sudo)
   useEffect(() => {
     if (prevSudo.current === sudo) return
     prevSudo.current = sudo
-    if (!sudo && !inHome(top)) setTop(root)
-    else load(top)
+    load(top).then(err => { if (err && top !== root) setTop(root) })
     for (const [path, isOpen] of Object.entries(open)) if (isOpen && path !== top) load(path)
   }, [sudo])
 
-  const goTo = (p: string) => {
-    const go = () => {
-      setOpen(o => ({ ...o, [p]: true, [top]: true }))
-      setTop(p)
-      setSelected(p)
+  // ツリーのいちばん上を p に移す。読めないときは sudo モードを聞き、やめたら移らない
+  const goTo = (p: string) => load(p, true).then(err => {
+    if (err) {
+      if (!isDenied(err)) fail(err)
+      return
     }
-    if (sudo || inHome(p)) go()
-    else requireSudo(serverId, t('sudo.outside')).then(ok => { if (ok) go() })
-  }
+    setOpen(o => ({ ...o, [p]: true, [top]: true }))
+    setTop(p)
+    setSelected(p)
+  })
 
   const entryOf = (path: string) => dirs[parentOf(path)]?.entries?.find(x => x.path === path)
   const nodeOf = (path: string): Node => {
     const fixed = path === top || path === root || path === parentOf(root) || path === '/'
     return { path, name: baseOf(path), dir: path === top || !!entryOf(path)?.dir, top: fixed }
-  }
-  // root のものに触る操作は、sudo モードが OFF ならまず ON にしてもらう
-  const guard = (paths: (string | false)[], reason: string, fn: () => void) => {
-    if (sudo || !paths.some(p => p && entryOf(p)?.root)) fn()
-    else requireSudo(serverId, reason).then(ok => { if (ok) fn() })
   }
 
   const focusTree = () => box.current?.focus({ preventScroll: true })
@@ -109,43 +113,44 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     if (select) setSelected(select)
   }
   // SFTP の英語の決まり文句は、画面の言語の文に置き換える
-  const fail = (e: unknown) => toast(errText(e) === 'permission denied' ? t('files.denied') : errText(e), 'warn')
+  const fail = (e: unknown) => toast(isDenied(e) ? t('files.denied') : errText(e), 'warn')
 
-  const create = (dir: string, isDir: boolean) => guard([dir], t('sudo.create', { dir: pathArg(root, dir) }), () => {
-    NewEntry(serverId, dir, isDir ? t('files.newFolderName') : t('files.newFileName'), isDir).then(async p => {
+  // 操作は、ログインしたユーザーの権限で失敗したときだけ sudo モードを聞いてやり直す
+  const create = (dir: string, isDir: boolean) => {
+    withSudo(serverId, t('sudo.create', { dir: pathArg(root, dir) }), () => NewEntry(serverId, dir, isDir ? t('files.newFolderName') : t('files.newFileName'), isDir)).then(async p => {
       await after([dir], p)
       setRenaming(p)
     }, fail)
-  })
-  const startRename = (n: Node) => guard([n.path, parentOf(n.path)], t('sudo.rename', { name: n.name }), () => setRenaming(n.path))
+  }
+  const startRename = (n: Node) => setRenaming(n.path)
   const rename = (node: Node, name: string) => {
     setRenaming('')
     focusTree()
     if (!name || name === node.name) return
-    RenameEntry(serverId, node.path, name).then(p => after([parentOf(node.path)], p), fail)
+    withSudo(serverId, t('sudo.rename', { name: node.name }), () => RenameEntry(serverId, node.path, name)).then(p => after([parentOf(node.path)], p), fail)
   }
   const paste = (dir: string) => {
     if (!clip) return
-    guard([dir, clip.move && clip.path, clip.move && parentOf(clip.path)], t('sudo.paste'), () => PasteEntry(serverId, clip.path, dir, clip.move).then(p => {
+    withSudo(serverId, t('sudo.paste'), () => PasteEntry(serverId, clip.path, dir, clip.move)).then(p => {
       if (clip.move) {
         setClip(null)
         toast(t('toast.moved', { name: baseOf(p), dir: pathArg(root, dir) }), 'ok')
       }
       after(clip.move ? [parentOf(clip.path), dir] : [dir], p)
-    }, fail))
+    }, fail)
   }
-  const trash = (node: Node) => guard([node.path, parentOf(node.path)], t('sudo.delete', { name: node.name }), () => {
-    TrashEntry(serverId, node.path).then(item => {
+  const trash = (node: Node) => {
+    withSudo(serverId, t('sudo.delete', { name: node.name }), () => TrashEntry(serverId, node.path)).then(item => {
       after([parentOf(node.path)], parentOf(node.path))
       toast(t('toast.trashed', { name: node.name }), 'info', {
         label: t('toast.undo'),
-        fn: () => RestoreEntry(serverId, item).then(p => {
+        fn: () => withSudo(serverId, t('sudo.restore', { name: node.name }), () => RestoreEntry(serverId, item)).then(p => {
           after([parentOf(p)], p)
           toast(t('toast.restored', { name: baseOf(p) }), 'ok')
         }, fail),
       })
     }, fail)
-  })
+  }
   const copyPath = (p: string) => ClipboardSetText(p).then(() => toast(t('toast.pathCopied'), 'ok'))
 
   const ask = (path: string, more: boolean) => new Promise<ConflictAnswer>(resolve => setConflict({ path, more, resolve }))
@@ -175,12 +180,12 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       }
       setOpen(o => ({ ...o, [dir]: true }))
       try {
-        last = await withProgress(
+        last = await withSudo(serverId, t('sudo.upload', { dir: pathArg(root, dir) }), () => withProgress(
           (done, total) => setUploads(u => u.map(x => x.key === it.path ? { ...x, p: total ? done / total : 1 } : x)),
           key => {
-            setUploads(u => [...u, { key: it.path, dir, name: it.name, isDir: it.dir, p: 0 }])
+            setUploads(u => u.some(x => x.key === it.path) ? u : [...u, { key: it.path, dir, name: it.name, isDir: it.dir, p: 0 }])
             return Upload(serverId, it.path, dir, keep, key)
-          })
+          }))
         count++
       } catch (e) {
         fail(e)
@@ -191,24 +196,22 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     await after([dir], last || undefined)
     if (count) toast(t('upload.sent', { count, dir: pathArg(root, dir) }), 'ok')
   }
-  const uploadGuarded = (dir: string, paths: () => Promise<string[]>) =>
-    guard([dir], t('sudo.upload', { dir: pathArg(root, dir) }), () => { paths().then(p => uploadTo(dir, p), fail) })
-  const pickUpload = (dir: string) => uploadGuarded(dir, () => PickUploadFiles().then(p => p ?? []))
+  const pickUpload = (dir: string) => PickUploadFiles().then(p => uploadTo(dir, p ?? []), fail)
 
   const download = (n: Node) => {
     const pt = progressToast(t('upload.receiving', { name: n.name }))
-    withProgress((done, total) => pt.set(total ? done / total : 1), key => Download(serverId, n.path, key)).then(
+    withSudo(serverId, t('sudo.read', { name: n.name }), () => withProgress((done, total) => pt.set(total ? done / total : 1), key => Download(serverId, n.path, key))).then(
       local => local ? pt.done(t('upload.received', { path: local })) : pt.done(t('connect.cancel'), 'info'),
       e => pt.done(errText(e), 'warn'),
     )
   }
-  const showProps = (n: Node) => Stat(serverId, n.path).then(pr => setProps({ node: n, props: pr }), fail)
+  const showProps = (n: Node) => withSudo(serverId, t('sudo.read', { name: n.name || n.path }), () => Stat(serverId, n.path)).then(pr => setProps({ node: n, props: pr }), fail)
 
   // Wails が知らせる PC からのドロップ。どの行に落ちたかは App が調べて渡す
   useEffect(() => {
     const onDrop = (e: Event) => {
       const d = (e as CustomEvent<{ serverId: string; dir: string; paths: string[] }>).detail
-      if (d.serverId === serverId) uploadGuarded(d.dir, async () => d.paths)
+      if (d.serverId === serverId) uploadTo(d.dir, d.paths)
     }
     window.addEventListener('drag:file-drop', onDrop)
     return () => window.removeEventListener('drag:file-drop', onDrop)
@@ -261,7 +264,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     if (!e.dir) return
     const next = !open[e.path]
     setOpen(o => ({ ...o, [e.path]: next }))
-    if (next && !dirs[e.path]?.entries) load(e.path)
+    if (next && !dirs[e.path]?.entries) load(e.path, true)
   }
   const contextMenu = (ev: React.MouseEvent, n: Node) => {
     ev.preventDefault()
@@ -354,7 +357,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           {renaming === e.path
             ? <RenameInput name={e.name} dir={e.dir} onDone={name => rename(nodeOf(e.path), name)} />
             : <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">{e.name}</span>}
-          {e.root && <span className="flex-none text-faint" title={t('sudo.rootFile')}><Icon name="lock" size={12} /></span>}
+          {e.locked && <span className="flex-none text-faint" title={t('sudo.locked')}><Icon name="lock" size={12} /></span>}
           {e.link && <span className="text-faint"><Icon name="link" size={12} /></span>}
           {moreButton(nodeOf(e.path))}
         </div>,

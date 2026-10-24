@@ -33,7 +33,7 @@ func main() {
 		StartHidden: os.Getenv("DRAG_START_HIDDEN") != "",
 		// 通知領域に残っている間にもう一度起動したら、新しく起動せずに今の窓を出す
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId:               "io.github.asutarisucu.drag",
+			UniqueId:               instanceID,
 			OnSecondInstanceLaunch: func(options.SecondInstanceData) { app.showWindow() },
 		},
 		OnStartup:  app.startup,

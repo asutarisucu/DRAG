@@ -46,9 +46,12 @@ let res = await phone.goto(PHONE + '/');
 ok('登録していない端末には画面を出さない', res.status() === 403 && (await phone.textContent('h1')) === 'この端末は登録されていません');
 
 // PC で QR コードを出す
-const before = await pc.$$eval('[data-device]', l => l.length).catch(() => 0);
 await pc.click('header button:has-text("スマホを登録")');
 await pc.waitForSelector('svg[data-qr^="https://"]');
+// 前からある端末は覚えておき、あと片付けではこのテストで登録したものだけを無効にする
+const deviceIds = () => pc.$$eval('[data-device]', l => l.map(e => e.dataset.device));
+await pc.waitForSelector('[role=dialog] [data-device], [role=dialog] :text("まだありません")');
+const known = new Set(await deviceIds());
 // 開発中の React は effect を2回動かすので、QR コードが作り直されて落ち着くのを待つ
 let url = '';
 for (let prev = null; url !== prev; await pc.waitForTimeout(600)) { prev = url; url = await pc.$eval('svg[data-qr]', e => e.dataset.qr); }
@@ -60,7 +63,7 @@ await pc.screenshot({ path: `${OUT}/phone-pair.png` });
 res = await phone.goto(url);
 await phone.waitForSelector('text=この端末を登録しました', { timeout: 8000 }).then(() => ok('登録すると知らせる', true), () => ok('登録すると知らせる', false));
 ok('URL からトークンが消える', phone.url() === PHONE + '/', phone.url());
-ok('PC の一覧に端末が出る', await waitFor(async () => (await pc.$$('[data-device]')).length === before + 1));
+ok('PC の一覧に端末が出る', await waitFor(async () => (await deviceIds()).length === known.size + 1));
 ok('PC に登録を知らせる', await waitFor(async () => (await pc.locator('[role=status]:has-text("スマホを登録しました")').count()) > 0));
 ok('QR コードを作り直す', await waitFor(async () => (await pc.$eval('svg[data-qr]', e => e.dataset.qr)) !== url));
 // 同じ QR コードはもう使えない
@@ -76,8 +79,9 @@ ok('ファイルツリーが出る', await waitFor(async () => (await phone.loca
 await phone.screenshot({ path: `${OUT}/phone-desktop-layout.png` });
 
 // 端末を無効にすると、スマホの画面は切れる
-await pc.click('[data-device] button:has-text("無効にする")');
-ok('PC の一覧から消える', await waitFor(async () => (await pc.$$('[data-device]')).length === before));
+const added = (await deviceIds()).filter(id => !known.has(id));
+for (const id of added) await pc.click(`[data-device="${id}"] button:has-text("無効にする")`);
+ok('PC の一覧から消える', await waitFor(async () => (await deviceIds()).length === known.size));
 ok('スマホに切れたと出る', await waitFor(async () => (await phone.locator('[role=alert]:has-text("PC アプリとの接続が切れました")').count()) > 0));
 res = await phone.goto(PHONE + '/');
 ok('無効にした端末には画面を出さない', res.status() === 403);

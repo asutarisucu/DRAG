@@ -36,5 +36,19 @@ export function requireSudo(serverId: string, reason = ''): Promise<boolean> {
   })
 }
 
+// ログインしたユーザーの権限で、読めないか書けなくて失敗したか。SFTP は "permission denied"、コマンドは "Permission denied" を返す
+export const isDenied = (e: unknown) => /permission denied/i.test(String(e))
+
+// run が権限で失敗したら、sudo モードを ON にするかを聞き、ON になればもう一度動かす。
+// 権限が足りているところでは聞かない (root でログインしているときなど)
+export async function withSudo<T>(serverId: string, reason: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (e) {
+    if (on[serverId] || !isDenied(e) || !(await requireSudo(serverId, reason))) throw e
+    return run()
+  }
+}
+
 export const useSudo = (serverId: string) => useSyncExternalStore(subscribe, () => !!on[serverId])
 export const useSudoAsk = () => useSyncExternalStore(subscribe, () => ask)

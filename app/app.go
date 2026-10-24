@@ -94,7 +94,7 @@ func configDir() string {
 	if err != nil {
 		d = "."
 	}
-	return filepath.Join(d, "DRAG")
+	return filepath.Join(d, configName)
 }
 
 type ConnectRequest struct {

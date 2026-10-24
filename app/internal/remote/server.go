@@ -54,6 +54,7 @@ type link struct {
 	sftp *sftp.Client
 	mon  *monitor // 見張れないサーバーでは nil
 
+	id     identity
 	mu     sync.Mutex
 	closed bool
 	sudo   map[string]*sudoMode // 端末ごとの sudo モード。OFF の端末は入らない
@@ -178,6 +179,7 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 		return nil, fmt.Errorf("SFTP を開けません: %w", err)
 	}
 	s := &Server{link: &link{cfg: cfg, ssh: sc, sftp: fc, sudo: map[string]*sudoMode{}}}
+	s.loadIdentity()
 	// 見張れなくても、ターミナルとファイルは使える
 	s.startMonitor()
 	return s, nil

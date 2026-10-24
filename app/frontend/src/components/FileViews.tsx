@@ -5,7 +5,7 @@ import type { archive } from '../../wailsjs/go/models'
 import { KIND_ICON, fileKind, logParts } from '../fileKind'
 import { attachLog } from '../logBus'
 import { useSettings } from '../settings'
-import { requireSudo, useSudo } from '../sudo'
+import { requireSudo, useSudo, withSudo } from '../sudo'
 import { fmtSize } from '../toasts'
 import { setCloseGuard, updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
@@ -38,8 +38,9 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
   const { t } = useTranslation()
   const path = win.path!
   const sudo = useSudo(serverId)
-  const [rootFile, setRootFile] = useState(false)
-  const locked = rootFile && !sudo
+  // ログインしたユーザーで書けないファイルは、sudo モードが OFF の間は読み取り専用にする
+  const [lockedFile, setLockedFile] = useState(false)
+  const locked = lockedFile && !sudo
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -53,11 +54,11 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
   const ta = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    OpenText(serverId, path).then(f => {
+    withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => OpenText(serverId, path)).then(f => {
       setText(f.text)
       textRef.current = f.text
       mod.current = f.modTime
-      setRootFile(f.root)
+      setLockedFile(f.locked)
     }, e => setError(errText(e)))
   }, [serverId, path])
 
@@ -66,7 +67,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
   const save = async (force = false): Promise<boolean> => {
     if (locked && !await requireSudo(serverId, t('sudo.save', { name: baseName(path) }))) return false
     try {
-      mod.current = await SaveText(serverId, path, textRef.current, mod.current, force)
+      mod.current = await withSudo(serverId, t('sudo.save', { name: baseName(path) }), () => SaveText(serverId, path, textRef.current, mod.current, force))
       setDirty(false)
       setStatus('saved')
       setTimeout(() => setStatus(''), 1800)
@@ -192,7 +193,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
     let id = ''
     let detach = () => {}
     let disposed = false
-    LogTail(serverId, path, -1, LOG_CHUNK).then(async c => {
+    withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => LogTail(serverId, path, -1, LOG_CHUNK)).then(async c => {
       if (disposed) return
       start.current = c.start
       const parts = c.text.split('\n')
@@ -270,13 +271,14 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
 const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', ico: 'image/x-icon' }
 
 export function ImageView({ win, serverId }: { win: Win; serverId: string }) {
+  const { t } = useTranslation()
   const path = win.path!
   const [src, setSrc] = useState('')
   const [size, setSize] = useState(0)
   const [dim, setDim] = useState('')
   const [error, setError] = useState('')
   useEffect(() => {
-    ReadImage(serverId, path).then(b64 => {
+    withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => ReadImage(serverId, path)).then(b64 => {
       setSize(Math.floor(b64.length * 3 / 4))
       setSrc(`data:${MIME[path.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream'};base64,${b64}`)
     }, e => setError(errText(e)))
@@ -307,7 +309,7 @@ export function ArchiveView({ win, serverId, home }: { win: Win; serverId: strin
   useEffect(() => {
     let id = ''
     let disposed = false
-    ArchiveOpen(serverId, path).then(i => {
+    withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => ArchiveOpen(serverId, path)).then(i => {
       id = i.id
       if (disposed) { ArchiveClose(id); return }
       setInfo({ id: i.id, entries: i.entries ?? [] })

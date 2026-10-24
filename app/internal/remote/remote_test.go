@@ -522,8 +522,9 @@ func TestSudoMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if i := slices.IndexFunc(etc, func(e Entry) bool { return e.Name == "hostname" }); i < 0 || !etc[i].Root {
-		t.Fatalf("/etc/hostname が root の持ち物と出ない")
+	// 鍵は sudo モードと関係なく、ログインしたユーザーで書けるかで付ける
+	if i := slices.IndexFunc(etc, func(e Entry) bool { return e.Name == "hostname" }); i < 0 || !etc[i].Locked {
+		t.Fatalf("/etc/hostname に書けないと出ない")
 	}
 
 	p := "/etc/drag-sudo-test"

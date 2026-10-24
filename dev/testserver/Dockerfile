@@ -15,6 +15,8 @@ RUN useradd -m -s /bin/bash "$USER" && echo "$USER:$PASS" | chpasswd && usermod 
 # zsh は .zshrc が無いと初回の設定の画面を出すので、空のものを置く
 RUN useradd -m -s /usr/bin/zsh zuser && echo "zuser:$PASS" | chpasswd && touch /home/zuser/.zshrc && chown zuser: /home/zuser/.zshrc \
  && useradd -m -s /usr/bin/fish fuser && echo "fuser:$PASS" | chpasswd
+# root でログインしたときの動きを確かめるため、root もパスワードで入れるようにする
+RUN echo "root:$PASS" | chpasswd && echo "PermitRootLogin yes" > /etc/ssh/sshd_config.d/drag-test.conf
 EXPOSE 22
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

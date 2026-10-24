@@ -43,6 +43,10 @@ const pcW = await screenW(pc, pcTerm);
 
 await pc.click('header button:has-text("スマホを登録")');
 await pc.waitForSelector('svg[data-qr^="https://"]');
+// 前からある端末は覚えておき、あと片付けではこのテストで登録したものだけを無効にする
+const deviceIds = () => pc.$$eval('[data-device]', l => l.map(e => e.dataset.device));
+await pc.waitForSelector('[role=dialog] [data-device], [role=dialog] :text("まだありません")');
+const known = new Set(await deviceIds());
 // 開発中の React は effect を2回動かすので、QR コードが作り直されて落ち着くのを待つ
 let url = '';
 for (let prev = null; url !== prev; await pc.waitForTimeout(600)) { prev = url; url = await pc.$eval('svg[data-qr]', e => e.dataset.qr); }
@@ -91,7 +95,8 @@ ok('スマホで閉じても PC のシェルは残る', await waitFor(async () =
 // あと片付け。登録した端末を無効にする
 await pc.click('header button:has-text("スマホを登録")');
 await pc.waitForSelector('[data-device]');
-for (const d of await pc.$$('[data-device]')) if ((await d.textContent()).includes('Android')) await d.$eval('button', b => b.click());
+const added = (await deviceIds()).filter(id => !known.has(id));
+for (const id of added) await pc.click(`[data-device="${id}"] button:has-text("無効にする")`);
 console.log(results.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'ページのエラーなし');
 await browser.close().catch(() => {});

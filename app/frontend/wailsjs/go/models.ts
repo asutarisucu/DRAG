@@ -408,7 +408,7 @@ export namespace remote {
 	    link: boolean;
 	    size: number;
 	    modTime: number;
-	    root: boolean;
+	    locked: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Entry(source);
@@ -422,7 +422,7 @@ export namespace remote {
 	        this.link = source["link"];
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
-	        this.root = source["root"];
+	        this.locked = source["locked"];
 	    }
 	}
 	export class Info {
@@ -510,7 +510,7 @@ export namespace remote {
 	export class TextFile {
 	    text: string;
 	    modTime: number;
-	    root: boolean;
+	    locked: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new TextFile(source);
@@ -520,7 +520,7 @@ export namespace remote {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.text = source["text"];
 	        this.modTime = source["modTime"];
-	        this.root = source["root"];
+	        this.locked = source["locked"];
 	    }
 	}
 	export class TrashItem {
