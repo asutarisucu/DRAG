@@ -9,7 +9,7 @@ export function Toasts() {
   return (
     <div className={`pointer-events-none fixed z-[60] flex flex-col gap-2 ${mobile ? 'inset-x-3 top-14 items-stretch' : 'right-4 bottom-9 items-end'}`}>
       {list.map(t => (
-        <div key={t.id} role="status" className={`pointer-events-auto rounded-[10px] ${mobile ? '' : 'max-w-[380px] min-w-[240px]'} border border-l-[3px] border-line-strong bg-[color-mix(in_srgb,var(--raised)_96%,transparent)] px-3.5 py-2.5 text-[12.5px] shadow-win backdrop-blur ${edge[t.kind]}`}>
+        <div key={t.id} role="status" className={`anim-toast pointer-events-auto rounded-[10px] ${t.leaving ? 'toast-out' : ''} ${mobile ? '' : 'max-w-[380px] min-w-[240px]'} border border-l-[3px] border-line-strong bg-[color-mix(in_srgb,var(--raised)_96%,transparent)] px-3.5 py-2.5 text-[12.5px] shadow-win backdrop-blur ${edge[t.kind]}`}>
           <div className="flex items-center gap-3">
             <span className="flex-1">{t.text}</span>
             {t.action && (

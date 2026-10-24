@@ -74,6 +74,8 @@ const count = async () => (await termText()).split('シェルが終了しまし�
 const before = await count();
 await page.click('button[title="設定"]');
 await page.waitForSelector('[role=dialog] h3');
+// 開くときの動きが終わってから測る
+await page.waitForTimeout(250);
 const h = () => page.$eval('[role=dialog]', e => Math.round(e.getBoundingClientRect().height));
 const h1 = await h();
 await page.click('[role=dialog] button:has-text("ターミナル")');

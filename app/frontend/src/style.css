@@ -234,6 +234,27 @@ svg.spark.sb .spark-line { stroke-width: 1.3; }
 }
 .tag:hover { border-color: var(--accent); }
 .dk-item.flash { animation: flash 1.2s ease; }
+/* 出るときの動き。mock/style.css と同じ */
+.anim-pop { animation: pop .12s ease; }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } }
+.anim-modal { animation: modal .18s cubic-bezier(.2, .8, .2, 1); }
+@keyframes modal { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.anim-sheet { animation: sheet .2s cubic-bezier(.2, .8, .2, 1); }
+@keyframes sheet { from { transform: translateY(30px); opacity: 0; } }
+.anim-fade { animation: fade .15s; }
+@keyframes fade { from { opacity: 0; } }
+.anim-toast { animation: toastin .2s cubic-bezier(.2, .8, .2, 1); }
+@keyframes toastin { from { opacity: 0; transform: translateY(10px); } }
+.toast-out { opacity: 0; transform: translateY(6px); transition: .2s; }
+.anim-newline { animation: newline 1s ease; }
+@keyframes newline { from { background: color-mix(in srgb, var(--accent) 16%, transparent); } to { background: transparent; } }
+/* ターミナルからウィンドウへ移るときの影 */
+.fly-ghost {
+  position: fixed; z-index: 2147483100; pointer-events: none; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  color: var(--text); font: 12px var(--font-mono); overflow: hidden; box-shadow: 0 10px 40px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
 /* 進み具合の分からない処理のメーター */
 .meter.indet > i { width: 30%; animation: indet 1.2s ease-in-out infinite; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(340%); } }

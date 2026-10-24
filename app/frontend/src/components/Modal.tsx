@@ -20,7 +20,7 @@ export function Modal({ title, width = 520, height, onClose, children }: {
   return (
     <div className={`fixed inset-0 z-50 grid bg-[var(--overlay)] backdrop-blur-sm ${mobile ? 'items-end' : 'place-items-center p-4'}`} onPointerDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div
-        className={`flex flex-col border border-line-strong bg-panel shadow-win ${mobile ? 'max-h-[92dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'max-h-[calc(100dvh-32px)] rounded-[14px]'}`}
+        className={`flex flex-col border border-line-strong bg-panel shadow-win ${mobile ? 'anim-sheet max-h-[92dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'anim-modal max-h-[calc(100dvh-32px)] rounded-[14px]'}`}
         style={{ width: mobile ? '100%' : `min(${width}px, 100%)`, height }}
         role="dialog"
       >

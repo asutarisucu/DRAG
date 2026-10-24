@@ -32,6 +32,20 @@ export function matchesAuto(cmdline: string, list: string[]) {
 
 const isDetachable = (cmdline: string) => ['screen', 'tmux'].includes(words(cmdline)[0])
 
+// ターミナルの見出しから、移した先のウィンドウへ影を飛ばす (mock/ と同じ動き)
+function flyGhost(from: DOMRect, winId: string, label: string) {
+  const to = document.querySelector(`[data-win="${winId}"]`)?.getBoundingClientRect()
+  if (!to?.width || !from.width) return
+  const g = document.createElement('div')
+  g.className = 'fly-ghost'
+  g.textContent = label
+  document.body.append(g)
+  g.animate([
+    { left: `${from.left}px`, top: `${from.top - 4}px`, width: `${Math.min(from.width, 420)}px`, height: '30px', opacity: 1 },
+    { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px`, opacity: 0 },
+  ], { duration: 460, easing: 'cubic-bezier(.2,.7,.2,1)' }).onfinish = () => g.remove()
+}
+
 // ウィンドウに移したセッションのアイコン。コマンドの種類で分ける
 function iconOf(cmdline: string): IconName {
   const cmd = words(cmdline)[0]
@@ -132,6 +146,7 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
     const id = shellRef.current
     const cmd = foregroundOf(id)
     if (!id || !cmd) return
+    const from = document.querySelector(`[data-terminal="${serverId}"] [role=button][draggable]`)?.getBoundingClientRect()
     detachRef.current()
     shellRef.current = ''
     setFg('')
@@ -141,10 +156,11 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
       serverId, kind: 'session', title: cmd, icon: iconOf(cmd), shellId: id,
       detachable: isDetachable(cmd), replayFromIdle: true, rect: pos, sessionKey: sessionKeyOf(cmd) || undefined,
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
-    // スマホでターミナルを見ているときは、移したことを知らせ、デスクトップへ行けるようにする
-    if (isMobile() && getMTab() !== 'desktop') {
-      toast(tRef.current('desktop.moved', { cmd }), 'info', { label: tRef.current('desktop.open'), fn: () => { setMTab('desktop'); focusWin(winId) } })
-    }
+    // スマホでターミナルを見ているときは、移したことを知らせ、デスクトップへ行けるようにする。
+    // PC では、ターミナルの見出しからウィンドウへ影を飛ばす
+    if (isMobile()) {
+      if (getMTab() !== 'desktop') toast(tRef.current('desktop.moved', { cmd }), 'info', { label: tRef.current('desktop.open'), fn: () => { setMTab('desktop'); focusWin(winId) } })
+    } else if (from) requestAnimationFrame(() => flyGhost(from, winId, cmd))
     open(await ShellCwd(id).catch(() => ''))
   }
   const popOutRef = useRef(popOut)

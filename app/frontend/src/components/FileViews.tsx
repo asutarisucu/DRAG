@@ -162,12 +162,14 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
 const LOG_CHUNK = 64 * 1024
 const LOG_MAX_LINES = 20000
 
-function LogLines({ lines, filter }: { lines: string[]; filter: string }) {
+// fresh は末尾の新しく届いた行の数。少しのあいだ色を付ける
+function LogLines({ lines, filter, fresh = 0 }: { lines: string[]; filter: string; fresh?: number }) {
   const f = filter.toLowerCase()
-  return lines.filter(l => !f || l.toLowerCase().includes(f)).map((l, i) => {
+  const from = lines.length - fresh
+  return lines.map((l, i) => [l, i] as const).filter(([l]) => !f || l.toLowerCase().includes(f)).map(([l, i]) => {
     const p = logParts(l)
     return (
-      <div key={i} className="break-all whitespace-pre-wrap">
+      <div key={i} className={`break-all whitespace-pre-wrap ${i >= from ? 'anim-newline' : ''}`}>
         <span className="text-term-dim">{p.head}</span>
         <span className={p.c === 'warn' ? 'text-term-warn' : p.c === 'err' ? 'text-term-err' : p.c === 'ok' ? 'text-term-prompt' : ''}>{p.body}</span>
       </div>
@@ -183,6 +185,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
   const path = win.path!
   const stream = /^(journal|docker):(.+)$/.exec(path)
   const [lines, setLines] = useState<string[]>([])
+  const [fresh, setFresh] = useState(0)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
   const [follow, setFollow] = useState(settings.followLog)
@@ -214,6 +217,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
           const parts = (rest.current + text).split('\n')
           rest.current = parts.pop() ?? ''
           if (!parts.length) return
+          setFresh(parts.length)
           setLines(l => {
             const next = [...l, ...parts]
             if (next.length <= LOG_MAX_LINES) return next
@@ -274,7 +278,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
         </label>
       </div>
       <div ref={out} data-log className="min-h-0 flex-1 overflow-auto bg-term px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-term-fg" onScroll={onScroll}>
-        <LogLines lines={lines} filter={filter} />
+        <LogLines lines={lines} filter={filter} fresh={fresh} />
         {error && <div className="text-err">{error}</div>}
       </div>
     </>

@@ -36,13 +36,15 @@ export function Menu({ x, y, items, title, onClose }: { x: number; y: number; it
     }
   }, [onClose])
 
-  return (
+  return <>
+    {/* スマホでは後ろを暗くする。押すとメニューの外を押したことになって閉じる */}
+    {mobile && <div className="anim-fade fixed inset-0 z-[69] bg-black/45" />}
     <div
       ref={ref}
       role="menu"
       className={mobile
-        ? 'fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-[70] max-h-[80dvh] overflow-y-auto rounded-2xl border border-line-strong bg-raised p-2 shadow-win'
-        : 'fixed z-[70] min-w-[210px] rounded-[10px] border border-line-strong bg-raised p-[5px] shadow-win'}
+        ? 'anim-sheet fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-[70] max-h-[80dvh] overflow-y-auto rounded-2xl border border-line-strong bg-raised p-2 shadow-win'
+        : 'anim-pop fixed z-[70] min-w-[210px] rounded-[10px] border border-line-strong bg-raised p-[5px] shadow-win'}
       style={mobile ? undefined : pos}
       onPointerDown={() => { pressed.current = true }}
     >
@@ -67,5 +69,5 @@ export function Menu({ x, y, items, title, onClose }: { x: number; y: number; it
           </button>
         ))}
     </div>
-  )
+  </>
 }

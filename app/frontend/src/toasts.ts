@@ -8,6 +8,7 @@ export type Toast = {
   kind: 'info' | 'ok' | 'warn'
   action?: { label: string; fn: () => void }
   progress?: number
+  leaving?: boolean // 消える動きの間
 }
 
 let list: Toast[] = []
@@ -15,9 +16,14 @@ let next = 1
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach(l => l())
 
+// 消すときは、少し下へずらしながら薄くしてから外す
 export function dismiss(id: number) {
-  list = list.filter(t => t.id !== id)
-  emit()
+  if (!list.some(t => t.id === id && !t.leaving)) return
+  patch(id, { leaving: true })
+  setTimeout(() => {
+    list = list.filter(t => t.id !== id)
+    emit()
+  }, 200)
 }
 
 function patch(id: number, p: Partial<Toast>) {

@@ -160,7 +160,7 @@ export default function App() {
               {!mobile && <span className="font-mono text-[11px] text-faint">{s.host}</span>}
               {!mobile && (
                 <button
-                  className="grid h-[22px] w-[22px] place-items-center rounded-[5px] text-muted opacity-0 group-hover:opacity-80 hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]"
+                  className={`grid h-[22px] w-[22px] place-items-center rounded-[5px] text-muted group-hover:opacity-80 hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] ${s.id === active ? 'opacity-80' : 'opacity-0'}`}
                   title={t('tabs.close')}
                   onClick={e => { e.stopPropagation(); close(s.id) }}
                 ><Icon name="x" size={13} /></button>
