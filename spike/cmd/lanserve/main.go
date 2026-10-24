@@ -4,7 +4,8 @@
 //   - Windows のファイアウォールの確認がどう出るか
 //
 // 端末の登録の代わりに、起動のたびに作る合言葉を URL に付ける。合言葉を持たない接続は断る。
-// 決めた時間がたつと終わる
+// 決めた時間がたつと終わる。
+// -ipcert を付けると、自己署名の代わりに Let's Encrypt の IP アドレスの証明書を取って使う
 package main
 
 import (
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -42,6 +44,10 @@ var (
 	user    = flag.String("user", "asuta", "ユーザー名")
 	pass    = flag.String("pass", "drag", "パスワード")
 	minutes = flag.Int("minutes", 30, "この分数がたったら終わる")
+	ipFlag  = flag.String("ipcert", "", "このグローバル IP の証明書を Let's Encrypt で取って使う")
+	acmeURL = flag.String("acme", "https://acme-staging-v02.api.letsencrypt.org/directory", "ACME のディレクトリ")
+	acctKey = flag.String("acctkey", "acme-account.pem", "ACME のアカウントの鍵のファイル")
+	renew   = flag.Duration("renew", 0, "この間隔で証明書を取り直す。0 なら取り直さない")
 )
 
 //go:embed index.html
@@ -178,11 +184,34 @@ func main() {
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
 	}
 	_, port, _ := net.SplitHostPort(*listen)
-	fmt.Printf("証明書の SHA-256  %s\n", fp)
-	for _, ip := range ips {
-		fmt.Printf("https://%s:%s/?t=%s\n", ip, port, token)
+	if *ipFlag != "" {
+		ctx := context.Background()
+		m, err := newIPCert(ctx, *acmeURL, *acctKey, *ipFlag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// 検証の接続を受けるために、証明書を取る前から待ち受ける
+		srv.TLSConfig = &tls.Config{GetCertificate: m.getCertificate, NextProtos: []string{"h2", "http/1.1", acme.ALPNProto}}
+		go func() {
+			if err := m.obtain(ctx); err != nil {
+				log.Fatalf("証明書を取れない: %v", err)
+			}
+			fmt.Printf("https://%s/?t=%s\n", *ipFlag, token)
+			if *renew > 0 {
+				for range time.Tick(*renew) {
+					if err := m.obtain(ctx); err != nil {
+						log.Printf("取り直せない: %v", err)
+					}
+				}
+			}
+		}()
+	} else {
+		fmt.Printf("証明書の SHA-256  %s\n", fp)
+		for _, ip := range ips {
+			fmt.Printf("https://%s:%s/?t=%s\n", ip, port, token)
+		}
+		fmt.Printf("https://127.0.0.1:%s/?t=%s\n", port, token)
 	}
-	fmt.Printf("https://127.0.0.1:%s/?t=%s\n", port, token)
 	time.AfterFunc(time.Duration(*minutes)*time.Minute, func() {
 		log.Print("時間になったので終わる")
 		os.Exit(0)
