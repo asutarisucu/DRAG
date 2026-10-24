@@ -6,7 +6,7 @@ import { openFile } from '../openFile'
 import { sendInput } from '../shellInput'
 import { isDenied, requireSudo, sudoOn, useSudo, withSudo } from '../sudo'
 import { toast } from '../toasts'
-import { openStreamLog } from '../tools'
+import { openStreamLog, revealInTree } from '../tools'
 import { openWin } from '../windows'
 import { Icon } from './Icon'
 import { useFoot } from './Services'
@@ -225,7 +225,7 @@ function ContainerDetail({ serverId, c, tilde, onVolumes }: { serverId: string; 
         <div key={m.Destination}>
           {m.Type === 'volume'
             ? <button className="mlink" onClick={onVolumes}>{m.Name}</button>
-            : <span className="font-mono">{tilde(m.Source)}</span>}
+            : <button className="mlink" title={t('files.reveal')} onClick={() => revealInTree(serverId, m.Source)}>{tilde(m.Source)}</button>}
           <span className="font-mono text-muted"> → {m.Destination}</span>
         </div>
       )) : t('dk.none2'))}

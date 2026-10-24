@@ -26,6 +26,11 @@ export function openStreamLog(serverId: string, kind: 'journal' | 'docker', name
   }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
 }
 
+// ツリーで path を開いて選び、ファイルの一覧に切り替える。open ならそのフォルダも開く
+export function revealInTree(serverId: string, path: string, open = false) {
+  window.dispatchEvent(new CustomEvent('drag:tree-reveal', { detail: { serverId, path, show: true, open } }))
+}
+
 export function openTool(serverId: string, kind: ToolKind, view = '') {
   setMTab('desktop')
   const open = winsOf(serverId).find(w => w.kind === kind)

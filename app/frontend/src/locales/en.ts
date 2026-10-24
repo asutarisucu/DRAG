@@ -47,6 +47,7 @@ const en: Messages = {
     home: 'Go home',
     upload: 'Upload',
     collapse: 'Collapse all',
+    reveal: 'Show in tree',
   },
   terminal: {
     title: 'Terminal',
@@ -275,6 +276,7 @@ const en: Messages = {
     create: 'Turn on sudo mode to create items in {{dir}}',
     paste: 'Turn on sudo mode to paste here',
     rename: 'Turn on sudo mode to rename {{name}}',
+    move: 'Turn on sudo mode to move {{name}}',
     delete: 'Turn on sudo mode to delete {{name}}',
     upload: 'Turn on sudo mode to upload to {{dir}}',
   },
@@ -306,6 +308,9 @@ const en: Messages = {
   },
   upload: {
     dropHint: 'Drag files from the PC here to upload',
+    dropHere: 'Drop here to upload',
+    dropTo: 'Upload to {{dir}}/',
+    moveTo: 'Move to {{dir}}/',
     conflictTitle: 'The name already exists',
     exists: '{{path}} already exists',
     sameForRest: 'Do the same for the rest',

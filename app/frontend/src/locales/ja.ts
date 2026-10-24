@@ -46,6 +46,7 @@ const ja = {
     home: 'ホームへ',
     upload: 'アップロード',
     collapse: 'すべて閉じる',
+    reveal: 'ツリーで表示',
   },
   terminal: {
     title: 'ターミナル',
@@ -274,6 +275,7 @@ const ja = {
     create: '{{dir}} に作るには sudo モードを ON にしてください',
     paste: '貼り付けるには sudo モードを ON にしてください',
     rename: '{{name}} の名前を変えるには sudo モードを ON にしてください',
+    move: '{{name}} を移動するには sudo モードを ON にしてください',
     delete: '{{name}} を削除するには sudo モードを ON にしてください',
     upload: '{{dir}} にアップロードするには sudo モードを ON にしてください',
   },
@@ -305,6 +307,9 @@ const ja = {
   },
   upload: {
     dropHint: 'PC のファイルをここへドラッグするとアップロード',
+    dropHere: 'ここへドロップするとアップロード',
+    dropTo: '{{dir}}/ にアップロード',
+    moveTo: '{{dir}}/ へ移動',
     conflictTitle: '同じ名前があります',
     exists: '{{path}} は、もうあります',
     sameForRest: 'このあとも同じにする',

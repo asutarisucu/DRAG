@@ -4,6 +4,7 @@ import { BigDirs, History, Mounts, Network, Processes } from '../../wailsjs/go/m
 import type { remote, store } from '../../wailsjs/go/models'
 import { fmtGB, fmtRate, pct, useMetrics, type Metrics } from '../metrics'
 import { fmtSize } from '../toasts'
+import { revealInTree } from '../tools'
 import { updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
 import { Meter, Spark } from './Spark'
@@ -195,7 +196,7 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
       {dirsErr && <div className="mon-sub">{dirsErr}</div>}
       {dirs?.length === 0 && <div className="mon-sub">{t('mon.noDirs')}</div>}
       {dirs?.map(d => (
-        <div key={d.path} className="dir-row"><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></div>
+        <button key={d.path} className="dir-row" title={t('files.reveal')} onClick={() => revealInTree(serverId, d.path, true)}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>
       ))}
     </Section>
   </>

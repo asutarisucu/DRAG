@@ -289,6 +289,24 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   const { t } = useTranslation()
   const st = useSettings()
   const [view, setView] = useState<'files' | 'sessions'>('files')
+  // ほかの窓の「ツリーで表示」で、ファイルの一覧に切り替える
+  useEffect(() => {
+    const onReveal = (e: Event) => {
+      const d = (e as CustomEvent<{ serverId: string; show?: boolean }>).detail
+      if (d.serverId !== s.id || !d.show) return
+      setView('files')
+      setMTab('files')
+    }
+    window.addEventListener('drag:tree-reveal', onReveal)
+    return () => window.removeEventListener('drag:tree-reveal', onReveal)
+  }, [s.id])
+  // PC のファイルをドラッグしてきたら、落とせるようにファイルの一覧に切り替える
+  useEffect(() => {
+    if (!visible) return
+    const onEnter = (e: DragEvent) => { if (e.dataTransfer?.types.includes('Files')) setView('files') }
+    window.addEventListener('dragenter', onEnter)
+    return () => window.removeEventListener('dragenter', onEnter)
+  }, [visible])
   const [termFg, setTermFg] = useState('')
   // スマホの幅でも同じ部品を同じ並びで置き、区画を隠すだけにする。
   // 向きを変えて幅が変わっても、ターミナルのシェルやツリーの開き具合が作り直されないように
@@ -320,7 +338,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
           )
           : view === 'sessions' && <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{t('sessions.title')}</div>}
         {/* ツリーの開き具合を残すため、隠すだけにする */}
-        <div className={`flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
+        <div className={`relative flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
           <FileTree serverId={s.id} root={s.home} generation={s.gen} />
         </div>
         {view === 'sessions' && (

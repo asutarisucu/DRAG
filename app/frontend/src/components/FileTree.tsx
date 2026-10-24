@@ -50,6 +50,37 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   // スマホではドラッグの代わりに、行の … と長押しでメニューを出す
   const mobile = useMobile()
   const longPressed = useRef(false)
+  // ツリーの中でドラッグしている行のパス。フォルダへ落とすと移す
+  const dragging = useRef('')
+  // PC のファイルをアプリの上へドラッグしている間は、ツリーを緑で囲み、下に落とす先を出す
+  const [osDrag, setOsDrag] = useState(false)
+  useEffect(() => {
+    let depth = 0
+    const isFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files')
+    const end = () => {
+      depth = 0
+      setOsDrag(false)
+      setDropDir('')
+    }
+    const enter = (e: DragEvent) => { if (isFiles(e) && depth++ === 0) setOsDrag(true) }
+    const leave = (e: DragEvent) => { if (isFiles(e) && --depth <= 0) end() }
+    window.addEventListener('dragenter', enter)
+    window.addEventListener('dragleave', leave)
+    window.addEventListener('drop', end)
+    return () => {
+      window.removeEventListener('dragenter', enter)
+      window.removeEventListener('dragleave', leave)
+      window.removeEventListener('drop', end)
+    }
+  }, [])
+  // ツリーで表示したあとに、その行が見えるようにスクロールする
+  const scrollTo = useRef('')
+  useEffect(() => {
+    const row = scrollTo.current && box.current?.querySelector(`[data-path="${CSS.escape(scrollTo.current)}"]`)
+    if (!row) return
+    row.scrollIntoView({ block: 'nearest' })
+    scrollTo.current = ''
+  })
 
   // フォルダの中を読む。読めればから文字列、読めなければその理由を返す。
   // ask なら、権限で読めないときに sudo モードを ON にするかを聞く。開いたときにだけ聞き、読み直しでは聞かない
@@ -140,6 +171,12 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       after(clip.move ? [parentOf(clip.path), dir] : [dir], p)
     }, fail)
   }
+  const move = (from: string, dir: string) => {
+    withSudo(serverId, t('sudo.move', { name: baseOf(from) }), () => PasteEntry(serverId, from, dir, true)).then(p => {
+      toast(t('toast.moved', { name: baseOf(p), dir: pathArg(root, dir) }), 'ok')
+      after([parentOf(from), dir], p)
+    }, fail)
+  }
   const trash = (node: Node) => {
     withSudo(serverId, t('sudo.delete', { name: node.name }), () => TrashEntry(serverId, node.path)).then(item => {
       after([parentOf(node.path)], parentOf(node.path))
@@ -208,11 +245,33 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   }
   const showProps = (n: Node) => withSudo(serverId, t('sudo.read', { name: n.name || n.path }), () => Stat(serverId, n.path)).then(pr => setProps({ node: n, props: pr }), fail)
 
-  // ゴミ箱の窓で元に戻したものを、ツリーで開いて選ぶ。戻した先のフォルダを読んでいなければ何もしない
+  // path をツリーで選ぶ。いちばん上の外ならホームか / に移し、途中のフォルダを開く。読めないフォルダがあれば sudo モードを聞く
+  const under = (p: string, d: string) => d === '/' || p === d || p.startsWith(d + '/')
+  const reveal = async (path: string, openIt: boolean) => {
+    const base = under(path, top) ? top : under(path, root) ? root : '/'
+    const chain = [base]
+    for (let p = parentOf(path); p !== base && under(p, base); p = parentOf(p)) chain.splice(1, 0, p)
+    if (openIt && path !== base) chain.push(path)
+    for (const d of chain) {
+      const err = await load(d, true)
+      if (err) {
+        if (!isDenied(err)) fail(err)
+        return
+      }
+    }
+    setTop(base)
+    setOpen(o => ({ ...o, ...Object.fromEntries(chain.map(d => [d, true])) }))
+    setSelected(path)
+    scrollTo.current = path
+  }
+
+  // ほかの窓から渡されたパスをツリーで選ぶ。show でなければ (ゴミ箱から戻したとき)、戻した先のフォルダを読んでいるときだけ選ぶ
   useEffect(() => {
     const onReveal = (e: Event) => {
-      const d = (e as CustomEvent<{ serverId: string; path: string }>).detail
-      if (d.serverId === serverId && dirs[parentOf(d.path)]) after([parentOf(d.path)], d.path)
+      const d = (e as CustomEvent<{ serverId: string; path: string; show?: boolean; open?: boolean }>).detail
+      if (d.serverId !== serverId) return
+      if (d.show) reveal(d.path, !!d.open)
+      else if (dirs[parentOf(d.path)]) after([parentOf(d.path)], d.path)
     }
     window.addEventListener('drag:tree-reveal', onReveal)
     return () => window.removeEventListener('drag:tree-reveal', onReveal)
@@ -312,12 +371,29 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     row.addEventListener('pointermove', cancel, { once: true })
   }
 
-  // PC からのドラッグ中は、落とす先のフォルダの行を緑で囲む。ファイルの行ならそのファイルのあるフォルダ
+  // PC からのドラッグ中は、落とす先のフォルダの行を緑で囲む。ファイルの行ならそのファイルのあるフォルダ。
+  // ツリーの行をドラッグしているときは、そのフォルダへ移す。自分の中と、いまあるフォルダには移さない
+  const canMoveTo = (dir: string) => {
+    const p = dragging.current
+    return !!p && dir !== p && dir !== parentOf(p) && !dir.startsWith(p + '/')
+  }
   const dropProps = (dir: string) => ({
     'data-drop-dir': dir,
-    onDragOver: (ev: React.DragEvent) => { if (ev.dataTransfer.types.includes('Files')) setDropDir(dir) },
+    onDragOver: (ev: React.DragEvent) => {
+      if (ev.dataTransfer.types.includes('Files')) setDropDir(dir)
+      else if (canMoveTo(dir)) {
+        ev.preventDefault()
+        ev.dataTransfer.dropEffect = 'move'
+        setDropDir(dir)
+      }
+    },
     onDragLeave: () => setDropDir(d => d === dir ? '' : d),
-    onDrop: () => setDropDir(''),
+    onDrop: (ev: React.DragEvent) => {
+      setDropDir('')
+      if (!canMoveTo(dir)) return
+      ev.preventDefault()
+      move(dragging.current, dir)
+    },
   })
   const dropOn = 'bg-[rgba(63,207,142,.14)] shadow-[inset_0_0_0_1px_var(--ok)]'
 
@@ -355,9 +431,14 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           onPointerDown={mobile ? longPress(nodeOf(e.path)) : undefined}
           draggable={!mobile && renaming !== e.path}
           onDragStart={ev => {
+            dragging.current = e.path
             ev.dataTransfer.setData('application/x-drag-path', JSON.stringify({ path: e.path, name: e.name, dir: e.dir }))
             if (e.dir) ev.dataTransfer.setData('application/x-drag-dir', '1')
             ev.dataTransfer.effectAllowed = 'copyMove'
+          }}
+          onDragEnd={() => {
+            dragging.current = ''
+            setDropDir('')
           }}
           onContextMenu={ev => contextMenu(ev, nodeOf(e.path))}
           title={e.path}
@@ -392,7 +473,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           <button className={headBtn} title={t('tools.trash')} onClick={() => openTool(serverId, 'trash')}><Icon name="trash" /></button>
         </div>
       )}
-      <div ref={box} tabIndex={0} className="min-h-0 flex-1 overflow-auto pb-5 outline-none" onKeyDown={onKey}>
+      <div ref={box} tabIndex={0} className={`min-h-0 flex-1 overflow-auto pb-5 outline-none ${osDrag ? 'os-drag' : ''}`} onKeyDown={onKey}>
         <div
           className={`mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
           title={top + '\n' + t('upload.dropHint')}
@@ -408,6 +489,11 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           {moreButton(nodeOf(top))}
         </div>
         {rows(top, 0)}
+        {(osDrag || (dragging.current && dropDir)) && (
+          <div className="tree-drop">
+            {!dropDir ? t('upload.dropHere') : t(osDrag ? 'upload.dropTo' : 'upload.moveTo', { dir: pathArg(root, dropDir) })}
+          </div>
+        )}
         {menu && <Menu x={menu.x} y={menu.y} title={pathArg(root, menu.node.path)} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
         {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
         {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
