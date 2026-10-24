@@ -7,26 +7,48 @@ import (
 	"io"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
+// replayLimit は、ウィンドウへ移すときに渡し直すため、シェルごとに残しておく出力の量
+const replayLimit = 256 * 1024
+
+// ShellEvents はシェルの出来事の受け手。どれも別のゴルーチンから呼ぶ
+type ShellEvents struct {
+	// Output は出力。end はこのシェルの最初からの通算の位置で、この出力の末尾を指す
+	Output func(p []byte, end int64)
+	// Foreground は前面のコマンドが変わったとき。シェル自身に戻ったら空
+	Foreground func(cmdline string)
+	Exit       func()
+}
+
 // Shell は PTY 付きのチャネルで動くログインシェル。
 // 前面のコマンドを /proc から調べるために、開くときにシェルの PID を知っておく
 type Shell struct {
+	srv  *Server
 	sess *ssh.Session
 	in   io.WriteCloser
 	PID  int
+	ev   ShellEvents
+
+	mu      sync.Mutex
+	buf     []byte // 直近の出力
+	total   int64  // 最初からの通算の出力の量
+	idleOff int64  // 最後にシェル自身が前面だったときの total
+	fg      string
+
+	// monitor のゴルーチンだけが触る
+	tpgid  int
+	noProc bool
 
 	closeOnce sync.Once
 }
 
-// OpenShell は cwd でログインシェルを開く。cwd が空ならホーム。
-// 出力は onOutput に、終わったら onExit に渡す。どちらも別のゴルーチンから呼ぶ
-func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), onExit func()) (*Shell, error) {
+// OpenShell は cwd でログインシェルを開く。cwd が空ならホーム
+func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, error) {
 	sess, err := s.ssh.NewSession()
 	if err != nil {
 		return nil, err
@@ -48,13 +70,16 @@ func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), on
 	// Start より前に書くと sshd に捨てられる
 	fmt.Fprintf(in, "%s\n", cwd)
 
-	sh := &Shell{sess: sess, in: in}
+	sh := &Shell{srv: s, sess: sess, in: in, ev: ev}
 	re := regexp.MustCompile(`DRAG-` + nonce + ` (\d+)\r?\n`)
 	found := make(chan struct{})
 	go func() {
 		defer func() {
 			sess.Wait()
-			onExit()
+			if s.mon != nil {
+				s.mon.remove(sh)
+			}
+			ev.Exit()
 		}()
 		var pre []byte
 		b := make([]byte, 32*1024)
@@ -66,12 +91,10 @@ func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), on
 				if m := re.FindSubmatchIndex(pre); m != nil {
 					sh.PID, _ = strconv.Atoi(string(pre[m[2]:m[3]]))
 					close(found)
-					if rest := pre[m[1]:]; len(rest) > 0 {
-						onOutput(bytes.Clone(rest))
-					}
+					sh.output(pre[m[1]:])
 				}
-			} else if n > 0 {
-				onOutput(bytes.Clone(b[:n]))
+			} else {
+				sh.output(b[:n])
 			}
 			if err != nil {
 				return
@@ -80,6 +103,9 @@ func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), on
 	}()
 	select {
 	case <-found:
+		if s.mon != nil {
+			s.mon.add(sh)
+		}
 		return sh, nil
 	case <-time.After(10 * time.Second):
 		sess.Close()
@@ -87,29 +113,73 @@ func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), on
 	}
 }
 
-// Busy は、シェルの端末で別のコマンドが前面にいるかを /proc から調べる。
-// /proc/<PID>/stat の8番目の項目が、端末の前面にいるプロセスグループの番号。シェル自身なら空いている
-func (s *Server) Busy(sh *Shell) (bool, error) {
-	sess, err := s.ssh.NewSession()
+func (sh *Shell) output(p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	sh.mu.Lock()
+	sh.buf = append(sh.buf, p...)
+	if over := len(sh.buf) - replayLimit; over > 0 {
+		sh.buf = append(sh.buf[:0:0], sh.buf[over:]...)
+	}
+	sh.total += int64(len(p))
+	end := sh.total
+	sh.mu.Unlock()
+	sh.ev.Output(bytes.Clone(p), end)
+}
+
+// markIdle は、シェル自身が前面だったときの出力の位置を覚える。次に打ったコマンドの行はここから後ろにある
+func (sh *Shell) markIdle() {
+	sh.mu.Lock()
+	sh.idleOff = sh.total
+	sh.mu.Unlock()
+}
+
+func (sh *Shell) setForeground(cmdline string) {
+	sh.mu.Lock()
+	if cmdline == "" {
+		sh.idleOff = sh.total
+	}
+	sh.fg = cmdline
+	sh.mu.Unlock()
+	sh.ev.Foreground(cmdline)
+}
+
+// Foreground は前面のコマンド。シェル自身なら空
+func (sh *Shell) Foreground() string {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	return sh.fg
+}
+
+// Replay は残しておいた出力と、その末尾の通算の位置を返す。
+// fromIdle なら、最後にシェル自身が前面だった時点の行の頭から返す。
+// ウィンドウへ移したコマンドの、打った行から後ろだけを見せるのに使う
+func (sh *Shell) Replay(fromIdle bool) ([]byte, int64) {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	start := 0
+	if fromIdle {
+		base := sh.total - int64(len(sh.buf))
+		if i := sh.idleOff - base; i > 0 && i <= int64(len(sh.buf)) {
+			start = bytes.LastIndexByte(sh.buf[:i], '\n') + 1
+		}
+	}
+	return bytes.Clone(sh.buf[start:]), sh.total
+}
+
+// Cwd はシェルの作業中のフォルダ
+func (sh *Shell) Cwd() (string, error) {
+	sess, err := sh.srv.ssh.NewSession()
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	defer sess.Close()
-	out, err := sess.Output(fmt.Sprintf(`exec /bin/sh -c 'read -r l < /proc/%d/stat && echo "$l"'`, sh.PID))
+	out, err := sess.Output(fmt.Sprintf("exec /bin/sh -c 'readlink /proc/%d/cwd'", sh.PID))
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	// 2つ目の項目 (comm) は括弧の中に空白を含みうるので、最後の ')' の後ろから数える
-	st := string(out)
-	f := strings.Fields(st[strings.LastIndexByte(st, ')')+1:])
-	if len(f) < 6 {
-		return false, fmt.Errorf("stat を読めない: %q", st)
-	}
-	tpgid, err := strconv.Atoi(f[5])
-	if err != nil {
-		return false, err
-	}
-	return tpgid > 0 && tpgid != sh.PID, nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func (sh *Shell) Write(p []byte) (int, error) {

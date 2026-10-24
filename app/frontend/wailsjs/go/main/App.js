@@ -66,12 +66,16 @@ export function SavedServers() {
   return window['go']['main']['App']['SavedServers']();
 }
 
-export function ShellBusy(arg1, arg2) {
-  return window['go']['main']['App']['ShellBusy'](arg1, arg2);
+export function ShellCwd(arg1) {
+  return window['go']['main']['App']['ShellCwd'](arg1);
 }
 
 export function ShellInput(arg1, arg2) {
   return window['go']['main']['App']['ShellInput'](arg1, arg2);
+}
+
+export function ShellReplay(arg1, arg2) {
+  return window['go']['main']['App']['ShellReplay'](arg1, arg2);
 }
 
 export function ShellResize(arg1, arg2, arg3) {

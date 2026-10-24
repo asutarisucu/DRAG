@@ -36,9 +36,11 @@ export function RestoreEntry(arg1:string,arg2:remote.TrashItem):Promise<string>;
 
 export function SavedServers():Promise<Array<store.Server>>;
 
-export function ShellBusy(arg1:string,arg2:string):Promise<boolean>;
+export function ShellCwd(arg1:string):Promise<string>;
 
 export function ShellInput(arg1:string,arg2:string):Promise<void>;
+
+export function ShellReplay(arg1:string,arg2:boolean):Promise<main.Replay>;
 
 export function ShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 

@@ -99,6 +99,20 @@ export namespace main {
 	        this.size = source["size"];
 	    }
 	}
+	export class Replay {
+	    data: string;
+	    end: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Replay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.data = source["data"];
+	        this.end = source["end"];
+	    }
+	}
 
 }
 

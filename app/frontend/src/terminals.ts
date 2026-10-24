@@ -1,7 +1,10 @@
-// ファイルツリーからターミナルへ cd やパスを送るための窓口。サーバーごとに1つ
+// ファイルツリーやデスクトップから、右下のターミナルを操作するための窓口。サーバーごとに1つ
 export type TerminalApi = {
   cd: (path: string) => void
   insert: (text: string) => void
+  // 前面のコマンドをデスクトップのウィンドウに移す。pos はデスクトップの中の位置
+  popOut: (pos?: { x: number; y: number }) => void
+  cwd: () => Promise<string>
 }
 
 const terminals = new Map<string, TerminalApi>()

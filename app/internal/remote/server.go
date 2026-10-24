@@ -45,9 +45,16 @@ type Server struct {
 	cfg  Config
 	ssh  *ssh.Client
 	sftp *sftp.Client
+	mon  *monitor // 見張れないサーバーでは nil
 
 	mu     sync.Mutex
 	closed bool
+}
+
+func (s *Server) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
 }
 
 // knownHostsMu は known_hosts への書き足しを1つずつにする
@@ -154,7 +161,10 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 		sc.Close()
 		return nil, fmt.Errorf("SFTP を開けません: %w", err)
 	}
-	return &Server{cfg: cfg, ssh: sc, sftp: fc}, nil
+	s := &Server{cfg: cfg, ssh: sc, sftp: fc}
+	// 見張れなくても、ターミナルとファイルは使える
+	s.startMonitor()
+	return s, nil
 }
 
 // Wait は接続が切れるまで待つ。

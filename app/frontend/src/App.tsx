@@ -4,6 +4,7 @@ import { Disconnect, Reconnect, SavedServers } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
 import { EventsOn, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime'
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
+import { Desktop } from './components/Desktop'
 import { FileTree } from './components/FileTree'
 import { Icon, type IconName } from './components/Icon'
 import { Resizer } from './components/Resizer'
@@ -157,7 +158,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
       </aside>
       <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />
       <main className="grid min-h-0 min-w-0" style={{ gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}>
-        <section className="desk-bg relative grid min-h-0 place-items-center text-faint select-none">{t('desktop.empty')}</section>
+        <Desktop serverId={s.id} />
         <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />
         <TerminalPanel serverId={s.id} generation={s.gen} visible={visible} fontSize={st.termSize} />
       </main>

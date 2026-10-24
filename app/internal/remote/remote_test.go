@@ -259,21 +259,50 @@ func TestUploadDownloadAndStat(t *testing.T) {
 	}
 }
 
-func TestBusyWhileCommandRuns(t *testing.T) {
+func TestForegroundAndReplay(t *testing.T) {
 	s := dialTrusted(t)
-	sh, err := s.OpenShell(80, 24, "", func([]byte) {}, func() {})
+	fg := make(chan string, 10)
+	var last int64
+	sh, err := s.OpenShell(80, 24, "", ShellEvents{
+		Output:     func(_ []byte, end int64) { last = end },
+		Foreground: func(c string) { fg <- c },
+		Exit:       func() {},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer sh.Close()
-	time.Sleep(300 * time.Millisecond)
-	if busy, err := s.Busy(sh); busy || err != nil {
-		t.Fatalf("何も動いていないのに busy %v %v", busy, err)
+	wait := func() string {
+		select {
+		case c := <-fg:
+			return c
+		case <-time.After(3 * time.Second):
+			return "(来ない)"
+		}
 	}
-	sh.Write([]byte("sleep 5\r"))
-	time.Sleep(500 * time.Millisecond)
-	if busy, err := s.Busy(sh); !busy || err != nil {
-		t.Fatalf("sleep が動いているのに空き %v %v", busy, err)
+	time.Sleep(400 * time.Millisecond)
+	sh.Write([]byte("echo before\r"))
+	time.Sleep(400 * time.Millisecond)
+	sh.Write([]byte("sleep 1\r"))
+	if c := wait(); c != "sleep 1" {
+		t.Fatalf("前面 %q", c)
+	}
+	if sh.Foreground() != "sleep 1" {
+		t.Fatalf("Foreground %q", sh.Foreground())
+	}
+	// 打った行から後ろだけを渡し直す。前に打った echo は入らない
+	data, end := sh.Replay(true)
+	if !bytes.Contains(data, []byte("sleep 1")) || bytes.Contains(data, []byte("before")) || end != last {
+		t.Fatalf("渡し直す出力 %q %d %d", data, end, last)
+	}
+	if all, _ := sh.Replay(false); !bytes.Contains(all, []byte("before")) {
+		t.Fatalf("全部 %q", all)
+	}
+	if c := wait(); c != "" {
+		t.Fatalf("終わっても前面が戻らない %q", c)
+	}
+	if cwd, err := sh.Cwd(); cwd != "/home/asuta" || err != nil {
+		t.Fatalf("cwd %q %v", cwd, err)
 	}
 }
 
@@ -282,11 +311,15 @@ func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	var mu sync.Mutex
 	var out strings.Builder
 	exited := make(chan struct{})
-	sh, err := s.OpenShell(80, 24, "/var/log", func(p []byte) {
-		mu.Lock()
-		out.Write(p)
-		mu.Unlock()
-	}, func() { close(exited) })
+	sh, err := s.OpenShell(80, 24, "/var/log", ShellEvents{
+		Output: func(p []byte, _ int64) {
+			mu.Lock()
+			out.Write(p)
+			mu.Unlock()
+		},
+		Foreground: func(string) {},
+		Exit:       func() { close(exited) },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

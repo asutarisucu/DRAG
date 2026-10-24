@@ -20,6 +20,11 @@
   --err: #ff6b6b;
   --term-bg: #0a0d11;
   --desk: #0d1117;
+  --win-bg: #0f1318;
+  --bar-1: #1a2029;
+  --bar-2: #161b23;
+  --bar-f1: #1e2632;
+  --bar-f2: #19202a;
   --btn-hover: #263040;
   --field: #0a0d11;
   --overlay: rgba(5, 7, 10, .6);
@@ -40,6 +45,11 @@
   --muted: #5b6676;
   --faint: #8a94a4;
   --desk: #e4e9f0;
+  --win-bg: #ffffff;
+  --bar-1: #f7f8fa;
+  --bar-2: #eff2f5;
+  --bar-f1: #ffffff;
+  --bar-f2: #f3f6fa;
   --btn-hover: #eef2f7;
   --field: #ffffff;
   --overlay: rgba(30, 40, 60, .3);

@@ -221,7 +221,8 @@ func (a *App) ListDir(serverID, dir string) ([]remote.Entry, error) {
 }
 
 // OpenShell はシェルを開き、その番号を返す。
-// 出力は "shell:out" (番号, base64)、終わったら "shell:exit" (番号) のイベントで送る
+// 出力は "shell:out" (番号, base64, 通算の位置)、前面のコマンドが変わったら "shell:fg" (番号, コマンド)、
+// 終わったら "shell:exit" (番号) のイベントで送る
 func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, error) {
 	s, err := a.server(serverID)
 	if err != nil {
@@ -230,15 +231,19 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 	a.mu.Lock()
 	id := a.newID("t")
 	a.mu.Unlock()
-	sh, err := s.OpenShell(cols, rows, cwd,
+	sh, err := s.OpenShell(cols, rows, cwd, remote.ShellEvents{
 		// UTF-8 の途中で切れたバイト列も壊さずに渡すため、base64 にする
-		func(p []byte) { runtime.EventsEmit(a.ctx, "shell:out", id, base64.StdEncoding.EncodeToString(p)) },
-		func() {
+		Output: func(p []byte, end int64) {
+			runtime.EventsEmit(a.ctx, "shell:out", id, base64.StdEncoding.EncodeToString(p), end)
+		},
+		Foreground: func(cmdline string) { runtime.EventsEmit(a.ctx, "shell:fg", id, cmdline) },
+		Exit: func() {
 			a.mu.Lock()
 			delete(a.shells, id)
 			a.mu.Unlock()
 			runtime.EventsEmit(a.ctx, "shell:exit", id)
-		})
+		},
+	})
 	if err != nil {
 		return "", err
 	}
@@ -246,6 +251,31 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 	a.shells[id] = sh
 	a.mu.Unlock()
 	return id, nil
+}
+
+type Replay struct {
+	Data string `json:"data"` // base64
+	End  int64  `json:"end"`
+}
+
+// ShellReplay は、残しておいたシェルの出力を返す。ウィンドウへ移したときに、新しい画面に描き直すのに使う。
+// fromIdle なら、移したコマンドを打った行から後ろだけを返す
+func (a *App) ShellReplay(id string, fromIdle bool) (Replay, error) {
+	sh := a.shell(id)
+	if sh == nil {
+		return Replay{}, errors.New("シェルが終わっています")
+	}
+	data, end := sh.Replay(fromIdle)
+	return Replay{Data: base64.StdEncoding.EncodeToString(data), End: end}, nil
+}
+
+// ShellCwd はシェルの作業中のフォルダ。ウィンドウへ移したあと、同じフォルダで新しいシェルを開くのに使う
+func (a *App) ShellCwd(id string) (string, error) {
+	sh := a.shell(id)
+	if sh == nil {
+		return "", errors.New("シェルが終わっています")
+	}
+	return sh.Cwd()
 }
 
 // NewEntry は dir の中に空のファイルかフォルダを作る。name が使われていれば番号を足し、作ったパスを返す
@@ -386,17 +416,6 @@ func (a *App) Stat(serverID, p string) (remote.Props, error) {
 		return remote.Props{}, err
 	}
 	return s.Stat(p)
-}
-
-// ShellBusy は、ターミナルで別のコマンドが前面にいるかを返す。調べられないときは false
-func (a *App) ShellBusy(serverID, shellID string) bool {
-	s, err := a.server(serverID)
-	sh := a.shell(shellID)
-	if err != nil || sh == nil {
-		return false
-	}
-	busy, _ := s.Busy(sh)
-	return busy
 }
 
 func (a *App) shell(id string) *remote.Shell {

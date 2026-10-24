@@ -14,11 +14,61 @@ function Seg<T extends string>({ value, options, onPick }: { value: T; options: 
   )
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-[18px] border-b border-line py-[13px]">
-      <div>{label}</div>
+      <div>
+        <div>{label}</div>
+        {desc && <div className="mt-0.5 text-[11.5px] text-muted">{desc}</div>}
+      </div>
       {children}
+    </div>
+  )
+}
+
+function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      className={`relative h-[22px] w-[38px] flex-none rounded-full transition-colors ${on ? 'bg-accent' : 'bg-line-strong'}`}
+      onClick={() => onChange(!on)}
+    >
+      <span className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${on ? 'translate-x-4' : ''}`} />
+    </button>
+  )
+}
+
+// 自動でウィンドウに移すコマンドの一覧。× で外し、入力欄で足す
+function AutoCmds({ list, onChange }: { list: string[]; onChange: (l: string[]) => void }) {
+  const { t } = useTranslation()
+  const [v, setV] = useState('')
+  return (
+    <div className="border-b border-line pt-1 pb-3.5">
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {list.map(c => (
+          <span key={c} className="inline-flex h-6 items-center gap-1 rounded-full border border-line-strong bg-panel-2 pr-1 pl-2.5 font-mono text-[12px]">
+            {c}
+            <button className="grid h-4 w-4 place-items-center rounded-full text-muted hover:text-text" title={t('settings.autoRemove')} onClick={() => onChange(list.filter(x => x !== c))}>
+              <Icon name="x" size={11} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        className="field h-8 w-full rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+        placeholder={t('settings.autoAdd')}
+        spellCheck={false}
+        value={v}
+        onChange={e => setV(e.target.value)}
+        onKeyDown={e => {
+          const c = v.trim().replace(/\s+/g, ' ')
+          if (e.key === 'Enter' && c && !list.includes(c)) {
+            onChange([...list, c])
+            setV('')
+          }
+        }}
+      />
     </div>
   )
 }
@@ -40,7 +90,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </button>
           ))}
           <div className="flex-1" />
-          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict })}>
+          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap })}>
             {t('settings.reset')}
           </button>
         </div>
@@ -54,7 +104,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               <Seg value={s.theme} options={[['dark', t('settings.dark')], ['light', t('settings.light')]]} onPick={theme => setSettings({ theme })} />
             </Row>
           </>}
-          {page === 'ops' && (
+          {page === 'ops' && <>
+            <Row label={t('settings.autoOn')} desc={t('settings.autoOnDesc')}>
+              <Switch on={s.autoOn} onChange={autoOn => setSettings({ autoOn })} />
+            </Row>
+            <AutoCmds list={s.autoCmds} onChange={autoCmds => setSettings({ autoCmds })} />
+            <Row label={t('settings.snap')} desc={t('settings.snapDesc')}>
+              <Switch on={s.snap} onChange={snap => setSettings({ snap })} />
+            </Row>
             <Row label={t('settings.uploadConflict')}>
               <select
                 className="field h-8 min-w-[140px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
@@ -67,7 +124,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 <option value="skip">{t('upload.skip')}</option>
               </select>
             </Row>
-          )}
+          </>}
           {page === 'term' && (
             <Row label={t('settings.termSize')}>
               <div className="flex items-center gap-2.5">
