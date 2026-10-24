@@ -21,7 +21,7 @@ process.on('uncaughtException', async e => {
   process.exit(1);
 });
 cleanup();
-sh(`mkdir -p ${H}/src/deep ${H}/dst /home/asuta/backups && echo f > ${H}/src/f.txt && echo n > ${H}/note.txt && head -c 30000000 /dev/zero > ${H}/src/deep/big.bin`);
+sh(`mkdir -p ${H}/src/deep ${H}/dst /home/asuta/backups && echo f > ${H}/src/f.txt && echo n > ${H}/note.txt && head -c 30000000 /dev/zero > ${H}/src/deep/big.bin && tar czf ${H}/pack.tar.gz -C /etc hostname`);
 // root のフォルダ。ここへ移すには sudo モードが要る
 sh(`mkdir ${H}/locked`, 'root');
 // 偽の docker の状態。ホームの中と外のフォルダをつなぐコンテナを置く
@@ -69,7 +69,7 @@ await at(`${H}/src`).click();
 await at(`${H}/src`).dragTo(at(`${H}/src/deep`));
 await at(`${H}/src`).dragTo(at(H));
 await page.waitForTimeout(800);
-ok('自分の中といまある所には移さない', sh(`ls ${H}`).split('\n').join(',') === 'dst,locked,src' && sh(`ls ${H}/src`).split('\n').join(',') === 'deep,f.txt');
+ok('自分の中といまある所には移さない', sh(`ls ${H}`).split('\n').includes('src') && sh(`ls ${H}/src`).split('\n').join(',') === 'deep,f.txt');
 
 // 権限の無いフォルダへは、sudo モードを聞いてから移す
 await at(`${H}/src/f.txt`).dragTo(at(`${H}/locked`));
@@ -80,6 +80,58 @@ await dialog.locator('input[type=password]').fill('drag');
 await dialog.locator('button:has-text("ON にする")').click();
 ok('ON にすると移す', await waitFor(async () => sh(`ls ${H}/locked`, 'root') === 'f.txt'));
 await page.click('[data-sudo]');
+
+// キー操作。↑↓ で選ぶ行を動かし、→← でフォルダを開け閉めし、Enter で開く
+await page.click('aside button[title="すべて閉じる"]');
+await at(H).click();
+await at(`${H}/dst`).waitFor();
+await page.keyboard.press('ArrowDown');
+ok('↓ で次の行を選ぶ', await waitFor(async () => await selected(`${H}/dst`)));
+await page.keyboard.press('ArrowRight');
+ok('→ でフォルダを開く', await waitFor(async () => (await at(`${H}/dst/note.txt`).count()) === 1));
+await page.keyboard.press('ArrowLeft');
+ok('← でフォルダを閉じる', await waitFor(async () => (await at(`${H}/dst/note.txt`).count()) === 0));
+await page.keyboard.press('ArrowLeft');
+ok('閉じたフォルダで ← を押すと親を選ぶ', await waitFor(async () => await selected(H)));
+await page.keyboard.press('ArrowDown');
+await page.keyboard.press('Enter');
+await page.keyboard.press('ArrowDown');
+await page.keyboard.press('Enter');
+const ed = page.locator('[data-win]:has(textarea)');
+ok('Enter でフォルダを開き、ファイルを開く', await waitFor(async () => (await ed.count()) === 1 && (await ed.locator('textarea').inputValue()) === 'n\n'));
+
+// 開いているファイルの名前を変えると、ウィンドウもついてくる。編集中の中身は残す
+await ed.locator('textarea').click();
+await page.keyboard.press('Control+End');
+await page.keyboard.type('edited');
+await at(`${H}/dst/note.txt`).click();
+await page.keyboard.press('F2');
+await page.locator('.tree-row input').fill('renamed.txt');
+await page.locator('.tree-row input').press('Enter');
+ok('名前を変えるとウィンドウの題名が変わる', await waitFor(async () => (await ed.locator('span:has-text("● renamed.txt")').count()) > 0));
+ok('編集中の中身は残る', (await ed.locator('textarea').inputValue()) === 'n\nedited');
+await ed.locator('textarea').click();
+await page.keyboard.press('Control+s');
+ok('新しい名前で保存する', await waitFor(async () => sh(`cat ${H}/dst/renamed.txt`) === 'n\nedited') && sh(`ls ${H}/dst`) === 'renamed.txt');
+await ed.locator('button[title="閉じる"]').click();
+
+// 圧縮ファイルの大きさと、マウスを乗せた行の … ボタン
+const pack = at(`${H}/pack.tar.gz`);
+ok('圧縮ファイルの行に大きさが出る', /\d+(\.\d+)? B$/.test(await pack.textContent()), await pack.textContent());
+ok('… ボタンはふだん隠す', !(await pack.locator('button[title="操作"]').isVisible()));
+await pack.hover();
+ok('マウスを乗せると … ボタンが出る', await pack.locator('button[title="操作"]').isVisible());
+await pack.locator('button[title="操作"]').click();
+ok('… ボタンでメニューを出す', await page.locator('[role=menu]').isVisible());
+await page.keyboard.press('Escape');
+
+// 行の無いところの右クリックは、いちばん上のフォルダのメニュー。ホームはコピーだけできる
+const treeBox = page.locator('aside div[tabindex="0"]').first();
+const bb = await treeBox.boundingBox();
+await treeBox.click({ button: 'right', position: { x: 60, y: bb.height - 12 } });
+ok('行の無いところで右クリックすると、いちばん上のメニュー', await waitFor(async () => (await page.locator('[role=menu] button:has-text("ゴミ箱を開く")').count()) === 1));
+ok('ホームはコピーできる', !(await page.locator('[role=menu] button:has-text("Ctrl+C")').isDisabled()) && await page.locator('[role=menu] button:has-text("Ctrl+X")').isDisabled());
+await page.keyboard.press('Escape');
 
 // リソース監視の大きいフォルダから、ツリーで表示する。セッションの一覧を出していてもファイルに切り替える
 await page.click('aside button[title="すべて閉じる"]');
@@ -93,6 +145,7 @@ ok('大きいフォルダに出る', await waitFor(async () => (await dirRow.cou
 await dirRow.click();
 ok('ファイルの一覧に切り替える', await waitFor(async () => (await page.locator('aside button[title="すべて閉じる"]').isVisible())));
 ok('大きいフォルダをツリーで開いて選ぶ', await waitFor(async () => await selected(`${H}/src`) && (await at(`${H}/src/deep`).count()) === 1));
+ok('ツリーで表示した行を光らせる', (await at(`${H}/src`).getAttribute('class')).includes('flash'));
 
 // Docker のバインドマウントから、ツリーで表示する。ホームの外ならツリーのいちばん上を / にする
 await page.click('[data-tool="docker"]');

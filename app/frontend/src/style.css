@@ -152,6 +152,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, white), color-mix(in srgb, var(--accent) 88%, white)); }
 .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
+.tree-row.flash { animation: flash 1.2s ease; }
+@keyframes flash { 0%, 40% { background: rgba(63, 207, 142, .25); } 100% { background: transparent; } }
+
 /* PC のファイルやツリーの行をドラッグしている間に、ツリーの下に出す落とす先 */
 .tree-drop {
   position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; padding: 10px 12px; border-radius: 10px;

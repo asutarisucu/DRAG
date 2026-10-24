@@ -53,6 +53,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
   const answer = useRef<(v: boolean | 'save') => void>(() => {})
   const ta = useRef<HTMLTextAreaElement>(null)
 
+  // 読むのは開いたときだけ。名前を変えて path が変わっても、編集中の中身は残す
   useEffect(() => {
     withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => OpenText(serverId, path)).then(f => {
       setText(f.text)
@@ -60,7 +61,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
       mod.current = f.modTime
       setLockedFile(f.locked)
     }, e => setError(errText(e)))
-  }, [serverId, path])
+  }, [serverId])
 
   useEffect(() => { updateWin(win.id, { title: (dirty ? '● ' : '') + baseName(path) }) }, [dirty, win.id, path])
 

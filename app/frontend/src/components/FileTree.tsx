@@ -9,7 +9,7 @@ import { setMTab, useMobile } from '../mobile'
 import { isRemote } from '../remote'
 import i18n from '../i18n'
 import { isDenied, useSudo, withSudo } from '../sudo'
-import { progressToast, toast } from '../toasts'
+import { fmtSize, progressToast, toast } from '../toasts'
 import { withProgress } from '../transfers'
 import { ConflictDialog, PropsDialog, type ConflictAnswer } from './FileDialogs'
 import { Icon } from './Icon'
@@ -17,6 +17,7 @@ import { Menu, type MenuItem } from './Menu'
 import { KIND_ICON, fileKind } from '../fileKind'
 import { openFile } from '../openFile'
 import { openTool } from '../tools'
+import { updateWin, winsOf } from '../windows'
 
 type Entry = remote.Entry
 type Dir = { entries?: Entry[]; error?: string; loading: boolean }
@@ -44,6 +45,14 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   const [conflict, setConflict] = useState<{ path: string; more: boolean; resolve: (a: ConflictAnswer) => void } | null>(null)
   const [props, setProps] = useState<{ node: Node; props: remote.Props } | null>(null)
   const [dropDir, setDropDir] = useState('')
+  // 貼り付け・移動・アップロード・元に戻す・ツリーで表示のあとに、その行を少しのあいだ光らせる
+  const [flash, setFlash] = useState('')
+  const flashTimer = useRef(0)
+  const flashRow = (p: string) => {
+    setFlash(p)
+    clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setFlash(''), 1200)
+  }
   const box = useRef<HTMLDivElement>(null)
   const settings = useSettings()
   const sudo = useSudo(serverId)
@@ -136,13 +145,23 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
 
   const focusTree = () => box.current?.focus({ preventScroll: true })
 
-  // 操作のあとに、変わったフォルダを開いて読み直し、できたものを選ぶ
-  const after = async (changed: string[], select?: string) => {
+  // 操作のあとに、変わったフォルダを開いて読み直し、できたものを選ぶ。shine ならその行を光らせる
+  const after = async (changed: string[], select?: string, shine = false) => {
     for (const d of new Set(changed)) {
       setOpen(o => ({ ...o, [d]: true }))
       await load(d)
     }
-    if (select) setSelected(select)
+    if (!select) return
+    setSelected(select)
+    if (shine) flashRow(select)
+  }
+  // 名前を変えたり移したりしたら、開いているウィンドウのファイルの場所を合わせる
+  const moved = (from: string, to: string) => {
+    for (const w of winsOf(serverId)) {
+      if (!w.path || (w.path !== from && !w.path.startsWith(from + '/'))) continue
+      // エディターは題名を自分で付け直す。ほかのウィンドウの題名はファイルの名前
+      updateWin(w.id, { path: to + w.path.slice(from.length), ...(w.path === from && w.kind !== 'editor' ? { title: baseOf(to) } : {}) })
+    }
   }
   // SFTP の英語の決まり文句は、画面の言語の文に置き換える
   const fail = (e: unknown) => toast(isDenied(e) ? t('files.denied') : errText(e), 'warn')
@@ -159,22 +178,27 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     setRenaming('')
     focusTree()
     if (!name || name === node.name) return
-    withSudo(serverId, t('sudo.rename', { name: node.name }), () => RenameEntry(serverId, node.path, name)).then(p => after([parentOf(node.path)], p), fail)
+    withSudo(serverId, t('sudo.rename', { name: node.name }), () => RenameEntry(serverId, node.path, name)).then(p => {
+      moved(node.path, p)
+      after([parentOf(node.path)], p)
+    }, fail)
   }
   const paste = (dir: string) => {
     if (!clip) return
     withSudo(serverId, t('sudo.paste'), () => PasteEntry(serverId, clip.path, dir, clip.move)).then(p => {
       if (clip.move) {
         setClip(null)
+        moved(clip.path, p)
         toast(t('toast.moved', { name: baseOf(p), dir: pathArg(root, dir) }), 'ok')
       }
-      after(clip.move ? [parentOf(clip.path), dir] : [dir], p)
+      after(clip.move ? [parentOf(clip.path), dir] : [dir], p, true)
     }, fail)
   }
   const move = (from: string, dir: string) => {
     withSudo(serverId, t('sudo.move', { name: baseOf(from) }), () => PasteEntry(serverId, from, dir, true)).then(p => {
+      moved(from, p)
       toast(t('toast.moved', { name: baseOf(p), dir: pathArg(root, dir) }), 'ok')
-      after([parentOf(from), dir], p)
+      after([parentOf(from), dir], p, true)
     }, fail)
   }
   const trash = (node: Node) => {
@@ -183,7 +207,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       toast(t('toast.trashed', { name: node.name }), 'info', {
         label: t('toast.undo'),
         fn: () => withSudo(serverId, t('sudo.restore', { name: node.name }), () => RestoreEntry(serverId, item)).then(p => {
-          after([parentOf(p)], p)
+          after([parentOf(p)], p, true)
           toast(t('toast.restored', { name: baseOf(p) }), 'ok')
         }, fail),
       })
@@ -231,7 +255,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
         setUploads(u => u.filter(x => x.key !== it.path))
       }
     }
-    await after([dir], last || undefined)
+    await after([dir], last || undefined, true)
     if (count) toast(t('upload.sent', { count, dir: pathArg(root, dir) }), 'ok')
   }
   const pickUpload = (dir: string) => PickUploadFiles().then(p => uploadTo(dir, p ?? []), fail)
@@ -262,6 +286,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     setTop(base)
     setOpen(o => ({ ...o, ...Object.fromEntries(chain.map(d => [d, true])) }))
     setSelected(path)
+    flashRow(path)
     scrollTo.current = path
   }
 
@@ -271,7 +296,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       const d = (e as CustomEvent<{ serverId: string; path: string; show?: boolean; open?: boolean }>).detail
       if (d.serverId !== serverId) return
       if (d.show) reveal(d.path, !!d.open)
-      else if (dirs[parentOf(d.path)]) after([parentOf(d.path)], d.path)
+      else if (dirs[parentOf(d.path)]) after([parentOf(d.path)], d.path, true)
     }
     window.addEventListener('drag:tree-reveal', onReveal)
     return () => window.removeEventListener('drag:tree-reveal', onReveal)
@@ -301,7 +326,8 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     n.dir && !isRemote && { icon: 'upload', label: t('menu.uploadHere'), fn: () => pickUpload(n.path) },
     { sep: true },
     { icon: 'cut', label: t('menu.cut'), hint: 'Ctrl+X', disabled: n.top, fn: () => setClip({ path: n.path, move: true }) },
-    { icon: 'copy', label: t('menu.copy'), hint: 'Ctrl+C', disabled: n.top, fn: () => setClip({ path: n.path, move: false }) },
+    // ホームはコピーだけできる
+    { icon: 'copy', label: t('menu.copy'), hint: 'Ctrl+C', disabled: n.top && n.path !== root, fn: () => setClip({ path: n.path, move: false }) },
     { icon: 'paste', label: t('menu.paste'), hint: 'Ctrl+V', disabled: !clip, fn: () => paste(n.dir ? n.path : parentOf(n.path)) },
     { sep: true },
     { icon: 'edit', label: t('menu.rename'), hint: 'F2', disabled: n.top, fn: () => startRename(n) },
@@ -313,17 +339,51 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     { icon: 'info', label: t('menu.props'), fn: () => showProps(n) },
   ]
 
+  // エクスプローラーと同じキー。↑↓ で選ぶ行を動かし、→← でフォルダを開け閉めする
   const onKey = (e: React.KeyboardEvent) => {
-    if (!selected || renaming) return
-    const n = nodeOf(selected)
+    if (renaming) return
     const ctrl = e.ctrlKey || e.metaKey
-    if (e.key === 'F2' && !n.top) startRename(n)
-    else if (e.key === 'Delete' && !n.top) trash(n)
-    else if (ctrl && e.key === 'c' && !n.top) setClip({ path: n.path, move: false })
-    else if (ctrl && e.key === 'x' && !n.top) setClip({ path: n.path, move: true })
-    else if (ctrl && e.key === 'v') paste(n.dir ? n.path : parentOf(n.path))
-    else return
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
+    if (!selected) {
+      if (ctrl && key === 'v') {
+        e.preventDefault()
+        paste(top)
+      }
+      return
+    }
+    const n = nodeOf(selected)
+    const rowPaths = () => [...box.current!.querySelectorAll<HTMLElement>('.tree-row[data-path]')].map(r => r.dataset.path!)
+    const select = (p: string) => {
+      setSelected(p)
+      scrollTo.current = p
+    }
+    if (key === 'F2' && !n.top) startRename(n)
+    else if (key === 'Delete' && !n.top) trash(n)
+    else if (ctrl && key === 'c' && (!n.top || n.path === root)) setClip({ path: n.path, move: false })
+    else if (ctrl && key === 'x' && !n.top) setClip({ path: n.path, move: true })
+    else if (ctrl && key === 'v') paste(n.dir ? n.path : parentOf(n.path))
+    else if (key === 'Enter') {
+      if (!n.dir) openFile(serverId, n)
+      else if (n.path !== top) toggle(n.path)
+    } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const rows = rowPaths()
+      const i = rows.indexOf(n.path)
+      const next = rows[Math.max(0, Math.min(rows.length - 1, i + (key === 'ArrowUp' ? -1 : 1)))]
+      if (next) select(next)
+    } else if (key === 'ArrowRight') {
+      if (n.dir && !open[n.path] && n.path !== top) toggle(n.path)
+    } else if (key === 'ArrowLeft') {
+      if (n.dir && open[n.path] && n.path !== top) toggle(n.path)
+      else if (parentOf(n.path) !== top && n.path.startsWith(top === '/' ? '/' : top + '/')) select(parentOf(n.path))
+    } else return
     e.preventDefault()
+  }
+
+  // フォルダを開け閉めする。はじめて開くときに中を読む
+  const toggle = (path: string) => {
+    const next = !open[path]
+    setOpen(o => ({ ...o, [path]: next }))
+    if (next && !dirs[path]?.entries) load(path, true)
   }
 
   const click = (e: Entry) => {
@@ -332,10 +392,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       return
     }
     setSelected(e.path)
-    if (!e.dir) return
-    const next = !open[e.path]
-    setOpen(o => ({ ...o, [e.path]: next }))
-    if (next && !dirs[e.path]?.entries) load(e.path, true)
+    if (e.dir) toggle(e.path)
   }
   const contextMenu = (ev: React.MouseEvent, n: Node) => {
     ev.preventDefault()
@@ -343,9 +400,10 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     setSelected(n.path)
     setMenu({ x: ev.clientX, y: ev.clientY, node: n })
   }
-  const moreButton = (n: Node) => mobile && (
+  // スマホでは常に出し、PC ではマウスを乗せた行にだけ出す
+  const moreButton = (n: Node) => (
     <button
-      className="grid h-9 w-9 flex-none place-items-center rounded-md text-muted"
+      className={mobile ? 'grid h-9 w-9 flex-none place-items-center rounded-md text-muted' : `${navBtn} invisible group-hover:visible`}
       title={t('menu.more')}
       onClick={ev => {
         ev.stopPropagation()
@@ -377,9 +435,12 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     const p = dragging.current
     return !!p && dir !== p && dir !== parentOf(p) && !dir.startsWith(p + '/')
   }
+  // 行の中の動きは行だけが受け取り、行の無いところの動きはツリー全体 (いちばん上のフォルダ) が受け取る
+  const mine = (ev: React.DragEvent) => (ev.target as HTMLElement).closest('[data-drop-dir]') === ev.currentTarget
   const dropProps = (dir: string) => ({
     'data-drop-dir': dir,
     onDragOver: (ev: React.DragEvent) => {
+      if (!mine(ev)) return
       if (ev.dataTransfer.types.includes('Files')) setDropDir(dir)
       else if (canMoveTo(dir)) {
         ev.preventDefault()
@@ -387,8 +448,9 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
         setDropDir(dir)
       }
     },
-    onDragLeave: () => setDropDir(d => d === dir ? '' : d),
+    onDragLeave: (ev: React.DragEvent) => { if (mine(ev)) setDropDir(d => d === dir ? '' : d) },
     onDrop: (ev: React.DragEvent) => {
+      if (!mine(ev)) return
       setDropDir('')
       if (!canMoveTo(dir)) return
       ev.preventDefault()
@@ -421,7 +483,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       return [
         <div
           key={e.path}
-          className={`tree-row relative flex cursor-pointer items-center gap-[5px] pr-1 whitespace-nowrap select-none ${rowSize} hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${dropDir && dropDir === (e.dir ? e.path : path) ? dropOn : selected === e.path ? 'bg-accent-soft shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_35%,transparent)]' : ''} ${cut ? 'opacity-50' : ''}`}
+          className={`tree-row group relative flex cursor-pointer items-center gap-[5px] pr-1 whitespace-nowrap select-none ${rowSize} ${flash === e.path ? 'flash' : ''} hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${dropDir && dropDir === (e.dir ? e.path : path) ? dropOn : selected === e.path ? 'bg-accent-soft shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_35%,transparent)]' : ''} ${cut ? 'opacity-50' : ''}`}
           style={{ paddingLeft: indent(depth), ['--d' as string]: depth }}
           data-d={depth}
           data-path={e.path}
@@ -451,6 +513,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
             ? <RenameInput name={e.name} dir={e.dir} onDone={name => rename(nodeOf(e.path), name)} />
             : <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">{e.name}</span>}
           {e.locked && <span className="flex-none text-faint" title={t('sudo.locked')}><Icon name="lock" size={12} /></span>}
+          {['arc', 'bin'].includes(fileKind(e.name, e.dir)) && <span className="pl-1 font-mono text-[11px] text-faint">{fmtSize(e.size)}</span>}
           {e.link && <span className="text-faint"><Icon name="link" size={12} /></span>}
           {moreButton(nodeOf(e.path))}
         </div>,
@@ -473,9 +536,16 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           <button className={headBtn} title={t('tools.trash')} onClick={() => openTool(serverId, 'trash')}><Icon name="trash" /></button>
         </div>
       )}
-      <div ref={box} tabIndex={0} className={`min-h-0 flex-1 overflow-auto pb-5 outline-none ${osDrag ? 'os-drag' : ''}`} onKeyDown={onKey}>
+      <div
+        ref={box}
+        tabIndex={0}
+        className={`min-h-0 flex-1 overflow-auto pb-5 outline-none ${osDrag ? 'os-drag' : ''}`}
+        onKeyDown={onKey}
+        onContextMenu={ev => contextMenu(ev, nodeOf(top))}
+        {...dropProps(top)}
+      >
         <div
-          className={`mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
+          className={`group mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
           title={top + '\n' + t('upload.dropHint')}
           data-tree-top={top}
           {...dropProps(top)}
