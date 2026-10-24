@@ -35,6 +35,8 @@ type Shell struct {
 	ev   ShellEvents
 
 	mu      sync.Mutex
+	cols    int
+	rows    int
 	buf     []byte // 直近の出力
 	total   int64  // 最初からの通算の出力の量
 	idleOff int64  // 最後にシェル自身が前面だったときの total
@@ -71,7 +73,7 @@ func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, 
 	// Start より前に書くと sshd に捨てられる
 	fmt.Fprintf(in, "%s\n", cwd)
 
-	sh := &Shell{srv: s, sess: sess, in: in, ev: ev}
+	sh := &Shell{srv: s, sess: sess, in: in, ev: ev, cols: cols, rows: rows}
 	re := regexp.MustCompile(`DRAG-` + nonce + ` (\d+)\r?\n`)
 	found := make(chan struct{})
 	go func() {
@@ -193,7 +195,17 @@ func (sh *Shell) Write(p []byte) (int, error) {
 }
 
 func (sh *Shell) Resize(cols, rows int) error {
+	sh.mu.Lock()
+	sh.cols, sh.rows = cols, rows
+	sh.mu.Unlock()
 	return sh.sess.WindowChange(rows, cols)
+}
+
+// Size は PTY の桁数と行数
+func (sh *Shell) Size() (int, int) {
+	sh.mu.Lock()
+	defer sh.mu.Unlock()
+	return sh.cols, sh.rows
 }
 
 func (sh *Shell) Close() {

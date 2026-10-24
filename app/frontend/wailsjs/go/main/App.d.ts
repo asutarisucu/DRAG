@@ -41,6 +41,8 @@ export function OpenShell(arg1:string,arg2:number,arg3:number,arg4:string):Promi
 
 export function OpenText(arg1:string,arg2:string):Promise<remote.TextFile>;
 
+export function OtherShells(arg1:string):Promise<Array<main.ShellInfo>>;
+
 export function PasteEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
 export function PhoneDevices():Promise<Array<phone.Device>>;

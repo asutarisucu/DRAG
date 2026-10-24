@@ -74,6 +74,10 @@ export function OpenText(arg1, arg2) {
   return window['go']['main']['App']['OpenText'](arg1, arg2);
 }
 
+export function OtherShells(arg1) {
+  return window['go']['main']['App']['OtherShells'](arg1);
+}
+
 export function PasteEntry(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['PasteEntry'](arg1, arg2, arg3, arg4);
 }

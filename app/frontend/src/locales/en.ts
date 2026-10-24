@@ -105,6 +105,8 @@ const en: Messages = {
     extracted: 'Extracted for viewing · read only',
   },
   sessions: {
+    shellOf: 'Shell on {{owner}}',
+    openOn: 'Open on {{owner}}',
     title: 'Sessions',
     none: 'None',
     windows: 'DRAG windows',

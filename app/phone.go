@@ -23,7 +23,7 @@ import (
 var phoneMethods = map[string]bool{
 	"Connect": true, "Reconnect": true, "Probe": true, "SavedServers": true, "Servers": true,
 	"ListDir": true, "NewEntry": true, "RenameEntry": true, "PasteEntry": true, "TrashEntry": true, "RestoreEntry": true, "Stat": true,
-	"OpenShell": true, "ShellReplay": true, "ShellCwd": true, "ShellInput": true, "ShellResize": true, "CloseShell": true,
+	"OpenShell": true, "ShellReplay": true, "ShellCwd": true, "ShellInput": true, "ShellResize": true, "CloseShell": true, "OtherShells": true,
 	"Sessions": true, "EnableSudo": true, "DisableSudo": true,
 	"OpenText": true, "SaveText": true, "ReadImage": true, "LogTail": true, "LogFollow": true, "LogStop": true,
 	"ArchiveOpen": true, "ArchiveRead": true, "ArchiveClose": true,

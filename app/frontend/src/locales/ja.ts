@@ -104,6 +104,8 @@ const ja = {
     extracted: '解凍して表示 · 読み取り専用',
   },
   sessions: {
+    shellOf: '{{owner}} のシェル',
+    openOn: '{{owner}} で開いている',
     title: 'セッション',
     none: 'なし',
     windows: 'DRAG のウィンドウ',

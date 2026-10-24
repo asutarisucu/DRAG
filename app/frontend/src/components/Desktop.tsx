@@ -45,7 +45,7 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
 
   const close = async (w: Win) => {
     if (!(await canClose(w.id))) return
-    if (w.shellId) CloseShell(w.shellId)
+    if (w.shellId && !w.shared) CloseShell(w.shellId)
     if (w.detachable && !w.ended) toast(t('desktop.detached', { title: w.title }))
     closeWin(w.id)
   }
@@ -116,7 +116,7 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
               : w.kind === 'log' ? <LogView win={w} serverId={serverId} home={home} />
                 : w.kind === 'image' ? <ImageView win={w} serverId={serverId} />
                   : w.kind === 'archive' ? <ArchiveView win={w} serverId={serverId} home={home} />
-                    : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
+                    : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} shared={w.shared} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
           </Window>
         ))}
         {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}

@@ -272,6 +272,26 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class ShellInfo {
+	    id: string;
+	    owner: string;
+	    fg: string;
+	    cols: number;
+	    rows: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShellInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.owner = source["owner"];
+	        this.fg = source["fg"];
+	        this.cols = source["cols"];
+	        this.rows = source["rows"];
+	    }
+	}
 
 }
 

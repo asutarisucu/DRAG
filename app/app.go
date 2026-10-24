@@ -37,8 +37,15 @@ type core struct {
 	mu      sync.Mutex
 	next    int
 	servers map[string]*conn
-	shells  map[string]*remote.Shell
+	shells  map[string]*openShell
 	fs      *fileState
+}
+
+// openShell は開いているシェル1つと、それを開いた端末。ほかの端末から続きを操作するときに一覧に出す
+type openShell struct {
+	*remote.Shell
+	server string
+	dev    string
 }
 
 // conn はつないでいるサーバー1台。再接続に使うので、接続の設定 (パスワードを含む) をメモリーにだけ持つ
@@ -54,7 +61,7 @@ func NewApp() *App {
 	return &App{core: &core{
 		saved:   store.NewServers(configDir()),
 		servers: map[string]*conn{},
-		shells:  map[string]*remote.Shell{},
+		shells:  map[string]*openShell{},
 	}}
 }
 
@@ -360,9 +367,39 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 		return "", err
 	}
 	a.mu.Lock()
-	a.shells[id] = sh
+	a.shells[id] = &openShell{Shell: sh, server: serverID, dev: a.dev}
 	a.mu.Unlock()
 	return id, nil
+}
+
+// ShellInfo は、ほかの端末で開いているシェル1つ。Owner はそのシェルを開いた端末の名前
+type ShellInfo struct {
+	ID    string `json:"id"`
+	Owner string `json:"owner"`
+	Fg    string `json:"fg"`
+	Cols  int    `json:"cols"`
+	Rows  int    `json:"rows"`
+}
+
+// OtherShells は、serverID で、呼んだ端末とは別の端末が開いているシェル。
+// PC で開いていたターミナルを、スマホから続けて操作するのに使う
+func (a *App) OtherShells(serverID string) []ShellInfo {
+	names := map[string]string{"": "PC"}
+	for _, d := range a.phone.Devices() {
+		names[d.ID] = d.Name
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := []ShellInfo{}
+	for _, id := range slices.SortedFunc(maps.Keys(a.shells), func(x, y string) int { return cmp.Compare(idNum(x), idNum(y)) }) {
+		sh := a.shells[id]
+		if sh.server != serverID || sh.dev == a.dev {
+			continue
+		}
+		cols, rows := sh.Size()
+		out = append(out, ShellInfo{ID: id, Owner: names[sh.dev], Fg: sh.Foreground(), Cols: cols, Rows: rows})
+	}
+	return out
 }
 
 type Replay struct {
@@ -542,7 +579,10 @@ func (a *App) Sessions(serverID string) ([]remote.Session, error) {
 func (a *App) shell(id string) *remote.Shell {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.shells[id]
+	if sh := a.shells[id]; sh != nil {
+		return sh.Shell
+	}
+	return nil
 }
 
 func (a *App) ShellInput(id, data string) {
@@ -551,9 +591,12 @@ func (a *App) ShellInput(id, data string) {
 	}
 }
 
+// ShellResize は PTY の大きさを変え、"shell:size" (番号, 桁数, 行数) を送る。
+// ほかの端末で同じシェルを見ている画面は、この大きさに合わせて描く
 func (a *App) ShellResize(id string, cols, rows int) {
 	if sh := a.shell(id); sh != nil {
 		sh.Resize(cols, rows)
+		a.emit("shell:size", id, cols, rows)
 	}
 }
 

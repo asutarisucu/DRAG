@@ -21,6 +21,8 @@ export type Win = {
   detachable: boolean // screen と tmux。閉じてもセッションは残る
   replayFromIdle: boolean // 移したコマンドを打った行から描き直す
   sessionKey?: string // screen か tmux のセッションなら "screen:名前" の形
+  // ほかの端末で開いているシェルを見ているときの、そのシェルの大きさ。閉じてもシェルは閉じない
+  shared?: { cols: number; rows: number }
 }
 
 let wins: Win[] = []
