@@ -8,6 +8,8 @@ RUN apt-get update \
  && systemctl enable ssh.service
 ARG USER=asuta
 ARG PASS=drag
+# ログインしたシェルで日本語を扱えるように、既定のロケールを UTF-8 にする (pam_env が読む)
+RUN echo LANG=C.UTF-8 > /etc/default/locale
 RUN useradd -m -s /bin/bash "$USER" && echo "$USER:$PASS" | chpasswd && usermod -aG sudo "$USER"
 # ログインシェルが bash でない利用者。前面のコマンドを調べる検証で使う
 # zsh は .zshrc が無いと初回の設定の画面を出すので、空のものを置く
