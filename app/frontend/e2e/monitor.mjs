@@ -36,7 +36,7 @@ const text = sel => page.locator(sel).first().textContent();
 
 // 下の欄
 ok('下の欄に稼働時間が出る', await waitFor(async () => /\d+ (日|時間|分)/.test(await text('[data-sb="uptime"]'))), await text('[data-sb="uptime"]').catch(() => ''));
-ok('CPU とメモリの値とグラフが出る', await waitFor(async () => /CPU.*\d+%/.test(await text('[data-sb="cpu"]')) && /メモリ.*\d+%/.test(await text('[data-sb="mem"]')) && await page.locator('[data-sb="cpu"] svg polyline').count() === 1));
+ok('CPU とメモリの値とグラフが出る', await waitFor(async () => /CPU.*\d+%/.test(await text('[data-sb="cpu"]')) && /メモリ.*[\d.]+ \/ [\d.]+ GB/.test(await text('[data-sb="mem"]')) && await page.locator('[data-sb="cpu"] svg polyline').count() === 1));
 ok('ネットワークの下りと上りが出る', /B\/s.*B\/s/.test(await text('[data-sb="net"]')), await text('[data-sb="net"]'));
 
 // 下の欄の CPU を押すと、リソース監視が CPU の詳細で開く

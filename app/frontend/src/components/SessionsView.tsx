@@ -50,18 +50,18 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
     const where = wins.some(w => sameSession(s, w.sessionKey)) ? t('sessions.inWindow') : sameSession(s, terminalKey) ? t('sessions.inTerminal') : ''
     return (
       <div
-        key={s.kind + s.name}
+        key={s.kind + s.user + s.name}
         draggable={!mobile}
-        data-session={`${s.kind}:${s.name}`}
+        data-session={`${s.kind}:${s.user ? s.user + '/' : ''}${s.name}`}
         className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`}
         onClick={() => onOpen(s)}
-        onDragStart={e => e.dataTransfer.setData('application/x-drag-session', JSON.stringify({ kind: s.kind, name: s.name }))}
+        onDragStart={e => e.dataTransfer.setData('application/x-drag-session', JSON.stringify({ kind: s.kind, name: s.name, user: s.user }))}
       >
         <Icon name="layers" className="text-accent-2" />
         <div className="min-w-0">
           <div className="truncate font-mono text-[12.5px]">{s.name}</div>
           <div className="text-[11.5px] text-muted">
-            {[s.kind === 'tmux' ? t('sessions.windowsCount', { n: s.desc }) : '', s.lastUsed ? t('sessions.lastUsed', { when: when(s.lastUsed) }) : s.kind === 'screen' ? s.desc : ''].filter(Boolean).join(' · ')}
+            {[s.user ? t('sessions.ownedBy', { user: s.user }) : '', s.kind === 'tmux' ? t('sessions.windowsCount', { n: s.desc }) : '', s.lastUsed ? t('sessions.lastUsed', { when: when(s.lastUsed) }) : s.kind === 'screen' ? s.desc : ''].filter(Boolean).join(' · ')}
           </div>
         </div>
         {where && <span className="ml-auto flex-none rounded-full bg-accent-soft px-2 py-px text-[10.5px] text-accent">{where}</span>}
@@ -87,7 +87,8 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
   return (
     <div className="min-h-0 flex-1 overflow-auto pb-5">
       {list && [
-        ...group('screen', list.filter(s => s.kind === 'screen').map(item)),
+        // ほかのユーザーの screen は、自分のものの後ろに並べる (見えるのは root か sudo モードのときだけ)
+        ...group('screen', [...list.filter(s => s.kind === 'screen' && !s.user), ...list.filter(s => s.kind === 'screen' && s.user)].map(item)),
         ...group('tmux', list.filter(s => s.kind === 'tmux').map(item)),
         ...group(t('sessions.windows'), [...own.map(w => (
           <div key={w.id} className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`} onClick={() => { focusWin(w.id); setMTab('desktop') }}>

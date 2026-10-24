@@ -832,6 +832,7 @@ export namespace remote {
 	    attached: boolean;
 	    desc: string;
 	    lastUsed: number;
+	    user: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Session(source);
@@ -844,6 +845,7 @@ export namespace remote {
 	        this.attached = source["attached"];
 	        this.desc = source["desc"];
 	        this.lastUsed = source["lastUsed"];
+	        this.user = source["user"];
 	    }
 	}
 	export class TextFile {

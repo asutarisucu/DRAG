@@ -62,6 +62,8 @@ type link struct {
 	procPrev procSnap
 	// コンテナの ID から名前への表。知らない ID が出たら読み直す
 	cnames map[string]string
+	// 端末ごとの、ほかのユーザーの screen のセッションの前の結果
+	others map[string]*otherCache
 }
 
 // As は、同じ接続を dev の端末から見たものを返す
@@ -182,7 +184,7 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 		sc.Close()
 		return nil, fmt.Errorf("SFTP を開けません: %w", err)
 	}
-	s := &Server{link: &link{cfg: cfg, ssh: sc, sftp: fc, sudo: map[string]*sudoMode{}}}
+	s := &Server{link: &link{cfg: cfg, ssh: sc, sftp: fc, sudo: map[string]*sudoMode{}, others: map[string]*otherCache{}}}
 	s.loadIdentity()
 	// 見張れなくても、ターミナルとファイルは使える
 	s.startMonitor()

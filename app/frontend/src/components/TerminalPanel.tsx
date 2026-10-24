@@ -13,12 +13,14 @@ import { closeWin, focusWin, openWin, winById } from '../windows'
 import { Icon, type IconName } from './Icon'
 import { useXterm } from './useXterm'
 
-// コマンドの行を、先頭の sudo を飛ばした語の並びにする
+// コマンドの行を、先頭の sudo を飛ばした語の並びにする。-u ユーザーのように値を取るオプションは値も飛ばす
 function words(cmdline: string) {
   const w = cmdline.trim().split(/\s+/)
   if (w[0]?.split('/').pop() === 'sudo') {
     w.shift()
-    while (w[0]?.startsWith('-')) w.shift()
+    while (w[0]?.startsWith('-')) {
+      if (['-u', '-g', '-h', '-p', '-C', '-D', '-r', '-t', '-U'].includes(w.shift()!)) w.shift()
+    }
   }
   if (w[0]) w[0] = w[0].split('/').pop()!
   return w

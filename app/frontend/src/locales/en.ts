@@ -126,6 +126,7 @@ const en: Messages = {
     inTerminal: 'Terminal',
     shell: 'Shell',
     windowsCount: '{{n}} windows',
+    ownedBy: 'Owned by {{user}}',
   },
   tabs: {
     close: 'Disconnect',

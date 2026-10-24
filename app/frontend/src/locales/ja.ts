@@ -125,6 +125,7 @@ const ja = {
     inTerminal: 'ターミナル',
     shell: 'シェル',
     windowsCount: '{{n}} ウィンドウ',
+    ownedBy: '{{user}} のセッション',
   },
   tabs: {
     close: '切断',
