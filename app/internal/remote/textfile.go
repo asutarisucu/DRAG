@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/pkg/sftp"
 )
 
 var (
@@ -22,6 +24,7 @@ var (
 type TextFile struct {
 	Text    string `json:"text"`
 	ModTime int64  `json:"modTime"` // 保存するときに、開いたあとに変わっていないかを見る
+	Root    bool   `json:"root"`    // root の持ち物。保存には sudo モードが要る
 }
 
 // CheckText は、エディターで扱える中身かを見る。NUL を含むものはバイナリ、UTF-8 として読めないものは文字化けするので断る
@@ -41,7 +44,7 @@ func CheckText(b []byte) error {
 
 // ReadText はファイルを文字列で読む。limit を超えるものは読まない
 func (s *Server) ReadText(p string, limit int64) (TextFile, error) {
-	fi, err := s.sftp.Stat(p)
+	fi, err := s.fs().Stat(p)
 	if err != nil {
 		return TextFile{}, err
 	}
@@ -55,12 +58,16 @@ func (s *Server) ReadText(p string, limit int64) (TextFile, error) {
 	if err := CheckText(b); err != nil {
 		return TextFile{}, err
 	}
-	return TextFile{Text: string(b), ModTime: fi.ModTime().Unix()}, nil
+	tf := TextFile{Text: string(b), ModTime: fi.ModTime().Unix()}
+	if st, ok := fi.Sys().(*sftp.FileStat); ok {
+		tf.Root = st.UID == 0
+	}
+	return tf, nil
 }
 
 // ReadBytes はファイルを読む。limit を超えるものは読まない
 func (s *Server) ReadBytes(p string, limit int64) ([]byte, error) {
-	f, err := s.sftp.Open(p)
+	f, err := s.fs().Open(p)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +87,7 @@ func (s *Server) ReadBytes(p string, limit int64) ([]byte, error) {
 // 持ち主と権限を変えないよう、別名で書いて置き換えるのではなく、同じファイルを切り詰めて書く
 func (s *Server) WriteText(p, text string, modTime int64, force bool) (int64, error) {
 	if !force {
-		fi, err := s.sftp.Stat(p)
+		fi, err := s.fs().Stat(p)
 		if err != nil {
 			return 0, err
 		}
@@ -88,7 +95,7 @@ func (s *Server) WriteText(p, text string, modTime int64, force bool) (int64, er
 			return 0, ErrChanged
 		}
 	}
-	f, err := s.sftp.OpenFile(p, os.O_WRONLY|os.O_TRUNC|os.O_CREATE)
+	f, err := s.fs().OpenFile(p, os.O_WRONLY|os.O_TRUNC|os.O_CREATE)
 	if err != nil {
 		return 0, err
 	}
@@ -99,7 +106,7 @@ func (s *Server) WriteText(p, text string, modTime int64, force bool) (int64, er
 	if err != nil {
 		return 0, err
 	}
-	fi, err := s.sftp.Stat(p)
+	fi, err := s.fs().Stat(p)
 	if err != nil {
 		return 0, err
 	}
@@ -117,14 +124,14 @@ type LogChunk struct {
 // 大きいログは末尾から読み、上へスクロールしたら前を読み足すのに使う
 func (s *Server) ReadTail(p string, end, size int64) (LogChunk, error) {
 	if end < 0 {
-		fi, err := s.sftp.Stat(p)
+		fi, err := s.fs().Stat(p)
 		if err != nil {
 			return LogChunk{}, err
 		}
 		end = fi.Size()
 	}
 	start := max(0, end-size)
-	f, err := s.sftp.Open(p)
+	f, err := s.fs().Open(p)
 	if err != nil {
 		return LogChunk{}, err
 	}
@@ -152,12 +159,12 @@ func (s *Server) Follow(p string, from int64, onData func([]byte), onEnd func(er
 	if err != nil {
 		return nil, err
 	}
-	sess.Stdin = strings.NewReader(p + "\n")
+	// tail -c +N は N バイト目 (1 から数える) から出す
+	cmd, stdin := s.command(fmt.Sprintf(`IFS= read -r p; exec tail -c +%s -F -- "$p"`, strconv.FormatInt(from+1, 10)), p+"\n")
+	sess.Stdin = strings.NewReader(stdin)
 	out, _ := sess.StdoutPipe()
 	var stderr bytes.Buffer
 	sess.Stderr = &stderr
-	// tail -c +N は N バイト目 (1 から数える) から出す
-	cmd := fmt.Sprintf(`exec /bin/sh -c 'IFS= read -r p; exec tail -c +%s -F -- "$p"'`, strconv.FormatInt(from+1, 10))
 	if err := sess.Start(cmd); err != nil {
 		sess.Close()
 		return nil, err

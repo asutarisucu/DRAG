@@ -101,6 +101,7 @@ export namespace main {
 	    info?: remote.Info;
 	    error: string;
 	    hostKey?: HostKey;
+	    sudo: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectResult(source);
@@ -113,6 +114,7 @@ export namespace main {
 	        this.info = this.convertValues(source["info"], remote.Info);
 	        this.error = source["error"];
 	        this.hostKey = this.convertValues(source["hostKey"], HostKey);
+	        this.sudo = source["sudo"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -178,6 +180,7 @@ export namespace remote {
 	    link: boolean;
 	    size: number;
 	    modTime: number;
+	    root: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Entry(source);
@@ -191,6 +194,7 @@ export namespace remote {
 	        this.link = source["link"];
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
+	        this.root = source["root"];
 	    }
 	}
 	export class Info {
@@ -278,6 +282,7 @@ export namespace remote {
 	export class TextFile {
 	    text: string;
 	    modTime: number;
+	    root: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new TextFile(source);
@@ -287,6 +292,7 @@ export namespace remote {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.text = source["text"];
 	        this.modTime = source["modTime"];
+	        this.root = source["root"];
 	    }
 	}
 	export class TrashItem {

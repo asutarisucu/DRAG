@@ -22,12 +22,20 @@ export function Connect(arg1) {
   return window['go']['main']['App']['Connect'](arg1);
 }
 
+export function DisableSudo(arg1) {
+  return window['go']['main']['App']['DisableSudo'](arg1);
+}
+
 export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
 
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
+}
+
+export function EnableSudo(arg1, arg2) {
+  return window['go']['main']['App']['EnableSudo'](arg1, arg2);
 }
 
 export function ListDir(arg1, arg2) {

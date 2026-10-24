@@ -4,13 +4,12 @@ import { chromium } from 'playwright-core';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { sh } from './server.mjs';
 
 const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
 const ok = (name, cond, extra = '') => results.push(`${cond ? 'OK ' : 'NG '} ${name}${extra ? '  ' + extra : ''}`);
 const errors = [];
-const sh = cmd => { try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ["ignore", "pipe", "pipe"] }).toString().trim(); } catch (e) { return "ERR " + e.stderr.toString().trim(); } };
 
 // PC の側に送るものを作る。フォルダの中に 3 MB のファイルを置き、進み具合が出るようにする
 const local = fs.mkdtempSync(path.join(os.tmpdir(), 'drag-e2e-'));

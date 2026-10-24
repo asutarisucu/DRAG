@@ -15,7 +15,7 @@ import (
 var ErrExists = errors.New("同じ名前のものがもうあります")
 
 func (s *Server) exists(p string) bool {
-	_, err := s.sftp.Lstat(p)
+	_, err := s.fs().Lstat(p)
 	return err == nil
 }
 
@@ -47,7 +47,7 @@ func (s *Server) UniqueName(dir, name string, copy bool) string {
 
 // CreateFile は空のファイルを作る。同じ名前があれば ErrExists
 func (s *Server) CreateFile(p string) error {
-	f, err := s.sftp.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+	f, err := s.fs().OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
 	if err != nil {
 		if s.exists(p) {
 			return ErrExists
@@ -61,7 +61,7 @@ func (s *Server) Mkdir(p string) error {
 	if s.exists(p) {
 		return ErrExists
 	}
-	return s.sftp.Mkdir(p)
+	return s.fs().Mkdir(p)
 }
 
 // Rename は名前を変えるか、別のフォルダへ移す。移す先に同じ名前があれば ErrExists
@@ -69,7 +69,7 @@ func (s *Server) Rename(from, to string) error {
 	if s.exists(to) {
 		return ErrExists
 	}
-	return s.sftp.Rename(from, to)
+	return s.fs().Rename(from, to)
 }
 
 // Copy はファイルやフォルダを複製する。SFTP には複製の命令が無いので、サーバーの cp を使う。
@@ -83,8 +83,9 @@ func (s *Server) Copy(from, to string) error {
 		return err
 	}
 	defer sess.Close()
-	sess.Stdin = strings.NewReader(from + "\n" + to + "\n")
-	out, err := sess.CombinedOutput(`exec /bin/sh -c 'IFS= read -r s; IFS= read -r d; exec cp -a -- "$s" "$d"'`)
+	cmd, stdin := s.command(`IFS= read -r s; IFS= read -r d; exec cp -a -- "$s" "$d"`, from+"\n"+to+"\n")
+	sess.Stdin = strings.NewReader(stdin)
+	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
 		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
@@ -98,7 +99,8 @@ type TrashItem struct {
 }
 
 // Trash はゴミ箱へ移す。freedesktop.org のゴミ箱の決まりに合わせて ~/.local/share/Trash に置くので、
-// サーバーのデスクトップ環境や gio trash と同じゴミ箱になる
+// サーバーのデスクトップ環境や gio trash と同じゴミ箱になる。
+// sudo モードでも、ゴミ箱のフォルダと info のファイルは root の持ち物にしないよう、ふだんの SFTP で作る
 func (s *Server) Trash(p string) (TrashItem, error) {
 	home, err := s.Home()
 	if err != nil {
@@ -137,7 +139,7 @@ func (s *Server) Trash(p string) (TrashItem, error) {
 		name = n
 		break
 	}
-	if err := s.sftp.Rename(p, path.Join(root, "files", name)); err != nil {
+	if err := s.fs().Rename(p, path.Join(root, "files", name)); err != nil {
 		s.sftp.Remove(info)
 		return TrashItem{}, fmt.Errorf("ゴミ箱へ移せません: %w", err)
 	}
@@ -153,7 +155,7 @@ func (s *Server) Restore(item TrashItem) (string, error) {
 	root := path.Join(home, ".local/share/Trash")
 	dir := path.Dir(item.From)
 	to := path.Join(dir, s.UniqueName(dir, path.Base(item.From), false))
-	if err := s.sftp.Rename(path.Join(root, "files", item.Name), to); err != nil {
+	if err := s.fs().Rename(path.Join(root, "files", item.Name), to); err != nil {
 		return "", err
 	}
 	if err := s.sftp.Remove(path.Join(root, "info", item.Name+".trashinfo")); err != nil && !errors.Is(err, fs.ErrNotExist) {

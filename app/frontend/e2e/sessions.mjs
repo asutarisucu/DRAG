@@ -1,7 +1,7 @@
 // 左の欄のセッションの一覧と、ウィンドウからターミナルへ戻す操作を確かめる。smoke.mjs と同じく wails dev の画面を開いて操作する
 import { chromium } from 'playwright-core';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { sh } from './server.mjs';
 
 const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
@@ -15,15 +15,6 @@ process.on('uncaughtException', async e => {
   await page?.screenshot({ path: path.join(import.meta.dirname, 'out', 'sessions-failed.png') }).catch(() => {});
   process.exit(1);
 });
-// この PC では、desktop.mjs の直後にプロセスを起こすと EPERM で失敗することがあるので、少し待ってやり直す
-const sh = cmd => {
-  for (let i = 0; ; i++) {
-    try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim(); } catch (e) {
-      if (e.code === 'EPERM' && i < 5) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000); continue; }
-      return 'ERR ' + String(e.stderr ?? e.message).trim();
-    }
-  }
-};
 sh('screen -S e2e-s -X quit; tmux kill-session -t e2e-t; true');
 sh('screen -dmS e2e-s; tmux new -d -s e2e-t');
 

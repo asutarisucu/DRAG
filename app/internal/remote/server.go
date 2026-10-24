@@ -49,6 +49,7 @@ type Server struct {
 
 	mu     sync.Mutex
 	closed bool
+	sudo   *sudoMode // sudo モードが OFF なら nil
 }
 
 func (s *Server) isClosed() bool {
@@ -209,6 +210,10 @@ func (s *Server) Close() {
 		return
 	}
 	s.closed = true
+	if s.sudo != nil {
+		s.sudo.close()
+		s.sudo = nil
+	}
 	s.sftp.Close()
 	s.ssh.Close()
 }

@@ -2,7 +2,7 @@
 // smoke.mjs と同じく wails dev の画面を開いて操作する
 import { chromium } from 'playwright-core';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { sh } from './server.mjs';
 
 const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
@@ -10,7 +10,6 @@ const ok = (name, cond, extra = '') => results.push(`${cond ? 'OK ' : 'NG '} ${n
 const errors = [];
 // 途中で止まっても、そこまでの結果を出す
 process.on('uncaughtException', e => { console.log(results.join('\n')); console.log('止まった: ' + e.message.split('\n')[0]); process.exit(1); });
-const sh = cmd => { try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim(); } catch (e) { return 'ERR ' + String(e.stderr ?? e.message).trim(); } };
 
 const D = '/home/asuta/e2e-views';
 sh(`rm -rf ${D} && mkdir -p ${D}/pack && cd ${D} && echo a=1 > conf.properties && echo b=2 >> conf.properties`);

@@ -14,9 +14,13 @@ export function CloseShell(arg1:string):Promise<void>;
 
 export function Connect(arg1:main.ConnectRequest):Promise<main.ConnectResult>;
 
+export function DisableSudo(arg1:string):Promise<void>;
+
 export function Disconnect(arg1:string):Promise<void>;
 
 export function Download(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function EnableSudo(arg1:string,arg2:string):Promise<void>;
 
 export function ListDir(arg1:string,arg2:string):Promise<Array<remote.Entry>>;
 

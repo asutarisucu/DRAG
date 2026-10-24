@@ -5,6 +5,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/pkg/sftp"
 )
 
 // Entry はフォルダの中の1件
@@ -15,12 +17,13 @@ type Entry struct {
 	Link    bool   `json:"link"`
 	Size    int64  `json:"size"`
 	ModTime int64  `json:"modTime"` // Unix 秒
+	Root    bool   `json:"root"`    // root の持ち物。変えるには sudo モードが要る
 }
 
 // ListDir はフォルダの中を、フォルダを先にして名前の順で返す。
 // シンボリックリンクは、先がフォルダならフォルダとして扱う
 func (s *Server) ListDir(dir string) ([]Entry, error) {
-	infos, err := s.sftp.ReadDir(dir)
+	infos, err := s.fs().ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -33,9 +36,12 @@ func (s *Server) ListDir(dir string) ([]Entry, error) {
 			Size:    fi.Size(),
 			ModTime: fi.ModTime().Unix(),
 		}
+		if st, ok := fi.Sys().(*sftp.FileStat); ok {
+			e.Root = st.UID == 0
+		}
 		if fi.Mode()&os.ModeSymlink != 0 {
 			e.Link = true
-			if t, err := s.sftp.Stat(e.Path); err == nil {
+			if t, err := s.fs().Stat(e.Path); err == nil {
 				e.Dir = t.IsDir()
 			}
 		}

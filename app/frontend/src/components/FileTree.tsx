@@ -5,6 +5,7 @@ import type { main, remote } from '../../wailsjs/go/models'
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { pathArg, terminalOf } from '../terminals'
 import { useSettings } from '../settings'
+import { requireSudo, useSudo } from '../sudo'
 import { progressToast, toast } from '../toasts'
 import { withProgress } from '../transfers'
 import { ConflictDialog, PropsDialog, type ConflictAnswer } from './FileDialogs'
@@ -15,17 +16,20 @@ import { openFile } from '../openFile'
 
 type Entry = remote.Entry
 type Dir = { entries?: Entry[]; error?: string; loading: boolean }
-// 右クリックのメニューと名前の変更は、ツリーの1行を「パスとフォルダかどうか」で扱う
-type Node = { path: string; name: string; dir: boolean; root: boolean }
+// 右クリックのメニューと名前の変更は、ツリーの1行を「パスとフォルダかどうか」で扱う。
+// top はツリーのいちばん上やホームのように、移したり消したりさせない行
+type Node = { path: string; name: string; dir: boolean; top: boolean }
 
 const parentOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
 const baseOf = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 const errText = (e: unknown) => String(e).replace(/^Error: /, '')
 
-// 左のファイルツリー。フォルダは開いたときに中を読む。
-// generation は再接続のたびに増える。増えたら開いているフォルダを読み直す
+// 左のファイルツリー。フォルダは開いたときに中を読む。root はホーム。
+// generation は再接続のたびに増える。増えたら開いているフォルダを読み直す。
+// ホームの外へ上がるのと、root のものを変えるのは、sudo モードのときだけにする
 export function FileTree({ serverId, root, generation }: { serverId: string; root: string; generation: number }) {
   const { t } = useTranslation()
+  const [top, setTop] = useState(root)
   const [dirs, setDirs] = useState<Record<string, Dir>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({ [root]: true })
   const [selected, setSelected] = useState('')
@@ -38,6 +42,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   const [dropDir, setDropDir] = useState('')
   const box = useRef<HTMLDivElement>(null)
   const settings = useSettings()
+  const sudo = useSudo(serverId)
 
   const load = useCallback((path: string) => {
     setDirs(d => ({ ...d, [path]: { ...d[path], loading: true } }))
@@ -47,7 +52,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     )
   }, [serverId])
 
-  useEffect(() => { load(root) }, [load, root])
+  useEffect(() => { load(top) }, [load, top])
 
   useEffect(() => {
     if (generation === 0) return
@@ -55,10 +60,37 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     for (const [path, isOpen] of Object.entries(open)) if (isOpen) load(path)
   }, [generation])
 
+  // sudo モードを切り替えると見えるものが変わるので、開いているフォルダを読み直す。
+  // OFF にしたときにホームの外を見ていたら、ホームに戻す
+  const inHome = (p: string) => p === root || p.startsWith(root + '/')
+  const prevSudo = useRef(sudo)
+  useEffect(() => {
+    if (prevSudo.current === sudo) return
+    prevSudo.current = sudo
+    if (!sudo && !inHome(top)) setTop(root)
+    else load(top)
+    for (const [path, isOpen] of Object.entries(open)) if (isOpen && path !== top) load(path)
+  }, [sudo])
+
+  const goTo = (p: string) => {
+    const go = () => {
+      setOpen(o => ({ ...o, [p]: true, [top]: true }))
+      setTop(p)
+      setSelected(p)
+    }
+    if (sudo || inHome(p)) go()
+    else requireSudo(serverId, t('sudo.outside')).then(ok => { if (ok) go() })
+  }
+
+  const entryOf = (path: string) => dirs[parentOf(path)]?.entries?.find(x => x.path === path)
   const nodeOf = (path: string): Node => {
-    if (path === root) return { path, name: baseOf(path), dir: true, root: true }
-    const e = dirs[parentOf(path)]?.entries?.find(x => x.path === path)
-    return { path, name: baseOf(path), dir: !!e?.dir, root: false }
+    const fixed = path === top || path === root || path === parentOf(root) || path === '/'
+    return { path, name: baseOf(path), dir: path === top || !!entryOf(path)?.dir, top: fixed }
+  }
+  // root のものに触る操作は、sudo モードが OFF ならまず ON にしてもらう
+  const guard = (paths: (string | false)[], reason: string, fn: () => void) => {
+    if (sudo || !paths.some(p => p && entryOf(p)?.root)) fn()
+    else requireSudo(serverId, reason).then(ok => { if (ok) fn() })
   }
 
   const focusTree = () => box.current?.focus({ preventScroll: true })
@@ -74,12 +106,13 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   // SFTP の英語の決まり文句は、画面の言語の文に置き換える
   const fail = (e: unknown) => toast(errText(e) === 'permission denied' ? t('files.denied') : errText(e), 'warn')
 
-  const create = (dir: string, isDir: boolean) => {
+  const create = (dir: string, isDir: boolean) => guard([dir], t('sudo.create', { dir: pathArg(root, dir) }), () => {
     NewEntry(serverId, dir, isDir ? t('files.newFolderName') : t('files.newFileName'), isDir).then(async p => {
       await after([dir], p)
       setRenaming(p)
     }, fail)
-  }
+  })
+  const startRename = (n: Node) => guard([n.path, parentOf(n.path)], t('sudo.rename', { name: n.name }), () => setRenaming(n.path))
   const rename = (node: Node, name: string) => {
     setRenaming('')
     focusTree()
@@ -88,15 +121,15 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   }
   const paste = (dir: string) => {
     if (!clip) return
-    PasteEntry(serverId, clip.path, dir, clip.move).then(p => {
+    guard([dir, clip.move && clip.path, clip.move && parentOf(clip.path)], t('sudo.paste'), () => PasteEntry(serverId, clip.path, dir, clip.move).then(p => {
       if (clip.move) {
         setClip(null)
         toast(t('toast.moved', { name: baseOf(p), dir: pathArg(root, dir) }), 'ok')
       }
       after(clip.move ? [parentOf(clip.path), dir] : [dir], p)
-    }, fail)
+    }, fail))
   }
-  const trash = (node: Node) => {
+  const trash = (node: Node) => guard([node.path, parentOf(node.path)], t('sudo.delete', { name: node.name }), () => {
     TrashEntry(serverId, node.path).then(item => {
       after([parentOf(node.path)], parentOf(node.path))
       toast(t('toast.trashed', { name: node.name }), 'info', {
@@ -107,7 +140,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
         }, fail),
       })
     }, fail)
-  }
+  })
   const copyPath = (p: string) => ClipboardSetText(p).then(() => toast(t('toast.pathCopied'), 'ok'))
 
   const ask = (path: string, more: boolean) => new Promise<ConflictAnswer>(resolve => setConflict({ path, more, resolve }))
@@ -153,7 +186,9 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     await after([dir], last || undefined)
     if (count) toast(t('upload.sent', { count, dir: pathArg(root, dir) }), 'ok')
   }
-  const pickUpload = (dir: string) => PickUploadFiles().then(paths => uploadTo(dir, paths ?? []), fail)
+  const uploadGuarded = (dir: string, paths: () => Promise<string[]>) =>
+    guard([dir], t('sudo.upload', { dir: pathArg(root, dir) }), () => { paths().then(p => uploadTo(dir, p), fail) })
+  const pickUpload = (dir: string) => uploadGuarded(dir, () => PickUploadFiles().then(p => p ?? []))
 
   const download = (n: Node) => {
     const pt = progressToast(t('upload.receiving', { name: n.name }))
@@ -168,7 +203,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   useEffect(() => {
     const onDrop = (e: Event) => {
       const d = (e as CustomEvent<{ serverId: string; dir: string; paths: string[] }>).detail
-      if (d.serverId === serverId) uploadTo(d.dir, d.paths)
+      if (d.serverId === serverId) uploadGuarded(d.dir, async () => d.paths)
     }
     window.addEventListener('drag:file-drop', onDrop)
     return () => window.removeEventListener('drag:file-drop', onDrop)
@@ -186,12 +221,12 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     n.dir && { icon: 'folderPlus', label: t('menu.newFolder'), fn: () => create(n.path, true) },
     n.dir && { icon: 'upload', label: t('menu.uploadHere'), fn: () => pickUpload(n.path) },
     { sep: true },
-    { icon: 'cut', label: t('menu.cut'), hint: 'Ctrl+X', disabled: n.root, fn: () => setClip({ path: n.path, move: true }) },
-    { icon: 'copy', label: t('menu.copy'), hint: 'Ctrl+C', disabled: n.root, fn: () => setClip({ path: n.path, move: false }) },
+    { icon: 'cut', label: t('menu.cut'), hint: 'Ctrl+X', disabled: n.top, fn: () => setClip({ path: n.path, move: true }) },
+    { icon: 'copy', label: t('menu.copy'), hint: 'Ctrl+C', disabled: n.top, fn: () => setClip({ path: n.path, move: false }) },
     { icon: 'paste', label: t('menu.paste'), hint: 'Ctrl+V', disabled: !clip, fn: () => paste(n.dir ? n.path : parentOf(n.path)) },
     { sep: true },
-    { icon: 'edit', label: t('menu.rename'), hint: 'F2', disabled: n.root, fn: () => setRenaming(n.path) },
-    { icon: 'trash', label: t('menu.delete'), hint: 'Delete', disabled: n.root, danger: true, fn: () => trash(n) },
+    { icon: 'edit', label: t('menu.rename'), hint: 'F2', disabled: n.top, fn: () => startRename(n) },
+    { icon: 'trash', label: t('menu.delete'), hint: 'Delete', disabled: n.top, danger: true, fn: () => trash(n) },
     { sep: true },
     { icon: 'link', label: t('menu.copyPath'), fn: () => copyPath(n.path) },
     { icon: 'download', label: n.dir ? t('menu.downloadZip') : t('menu.download'), disabled: n.path === '/', fn: () => download(n) },
@@ -202,10 +237,10 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     if (!selected || renaming) return
     const n = nodeOf(selected)
     const ctrl = e.ctrlKey || e.metaKey
-    if (e.key === 'F2' && !n.root) setRenaming(n.path)
-    else if (e.key === 'Delete' && !n.root) trash(n)
-    else if (ctrl && e.key === 'c' && !n.root) setClip({ path: n.path, move: false })
-    else if (ctrl && e.key === 'x' && !n.root) setClip({ path: n.path, move: true })
+    if (e.key === 'F2' && !n.top) startRename(n)
+    else if (e.key === 'Delete' && !n.top) trash(n)
+    else if (ctrl && e.key === 'c' && !n.top) setClip({ path: n.path, move: false })
+    else if (ctrl && e.key === 'x' && !n.top) setClip({ path: n.path, move: true })
     else if (ctrl && e.key === 'v') paste(n.dir ? n.path : parentOf(n.path))
     else return
     e.preventDefault()
@@ -269,7 +304,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
             if (e.dir) ev.dataTransfer.setData('application/x-drag-dir', '1')
             ev.dataTransfer.effectAllowed = 'copyMove'
           }}
-          onContextMenu={ev => contextMenu(ev, { path: e.path, name: e.name, dir: e.dir, root: false })}
+          onContextMenu={ev => contextMenu(ev, nodeOf(e.path))}
           title={e.path}
         >
           {e.dir
@@ -277,8 +312,9 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
             : <span className="w-[13px] flex-none" />}
           <span className={color}><Icon name={icon} size={15} /></span>
           {renaming === e.path
-            ? <RenameInput name={e.name} dir={e.dir} onDone={name => rename({ path: e.path, name: e.name, dir: e.dir, root: false }, name)} />
+            ? <RenameInput name={e.name} dir={e.dir} onDone={name => rename(nodeOf(e.path), name)} />
             : <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">{e.name}</span>}
+          {e.root && <span className="flex-none text-faint" title={t('sudo.rootFile')}><Icon name="lock" size={12} /></span>}
           {e.link && <span className="text-faint"><Icon name="link" size={12} /></span>}
         </div>,
         ...(e.dir && isOpen ? rows(e.path, depth + 1) : []),
@@ -289,16 +325,19 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   return (
     <div ref={box} tabIndex={0} className="min-h-0 flex-1 overflow-auto pb-5 outline-none" onKeyDown={onKey}>
       <div
-        className={`mb-0.5 flex h-[26px] items-center gap-1.5 px-2.5 font-mono text-[11.5px] text-muted ${dropDir === root ? dropOn : selected === root ? 'bg-accent-soft' : ''}`}
-        title={root + '\n' + t('upload.dropHint')}
-        {...dropProps(root)}
-        onClick={() => setSelected(root)}
-        onContextMenu={ev => contextMenu(ev, nodeOf(root))}
+        className={`mb-0.5 flex h-[26px] items-center gap-1.5 px-2.5 font-mono text-[11.5px] text-muted ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
+        title={top + '\n' + t('upload.dropHint')}
+        data-tree-top={top}
+        {...dropProps(top)}
+        onClick={() => setSelected(top)}
+        onContextMenu={ev => contextMenu(ev, nodeOf(top))}
       >
+        {top !== '/' && <button className={navBtn} title={t('files.up')} onClick={e => { e.stopPropagation(); goTo(parentOf(top)) }}><Icon name="up" size={13} /></button>}
+        {top !== root && <button className={navBtn} title={t('files.home')} onClick={e => { e.stopPropagation(); goTo(root) }}><Icon name="home" size={13} /></button>}
         <Icon name="folder" size={14} className="f-dir" />
-        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{root}</span>
+        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{top}</span>
       </div>
-      {rows(root, 0)}
+      {rows(top, 0)}
       {menu && <Menu x={menu.x} y={menu.y} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
       {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
       {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
@@ -337,6 +376,8 @@ function RenameInput({ name, dir, onDone }: { name: string; dir: boolean; onDone
     />
   )
 }
+
+const navBtn = 'grid h-[22px] w-[22px] flex-none place-items-center rounded-[5px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
 
 function Note({ depth, text, err = false }: { depth: number; text: string; err?: boolean }) {
   return (

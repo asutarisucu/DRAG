@@ -73,17 +73,17 @@ func (s *Server) Upload(local, dir string, keep bool, fn Progress) (string, erro
 		}
 		switch {
 		case d.IsDir():
-			if fi, err := s.sftp.Stat(dst); err == nil && fi.IsDir() {
+			if fi, err := s.fs().Stat(dst); err == nil && fi.IsDir() {
 				return nil
 			}
-			return s.sftp.Mkdir(dst)
+			return s.fs().Mkdir(dst)
 		case d.Type().IsRegular():
 			src, err := os.Open(p)
 			if err != nil {
 				return err
 			}
 			defer src.Close()
-			f, err := s.sftp.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+			f, err := s.fs().OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func (s *Server) Upload(local, dir string, keep bool, fn Progress) (string, erro
 
 // Download はサーバーのファイルを PC の local へ書く。フォルダなら zip にして書く
 func (s *Server) Download(remote, local string, fn Progress) error {
-	fi, err := s.sftp.Stat(remote)
+	fi, err := s.fs().Stat(remote)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func (s *Server) Download(remote, local string, fn Progress) error {
 	}
 	if !fi.IsDir() {
 		var done int64
-		f, err := s.sftp.Open(remote)
+		f, err := s.fs().Open(remote)
 		if err != nil {
 			out.Close()
 			return err
@@ -133,7 +133,7 @@ func (s *Server) Download(remote, local string, fn Progress) error {
 // zipDir はフォルダの中身を zip にする。zip の中のパスはフォルダの名前から始める
 func (s *Server) zipDir(remote string, w io.Writer, fn Progress) error {
 	var total int64
-	for walk := s.sftp.Walk(remote); walk.Step(); {
+	for walk := s.fs().Walk(remote); walk.Step(); {
 		if walk.Err() == nil && walk.Stat().Mode().IsRegular() {
 			total += walk.Stat().Size()
 		}
@@ -141,7 +141,7 @@ func (s *Server) zipDir(remote string, w io.Writer, fn Progress) error {
 	zw := zip.NewWriter(w)
 	base := path.Dir(remote)
 	var done int64
-	for walk := s.sftp.Walk(remote); walk.Step(); {
+	for walk := s.fs().Walk(remote); walk.Step(); {
 		if err := walk.Err(); err != nil {
 			return err
 		}
@@ -166,7 +166,7 @@ func (s *Server) zipDir(remote string, w io.Writer, fn Progress) error {
 		if err != nil {
 			return err
 		}
-		f, err := s.sftp.Open(walk.Path())
+		f, err := s.fs().Open(walk.Path())
 		if err != nil {
 			return err
 		}
@@ -197,8 +197,9 @@ func (s *Server) Stat(p string) (Props, error) {
 		return Props{}, err
 	}
 	defer sess.Close()
-	sess.Stdin = strings.NewReader(p + "\n")
-	out, err := sess.CombinedOutput(`exec /bin/sh -c 'IFS= read -r p; exec stat -c "%F|%s|%A|%U|%G|%Y" -- "$p"'`)
+	cmd, stdin := s.command(`IFS= read -r p; exec stat -c "%F|%s|%A|%U|%G|%Y" -- "$p"`, p+"\n")
+	sess.Stdin = strings.NewReader(stdin)
+	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
 		return Props{}, errors.New(strings.TrimSpace(string(out)))
 	}
@@ -210,7 +211,7 @@ func (s *Server) Stat(p string) (Props, error) {
 	mt, _ := strconv.ParseInt(f[5], 10, 64)
 	pr := Props{Type: f[0], Size: size, Mode: f[2], Owner: f[3], Group: f[4], ModTime: mt}
 	if strings.HasPrefix(pr.Mode, "l") {
-		pr.Target, _ = s.sftp.ReadLink(p)
+		pr.Target, _ = s.fs().ReadLink(p)
 	}
 	return pr, nil
 }

@@ -1,13 +1,12 @@
 // デスクトップのウィンドウと、ターミナルからの切り出しを確かめる。smoke.mjs と同じく wails dev の画面を開いて操作する
 import { chromium } from 'playwright-core';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { sh } from './server.mjs';
 
 const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
 const ok = (name, cond, extra = '') => results.push(`${cond ? 'OK ' : 'NG '} ${name}${extra ? '  ' + extra : ''}`);
 const errors = [];
-const sh = cmd => { try { return execSync(`docker exec -u asuta testserver-testserver-1 sh -c ${JSON.stringify(cmd)}`, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim(); } catch (e) { return 'ERR ' + String(e.stderr ?? e.message).trim(); } };
 sh('screen -S e2e -X quit; true');
 
 const browser = await chromium.launch({ channel: 'chrome' });

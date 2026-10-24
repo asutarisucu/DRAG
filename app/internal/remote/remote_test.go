@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -485,5 +486,118 @@ func TestShellWriteFromManyGoroutines(t *testing.T) {
 	defer mu.Unlock()
 	if !strings.Contains(out.String(), "DONE-42") {
 		t.Fatalf("出力の末尾 %q", out.String()[max(0, out.Len()-300):])
+	}
+}
+
+// sudo モードの間は、ホームの外と root のファイルを扱え、OFF に戻すと扱えなくなること
+func TestSudoMode(t *testing.T) {
+	s := dialTrusted(t)
+	if _, err := s.ListDir("/root"); err == nil {
+		t.Fatal("OFF なのに /root を開けた")
+	}
+	start := time.Now()
+	if err := s.EnableSudo("wrong"); !errors.Is(err, ErrSudoPassword) {
+		t.Fatalf("違うパスワード: %v", err)
+	}
+	t.Logf("違うパスワードと分かるまで %v", time.Since(start).Round(time.Millisecond))
+	if s.Sudo() {
+		t.Fatal("違うパスワードで ON になった")
+	}
+	if err := s.EnableSudo("drag"); err != nil {
+		t.Fatal(err)
+	}
+	if !s.Sudo() {
+		t.Fatal("ON にならない")
+	}
+	if _, err := s.ListDir("/root"); err != nil {
+		t.Fatalf("/root を開けない: %v", err)
+	}
+	etc, err := s.ListDir("/etc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i := slices.IndexFunc(etc, func(e Entry) bool { return e.Name == "hostname" }); i < 0 || !etc[i].Root {
+		t.Fatalf("/etc/hostname が root の持ち物と出ない")
+	}
+
+	p := "/etc/drag-sudo-test"
+	t.Cleanup(func() {
+		s.EnableSudo("drag")
+		s.fs().Remove(p)
+		s.fs().Remove(p + "-copy")
+	})
+	if err := s.CreateFile(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.WriteText(p, "a=1\n", 0, true); err != nil {
+		t.Fatal(err)
+	}
+	// stat と cp は sudo を付けたコマンドで動く。パスワードの行がコマンドの入力に混ざらないこと
+	pr, err := s.Stat(p)
+	if err != nil || pr.Owner != "root" {
+		t.Fatalf("%+v %v", pr, err)
+	}
+	if err := s.Copy(p, p+"-copy"); err != nil {
+		t.Fatal(err)
+	}
+	if tf, err := s.ReadText(p+"-copy", 1<<20); err != nil || tf.Text != "a=1\n" {
+		t.Fatalf("%q %v", tf.Text, err)
+	}
+	item, err := s.Trash(p + "-copy")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, _ := s.Home()
+	info, err := s.sftp.Stat(home + "/.local/share/Trash/info/" + item.Name + ".trashinfo")
+	if err != nil || info.Sys().(*sftp.FileStat).UID == 0 {
+		t.Fatalf("ゴミ箱の info が利用者の持ち物でない: %v", err)
+	}
+	if _, err := s.Restore(item); err != nil {
+		t.Fatal(err)
+	}
+
+	s.DisableSudo()
+	if s.Sudo() {
+		t.Fatal("OFF にならない")
+	}
+	if _, err := s.ListDir("/root"); err == nil {
+		t.Fatal("OFF に戻したのに /root を開けた")
+	}
+	if _, err := s.WriteText(p, "b=2\n", 0, true); err == nil {
+		t.Fatal("OFF に戻したのに /etc に書けた")
+	}
+}
+
+// NOPASSWD の設定があるサーバーでは、パスワードを送らずに ON にし、コマンドも sudo -n で動かす
+func TestSudoModeNopasswd(t *testing.T) {
+	s := dialTrusted(t)
+	if err := s.EnableSudo("drag"); err != nil {
+		t.Fatal(err)
+	}
+	const rule = "/etc/sudoers.d/drag-test"
+	f, err := s.fs().OpenFile(rule, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Write([]byte("asuta ALL=(ALL) NOPASSWD: ALL\n"))
+	f.Close()
+	s.fs().Chmod(rule, 0o440)
+	t.Cleanup(func() {
+		s.EnableSudo("")
+		s.fs().Remove(rule)
+	})
+	s.DisableSudo()
+
+	if err := s.EnableSudo(""); err != nil {
+		t.Fatalf("パスワードなしで ON にならない: %v", err)
+	}
+	if pw, _ := s.SudoPassword(); pw != "" {
+		t.Fatal("NOPASSWD なのにパスワードを持っている")
+	}
+	if pr, err := s.Stat("/root"); err != nil || pr.Owner != "root" {
+		t.Fatalf("%+v %v", pr, err)
+	}
+	if _, err := s.ListDir("/root"); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -95,6 +95,7 @@ type ConnectResult struct {
 	Info    *remote.Info `json:"info"`
 	Error   string       `json:"error"`
 	HostKey *HostKey     `json:"hostKey"`
+	Sudo    bool         `json:"sudo"` // つなぎ直したあとも sudo モードが ON か
 }
 
 func (a *App) dial(req ConnectRequest) (*remote.Server, ConnectResult) {
@@ -176,6 +177,10 @@ func (a *App) Reconnect(id string) ConnectResult {
 	if s == nil {
 		return r
 	}
+	// sudo モードは、切れる前に ON なら同じパスワードで ON に戻す。パスワードが変わっていたら OFF のまま
+	if pw, on := c.server.SudoPassword(); on {
+		r.Sudo = s.EnableSudo(pw) == nil
+	}
 	a.mu.Lock()
 	old := c.server
 	c.server = s
@@ -184,6 +189,25 @@ func (a *App) Reconnect(id string) ConnectResult {
 	go a.watch(id, s)
 	r.ID = id
 	return r
+}
+
+// EnableSudo はサーバーの sudo モードを ON にする。パスワードは PC アプリのメモリーにだけ持つ
+func (a *App) EnableSudo(id, password string) error {
+	s, err := a.server(id)
+	if err != nil {
+		return err
+	}
+	return s.EnableSudo(password)
+}
+
+// DisableSudo はサーバーの sudo モードを OFF にする
+func (a *App) DisableSudo(id string) error {
+	s, err := a.server(id)
+	if err != nil {
+		return err
+	}
+	s.DisableSudo()
+	return nil
 }
 
 func (a *App) server(id string) (*remote.Server, error) {

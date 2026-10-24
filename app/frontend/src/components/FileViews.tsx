@@ -5,6 +5,7 @@ import type { archive } from '../../wailsjs/go/models'
 import { KIND_ICON, fileKind, logParts } from '../fileKind'
 import { attachLog } from '../logBus'
 import { useSettings } from '../settings'
+import { requireSudo, useSudo } from '../sudo'
 import { fmtSize } from '../toasts'
 import { setCloseGuard, updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
@@ -31,10 +32,14 @@ function Gutter({ lines, scrollTop }: { lines: number; scrollTop: number }) {
   )
 }
 
-// エディター。Ctrl+S で保存し、開いたあとにサーバーで変わっていたら上書きするかを聞く
+// エディター。Ctrl+S で保存し、開いたあとにサーバーで変わっていたら上書きするかを聞く。
+// root のファイルは、sudo モードが OFF の間は読み取り専用にする
 export function EditorView({ win, serverId, home }: { win: Win; serverId: string; home: string }) {
   const { t } = useTranslation()
   const path = win.path!
+  const sudo = useSudo(serverId)
+  const [rootFile, setRootFile] = useState(false)
+  const locked = rootFile && !sudo
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -52,12 +57,14 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
       setText(f.text)
       textRef.current = f.text
       mod.current = f.modTime
+      setRootFile(f.root)
     }, e => setError(errText(e)))
   }, [serverId, path])
 
   useEffect(() => { updateWin(win.id, { title: (dirty ? '● ' : '') + baseName(path) }) }, [dirty, win.id, path])
 
   const save = async (force = false): Promise<boolean> => {
+    if (locked && !await requireSudo(serverId, t('sudo.save', { name: baseName(path) }))) return false
     try {
       mod.current = await SaveText(serverId, path, textRef.current, mod.current, force)
       setDirty(false)
@@ -96,7 +103,9 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
         <span className={pathCls}>{path.startsWith(home + '/') ? '~' + path.slice(home.length) : path}</span>
         <div className="flex-1" />
         <span className={`text-[11.5px] whitespace-nowrap ${status ? 'text-ok' : 'text-muted'}`}>{status ? t('editor.saved') : error || t('editor.lines', { n: lines })}</span>
-        <button className={smallBtn} disabled={text === null} onClick={() => save()}>{t('editor.save')}</button>
+        {locked
+          ? <button className={`${smallBtn} inline-flex items-center gap-1 border-[color-mix(in_srgb,var(--warn)_50%,transparent)] text-warn`} title={t('sudo.readOnlyHint')} onClick={() => requireSudo(serverId)}><Icon name="lock" size={13} />{t('sudo.readOnly')}</button>
+          : <button className={smallBtn} disabled={text === null} onClick={() => save()}>{t('editor.save')}</button>}
       </div>
       <div className="flex min-h-0 flex-1 bg-term">
         <Gutter lines={lines} scrollTop={scroll} />
@@ -106,7 +115,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
           spellCheck={false}
           wrap="off"
           value={text ?? ''}
-          readOnly={text === null}
+          readOnly={text === null || locked}
           onChange={e => { setText(e.target.value); textRef.current = e.target.value; setDirty(true) }}
           onScroll={e => setScroll(e.currentTarget.scrollTop)}
           onKeyDown={e => {

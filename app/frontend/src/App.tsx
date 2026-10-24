@@ -12,9 +12,12 @@ import { SessionsView } from './components/SessionsView'
 import { openSessionWindow } from './openSession'
 import { sessionKeyOf } from './sessions'
 import { SettingsDialog } from './components/SettingsDialog'
+import { SudoDialog } from './components/SudoDialog'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Toasts } from './components/Toasts'
 import { setSettings, useSettings } from './settings'
+import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
+import { toast } from './toasts'
 
 // conn は接続の様子。切れたら retry 回目の再接続まで wait 秒待つ。
 // gen は再接続のたびに増え、ターミナルとファイルツリーが開き直す
@@ -63,9 +66,13 @@ export default function App() {
     Reconnect(id).then(r => {
       if (r.hostKey) update(id, () => ({ conn: 'lost', error: r.error }))
       else if (r.error) update(id, s => ({ conn: 'lost', retry: s.retry + 1, wait: 5 }))
-      else update(id, s => ({ conn: 'ok', retry: 0, gen: s.gen + 1, home: r.home }))
+      else {
+        update(id, s => ({ conn: 'ok', retry: 0, gen: s.gen + 1, home: r.home }))
+        if (sudoOn(id) && !r.sudo) toast(t('sudo.lost'), 'warn')
+        setSudo(id, r.sudo)
+      }
     })
-  }, [])
+  }, [t])
 
   useEffect(() => {
     for (const s of servers) if (s.conn === 'lost' && !s.error && s.wait <= 0) reconnect(s.id)
@@ -78,6 +85,7 @@ export default function App() {
   }
   const close = (id: string) => {
     Disconnect(id)
+    setSudo(id, false)
     setServers(list => {
       const rest = list.filter(s => s.id !== id)
       setActive(a => a === id ? rest.at(-1)?.id ?? '' : a)
@@ -85,10 +93,11 @@ export default function App() {
     })
   }
   const cur = servers.find(s => s.id === active)
+  const sudo = useSudo(active)
 
   return (
     <div className="grid h-dvh grid-rows-[42px_minmax(0,1fr)_24px]">
-      <header className="flex min-w-0 items-center gap-2 border-b border-line bg-chrome px-2">
+      <header className={`flex min-w-0 items-center gap-2 border-b border-line bg-chrome px-2 ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}>
         <span className="brand pr-2 pl-1.5 text-[13px]">DRAG</span>
         <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           {servers.map(s => (
@@ -113,6 +122,20 @@ export default function App() {
             <Icon name="plus" />
           </button>
         )}
+        {cur && (
+          <button
+            className={`inline-flex h-7 flex-none items-center gap-1.5 rounded-lg border pr-2 pl-[9px] text-[12px] ${sudo ? 'border-warn bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn' : 'border-line-strong text-muted hover:text-text'}`}
+            title={sudo ? t('sudo.on') : t('sudo.off')}
+            data-sudo={sudo ? 'on' : 'off'}
+            onClick={() => sudo ? turnOffSudo(cur.id) : requireSudo(cur.id)}
+          >
+            <Icon name="lock" size={14} />
+            <span className="font-mono font-semibold">sudo</span>
+            <span className={`relative h-[15px] w-[26px] rounded-full transition-colors ${sudo ? 'bg-warn' : 'bg-line-strong'}`}>
+              <span className={`absolute top-0.5 left-0.5 h-[11px] w-[11px] rounded-full bg-white transition-transform ${sudo ? 'translate-x-[11px]' : ''}`} />
+            </span>
+          </button>
+        )}
       </header>
 
       <div className="relative min-h-0">
@@ -133,6 +156,7 @@ export default function App() {
 
       {connecting && <ConnectDialog preset={connecting.preset} onClose={() => setConnecting(null)} onConnected={added} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      <SudoDialog who={id => { const s = servers.find(x => x.id === id); return s ? `${s.user}@${s.name}` : '' }} />
       <Toasts />
     </div>
   )
