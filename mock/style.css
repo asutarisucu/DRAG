@@ -177,8 +177,6 @@ input, select, textarea { font: inherit; color: inherit; }
 .server-tab:hover .tab-close, .server-tab.active .tab-close { opacity: .8; }
 .tab-close:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(63, 207, 142, .16); flex: none; }
-.dot.ssh { background: var(--warn); box-shadow: 0 0 0 3px rgba(241, 180, 76, .16); }
-.badge { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px; background: rgba(241, 180, 76, .15); color: var(--warn); }
 #add-server { margin-right: auto; }
 #pair-btn .ic svg { width: 15px; height: 15px; }
 
@@ -644,8 +642,6 @@ svg.spark.big { height: 64px; margin: 0; }
 .step-label { font-weight: 600; }
 .step-detail { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 .step.fail .step-detail { color: var(--err); }
-.inline-ask { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-.inline-ask .input { width: 200px; height: 28px; }
 
 .pair { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
 .pair-qr { display: grid; justify-items: center; gap: 8px; text-align: center; }

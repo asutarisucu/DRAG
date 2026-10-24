@@ -252,7 +252,7 @@ const D = (name, children, open = false) => ({ name, dir: true, open, children }
 
 const DEFS = [
   {
-    id: 'mc', name: 'mc-server', host: '203.0.113.10', lan: '192.168.1.10', user: 'asuta', mode: 'agent', phone: 'public',
+    id: 'mc', name: 'mc-server', host: '203.0.113.10', lan: '192.168.1.10', user: 'asuta',
     tree: () => D('asuta', [
       D('mc', [
         D('logs', [F('latest.log', 6210, mcInitialLog()), F('2026-10-23-1.log.gz', 48213)], true),
@@ -280,11 +280,9 @@ const DEFS = [
       { name: 'mc-server.service', desc: 'Minecraft サーバー', active: true },
       { name: 'nginx.service', desc: 'Web サーバー', active: false },
       { name: 'docker.service', desc: 'Docker', active: true },
-      { name: 'drag-agent.service', desc: 'DRAG エージェント', active: true, self: true },
       { name: 'cron.service', desc: '定期実行', active: true },
       { name: 'ssh.service', desc: 'OpenSSH サーバー', active: true },
     ],
-    devices: [{ name: 'Pixel 8', last: '今日 09:12', ip: '203.0.113.50' }, { name: 'iPad', last: '10/23 22:40', ip: '192.168.1.31' }],
     procs: [
       { pid: 1342, user: 'asuta', name: 'java', cmd: 'java -Xms4G -Xmx6G -jar paper.jar nogui', w: 60, mem: 4310 },
       { pid: 1410, user: 'asuta', name: 'java', cmd: 'java -Xmx512M -jar velocity.jar', w: 6, mem: 612 },
@@ -292,21 +290,20 @@ const DEFS = [
       { pid: 845, user: 'root', name: 'containerd', cmd: '/usr/bin/containerd', w: 3, mem: 51 },
       { pid: 2210, user: '101', name: 'nginx', cmd: 'nginx: worker process', w: 4, mem: 12, container: 'web' },
       { pid: 2302, user: '999', name: 'redis-server', cmd: 'redis-server *:6379', w: 3, mem: 9, container: 'redis' },
-      { pid: 2051, user: 'asuta', name: 'drag-agent', cmd: '/home/asuta/.drag/drag-agent serve', w: 4, mem: 38 },
       { pid: 655, user: 'root', name: 'sshd', cmd: 'sshd: asuta@pts/0', w: 1, mem: 9 },
       { pid: 701, user: 'root', name: 'cron', cmd: '/usr/sbin/cron -f', w: .5, mem: 3 },
       { pid: 1, user: 'root', name: 'systemd', cmd: '/sbin/init', w: .5, mem: 13 },
     ],
     net: {
-      listen: [[22, 'sshd'], [443, 'drag-agent'], [8080, 'docker-proxy'], [25565, 'java'], [25577, 'java']],
-      conns: [['198.51.100.7:51022', '25577', 'java', 'Velocity'], ['198.51.100.23:49811', '25577', 'java', 'Velocity'], ['203.0.113.50:50122', '22', 'sshd', 'SSH'], ['203.0.113.50:50388', '443', 'drag-agent', 'DRAG (スマホ)']],
+      listen: [[22, 'sshd'], [8080, 'docker-proxy'], [25565, 'java'], [25577, 'java']],
+      conns: [['198.51.100.7:51022', '25577', 'java', 'Velocity'], ['198.51.100.23:49811', '25577', 'java', 'Velocity'], ['203.0.113.50:50122', '22', 'sshd', 'SSH']],
     },
     mounts: [['/', 98], ['/mnt/backup', 916, 23]],
     base: { cpu: 28, mem: 63, disk: 43 },
     uptimeH: 12 * 24 + 3.2,
   },
   {
-    id: 'db', name: 'db01', host: '203.0.113.11', lan: '192.168.1.11', user: 'asuta', mode: 'agent', phone: 'lan',
+    id: 'db', name: 'db01', host: '203.0.113.11', lan: '192.168.1.11', user: 'asuta',
     tree: () => D('asuta', [
       D('app', [
         D('data', [F('ibdata1', 12582912), F('aria_log.00000001', 16384), D('app', [F('items.ibd', 4194304), F('users.ibd', 1048576)])]),
@@ -330,22 +327,19 @@ const DEFS = [
     services: [
       { name: 'mariadb.service', desc: 'MariaDB', active: true },
       { name: 'docker.service', desc: 'Docker', active: true },
-      { name: 'drag-agent.service', desc: 'DRAG エージェント', active: true, self: true },
       { name: 'ssh.service', desc: 'OpenSSH サーバー', active: true },
     ],
-    devices: [{ name: 'Pixel 8', last: '10/22 08:03', ip: '192.168.1.30' }],
     procs: [
       { pid: 903, user: '999', name: 'mariadbd', cmd: 'mariadbd --user=mysql', w: 45, mem: 820, container: 'mariadb' },
       { pid: 1188, user: 'node', name: 'node', cmd: 'node index.js', w: 18, mem: 184, container: 'app' },
       { pid: 790, user: 'root', name: 'dockerd', cmd: '/usr/bin/dockerd -H fd://', w: 6, mem: 88 },
       { pid: 801, user: 'root', name: 'containerd', cmd: '/usr/bin/containerd', w: 3, mem: 47 },
-      { pid: 1720, user: 'asuta', name: 'drag-agent', cmd: '/home/asuta/.drag/drag-agent serve', w: 4, mem: 36 },
       { pid: 640, user: 'root', name: 'sshd', cmd: 'sshd: asuta@pts/0', w: 1, mem: 9 },
       { pid: 1, user: 'root', name: 'systemd', cmd: '/sbin/init', w: .5, mem: 12 },
     ],
     net: {
-      listen: [[22, 'sshd'], [3000, 'docker-proxy'], [3306, 'docker-proxy'], [8443, 'drag-agent']],
-      conns: [['172.18.0.3:40122', '3306', 'mariadbd', 'MariaDB'], ['192.168.1.30:52011', '8443', 'drag-agent', 'DRAG (スマホ)'], ['203.0.113.10:50122', '22', 'sshd', 'SSH']],
+      listen: [[22, 'sshd'], [3000, 'docker-proxy'], [3306, 'docker-proxy']],
+      conns: [['172.18.0.3:40122', '3306', 'mariadbd', 'MariaDB'], ['203.0.113.10:50122', '22', 'sshd', 'SSH']],
     },
     mounts: [['/', 98]],
     base: { cpu: 12, mem: 48, disk: 71 },
@@ -365,7 +359,6 @@ const GENERIC = {
     { pid: 1102, user: 'asuta', name: 'node', cmd: 'node index.js', w: 20, mem: 160, container: 'app' },
     { pid: 690, user: 'www-data', name: 'nginx', cmd: 'nginx: worker process', w: 5, mem: 14 },
     { pid: 780, user: 'root', name: 'dockerd', cmd: '/usr/bin/dockerd -H fd://', w: 5, mem: 80 },
-    { pid: 1500, user: 'asuta', name: 'drag-agent', cmd: '~/.drag/drag-agent serve', w: 4, mem: 30 },
     { pid: 620, user: 'root', name: 'sshd', cmd: 'sshd: asuta@pts/0', w: 1, mem: 8 },
     { pid: 1, user: 'root', name: 'systemd', cmd: '/sbin/init', w: .5, mem: 11 },
   ],
@@ -374,7 +367,7 @@ const GENERIC = {
     images: [{ name: 'node:22', size: 1.1e9 }],
     volumes: [],
   },
-  net: { listen: [[22, 'sshd'], [80, 'nginx'], [443, 'drag-agent'], [3000, 'docker-proxy']], conns: [['203.0.113.50:50122', '22', 'sshd', 'SSH']] },
+  net: { listen: [[22, 'sshd'], [80, 'nginx'], [3000, 'docker-proxy']], conns: [['203.0.113.50:50122', '22', 'sshd', 'SSH']] },
   mounts: [['/', 49]],
 };
 const ROUTER = {
@@ -389,10 +382,17 @@ const ROUTER = {
 };
 
 const HIST = [
-  ['今日 09:12', 'Pixel 8', '203.0.113.50', 'ログイン'],
+  ['今日 09:12', 'Pixel 8', '198.51.100.77', 'ログイン'],
   ['10/23 22:40', 'iPad', '192.168.1.31', 'ログイン'],
-  ['10/21 18:03', 'Pixel 8', '203.0.113.50', '登録'],
+  ['10/21 18:03', 'Pixel 8', '198.51.100.77', '登録'],
 ];
+
+// スマホが踏み台にするこの PC の待ち受け
+const PC = { lanUrl: 'https://192.168.1.20:8443', ip: '203.0.113.50', domain: 'drag.example.com' };
+const publicUrl = () => {
+  const host = state.settings.cert === 'domain' ? PC.domain : PC.ip;
+  return state.settings.publicPort === 443 ? `https://${host}` : `https://${host}:${state.settings.publicPort}`;
+};
 
 const HELP_LINES = `このモックで使えるコマンド
   ls cd pwd cat echo clear whoami hostname uname date
@@ -408,12 +408,14 @@ const DEFAULT_SETTINGS = {
   sb: { uptime: true, cpu: true, mem: true, net: true },
   autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'],
   snap: true, followLog: true, uploadConflict: 'ask',
+  phoneLan: true, phonePublic: true, publicPort: 443, cert: 'ip',
 };
 const ACCENTS = [['#5b9dff', '青'], ['#8b7bff', '紫'], ['#3fcf8e', '緑'], ['#f1a33c', '橙'], ['#ff6b9d', '桃'], ['#2fc3d9', '水色']];
 
 const state = {
   list: [], active: null, view: 'files', settings: loadSettings(), sbRefs: null,
   drag: null, ctrlArmed: false, menu: null, menuBackdrop: null, uploadTarget: null, taskDragged: false,
+  devices: [{ name: 'Pixel 8', last: '今日 09:12', ip: '198.51.100.77', route: 'public' }, { name: 'iPad', last: '10/23 22:40', ip: '192.168.1.31', route: 'lan' }],
 };
 const cur = () => state.active;
 let uploadSeq = 0;
@@ -453,7 +455,6 @@ function systemTree(srv, home) {
     ]),
     D('ssh', [F('sshd_config', 230, 'Include /etc/ssh/sshd_config.d/*.conf\nPort 22\nPermitRootLogin no\nPasswordAuthentication yes\nKbdInteractiveAuthentication no\nUsePAM yes\nX11Forwarding no\nSubsystem sftp /usr/lib/openssh/sftp-server\n')]),
     D('systemd', [D('system', [
-      F('drag-agent.service', 230, `[Unit]\nDescription=DRAG エージェント\nAfter=network.target\n\n[Service]\nUser=${u}\nExecStart=/home/${u}/.drag/drag-agent serve\nAmbientCapabilities=CAP_NET_BIND_SERVICE\nRestart=always\n\n[Install]\nWantedBy=multi-user.target\n`),
       ...(srv.id === 'mc' ? [F('mc-server.service', 250, `[Unit]\nDescription=Minecraft サーバー\nAfter=network.target\n\n[Service]\nUser=${u}\nWorkingDirectory=/home/${u}/mc\nExecStart=/usr/bin/screen -DmS mc ./start.sh\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n`)] : []),
     ])]),
   ]);
@@ -723,7 +724,7 @@ class ShellHost {
     view.setBase(this.shell);
   }
   launch(sess) {
-    const auto = state.settings.autoOn && this.srv.mode === 'agent' && state.settings.autoCmds.includes(sess.match);
+    const auto = state.settings.autoOn && state.settings.autoCmds.includes(sess.match);
     if (auto) this.popOutNew(sess); else this.setForeground(sess);
   }
   setForeground(sess) {
@@ -1989,8 +1990,7 @@ function openServices(srv, pos = {}) {
         }, 900);
       });
       const btn = (svc, verb, primary) => el('button', {
-        class: 'btn small' + (primary ? ' primary' : ''), disabled: svc.self || svc.busy,
-        title: svc.self ? '止めると DRAG の接続が切れます' : null, onclick: () => act(svc, verb),
+        class: 'btn small' + (primary ? ' primary' : ''), disabled: svc.busy, onclick: () => act(svc, verb),
       }, verbs[verb]);
       const draw = () => list.replaceChildren(...(srv.services.length ? srv.services.map(svc => el('div', { class: 'svc' },
         el('span', { class: 'svc-dot ' + (svc.busy ? 'busy' : svc.active ? 'on' : 'off') }),
@@ -2867,7 +2867,6 @@ function renderTabs() {
   },
     el('span', { class: 'dot' + dotClass(srv) }),
     el('span', { class: 'tab-name' }, srv.name),
-    srv.mode === 'ssh' && el('span', { class: 'badge' }, 'SSH'),
     el('span', { class: 'tab-host' }, srv.host),
     el('button', { class: 'tab-close', title: '切断', onclick: e => { e.stopPropagation(); disconnect(srv); } }, ic('x')))));
 }
@@ -2964,9 +2963,8 @@ function renderStatus() {
   if (sb.uptime) refs.up = el('span');
   $('#statusbar').replaceChildren(...[
     el('span', { class: 'sb-item' }, el('span', { class: 'dot' + dotClass(srv) }),
-      srv.conn !== 'ok' ? `${srv.user}@${srv.host} · 接続が切れています`
-        : srv.mode === 'ssh' ? `${srv.user}@${srv.host} · SSH だけのモード` : `${srv.user}@${srv.host} · エージェント 0.1.0`),
-    srv.mode !== 'ssh' && el('button', { class: 'sb-item', title: 'スマホを登録', onclick: () => openPair(srv) }, ic('phone'), `スマホ ${srv.devices.length}台`),
+      srv.conn !== 'ok' ? `${srv.user}@${srv.host} · 接続が切れています` : `${srv.user}@${srv.host}`),
+    el('button', { class: 'sb-item', title: 'スマホを登録', onclick: () => openPair() }, ic('phone'), `スマホ ${state.devices.length}台`),
     el('span', { class: 'grow' }),
     sb.uptime && el('span', { class: 'sb-item', title: `${boot.getMonth() + 1}/${boot.getDate()} ${pad2(boot.getHours())}:${pad2(boot.getMinutes())} の起動から連続で稼働` }, ic('clock'), refs.up),
     sb.cpu && gauge('cpu', 'CPU', 'cpu', ''),
@@ -3043,7 +3041,7 @@ function createServer(def) {
     ...def, home: `/home/${def.user}`, windows: [], persist: new Map(), tickers: new Set(),
     cascade: 0, focused: null, selected: null, inited: false, termCount: 1, uploads: [], cores: [0, 0, 0, 0],
     screens: [...(def.screens || [])], tmux: [...(def.tmux || [])],
-    services: (def.services || []).map(s => ({ ...s })), devices: [...(def.devices || [])],
+    services: (def.services || []).map(s => ({ ...s })),
     procs: def.procs.map(p => ({ ...p, cpu: 0, rss: p.mem })),
     docker: def.docker ? cloneDocker(def.docker) : null,
   };
@@ -3076,8 +3074,6 @@ function switchServer(id) {
   for (const s of state.list) { s.layer.hidden = s !== srv; s.termRoot.hidden = s !== srv; }
   renderSudo();
   renderConn();
-  $('#pair-btn').disabled = srv.mode === 'ssh';
-  $('#pair-btn').title = srv.mode === 'ssh' ? 'SSH だけのモードではスマホから使えません' : '';
   renderTabs(); renderTree(); renderSessions(); renderTaskbar(); renderStatus(); updateChip();
   requestAnimationFrame(() => initServerWindows(srv));
 }
@@ -3109,18 +3105,17 @@ function genericTree(def) {
   ], true);
 }
 
-function addServer(def, mode) {
+function addServer(def) {
   let id = def.name.replace(/[^\w-]/g, '') || 'srv';
   while (state.list.some(s => s.id === id)) id += '_';
   const srv = createServer({
-    id, name: def.name, host: def.host, lan: def.host, user: def.user, mode, router: def.router,
-    phone: mode === 'ssh' ? 'none' : def.phone, tree: () => genericTree(def),
+    id, name: def.name, host: def.host, lan: def.host, user: def.user, router: def.router,
+    tree: () => genericTree(def),
     services: def.router ? [] : [
       { name: 'nginx.service', desc: 'Web サーバー', active: true },
       { name: 'docker.service', desc: 'Docker', active: true },
-      mode === 'agent' && { name: 'drag-agent.service', desc: 'DRAG エージェント', active: true, self: true },
       { name: 'ssh.service', desc: 'OpenSSH サーバー', active: true },
-    ].filter(Boolean),
+    ],
     docker: def.router ? null : {
       ...GENERIC.docker,
       containers: GENERIC.docker.containers.map(c => ({ ...c, mounts: c.mounts.map(m => ({ ...m, src: m.src.replace(/^~/, `/home/${def.user}`) })) })),
@@ -3145,7 +3140,7 @@ function disconnect(srv) {
   srv.windows.slice().forEach(w => closeWindow(w, { keepSession: true }));
   srv.layer.remove();
   srv.termRoot.remove();
-  toast(srv.mode === 'agent' ? `${srv.name} から切断しました。エージェントは動き続けます` : `${srv.name} から切断しました`);
+  toast(`${srv.name} から切断しました`);
   if (srv === cur()) {
     if (state.list.length) switchServer(state.list[Math.max(0, i - 1)].id);
     else { state.active = null; $('#server-tabs').replaceChildren(); showWelcome(); }
@@ -3237,7 +3232,6 @@ function openConnect(preset) {
     user: el('input', { class: 'input', spellcheck: 'false' }),
     auth: sel([['pass', 'パスワード'], ['key', '鍵ファイル']]),
     pass: el('input', { class: 'input', type: 'password' }),
-    phone: sel([['lan', 'LAN 内'], ['public', 'インターネットに公開'], ['none', '使わない']]),
   };
   let chosen = null;
   const saved = el('div', { class: 'saved' }, SAVED.map(s => el('button', {
@@ -3255,15 +3249,14 @@ function openConnect(preset) {
     if (!host) return f.host.focus();
     if (!user) return f.user.focus();
     m.close();
-    runSetup({ name: f.name.value.trim() || host, host, user, port: f.port.value.trim() || '22', phone: f.phone.value, router: !!(chosen?.router && chosen.host === host) });
+    runSetup({ name: f.name.value.trim() || host, host, user, port: f.port.value.trim() || '22', router: !!(chosen?.router && chosen.host === host) });
   };
   const body = el('div', {},
     el('span', { class: 'field-label' }, '保存済み'), saved,
     el('div', { class: 'form-grid' },
       field('名前', f.name), field('ユーザー', f.user), field('ポート', f.port),
       field('ホスト', f.host, 'span3'),
-      field('認証', f.auth), field('パスワード', f.pass, 'span2'),
-      field('スマホから使う', f.phone, 'span3')),
+      field('認証', f.auth), field('パスワード', f.pass, 'span2')),
     el('div', { class: 'modal-foot' }, el('div', { class: 'grow' }), el('button', { class: 'btn', onclick: () => m.close() }, 'キャンセル'), el('button', { class: 'btn primary', onclick: go }, '接続')));
   body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') go(); });
   const m = modal({ title: 'サーバーに接続', body, width: 600 });
@@ -3280,7 +3273,6 @@ function showWelcome() {
     ic('server'), el('div', { style: 'min-width:0' }, el('div', { class: 'saved-name' }, s.name), el('div', { class: 'saved-host mono' }, `${s.user}@${s.host}`)))));
   $('#conn-banner').hidden = true;
   $('#app').classList.remove('conn-lost', 'sudo-on');
-  $('#pair-btn').disabled = true;
   renderStatus();
 }
 
@@ -3291,7 +3283,7 @@ function hideWelcome() {
 
 /* ---------- 接続が切れたとき ---------- */
 
-const dotClass = srv => srv.conn === 'lost' ? ' lost' : srv.conn === 'reconnecting' ? ' reconn' : srv.mode === 'ssh' ? ' ssh' : '';
+const dotClass = srv => srv.conn === 'lost' ? ' lost' : srv.conn === 'reconnecting' ? ' reconn' : '';
 
 function dropConnection(srv) {
   if (srv.conn !== 'ok') return;
@@ -3320,9 +3312,26 @@ function tryReconnect(srv) {
     if (!state.list.includes(srv)) return;
     if (srv.retry < 2) { nextRetry(srv); return; }
     srv.conn = 'ok';
+    restartShells(srv);
     renderConn();
     toast(`${srv.name} に再接続しました`, 'ok');
   }, 1400);
+}
+
+// SSH の接続が切れると、その上のシェルも終わる。ターミナルは新しいシェルで開き直し、screen と tmux はつなぎ直す
+function restartShells(srv) {
+  for (const h of [srv.panel, ...srv.windows.map(w => w.host).filter(Boolean)]) {
+    const fg = h.fg;
+    if (fg?.detachable) h.release(false);
+    else fg?.end();
+    h.shell.write('接続が切れたため、前のシェルは終了しました。新しいシェルで開き直しました', 'dim');
+  }
+  for (const w of srv.windows) {
+    const sess = w.session;
+    if (!sess || sess.ended) continue;
+    if (sess.detachable) sess.note('再接続して、セッションにつなぎ直しました', '↻');
+    else sess.end('接続が切れたため、終了しました');
+  }
 }
 
 function renderConn() {
@@ -3338,26 +3347,23 @@ function renderConn() {
     st === 'reconnecting' ? el('span', { class: 'conn-spin' }) : ic('link', 'conn-ic'),
     el('div', { class: 'grow' },
       el('div', { class: 'conn-title' }, `${srv.name} との接続が切れました`),
-      el('div', { class: 'conn-sub' }, st === 'reconnecting' ? '再接続しています' : `${srv.wait} 秒後に再接続します (${srv.retry} 回目)`)),
+      el('div', { class: 'conn-sub' }, st === 'reconnecting' ? '再接続しています' : `${srv.wait} 秒後に再接続します (${srv.retry} 回目)`),
+      el('div', { class: 'conn-sub' }, 'ターミナルのシェルは終了しました。screen と tmux のセッションは、再接続したらつなぎ直します')),
     el('button', { class: 'btn small', disabled: st === 'reconnecting', onclick: () => tryReconnect(srv) }, '今すぐ再接続'),
     el('button', { class: 'btn small', onclick: () => disconnect(srv) }, '切断'));
 }
 
 async function runSetup(def) {
   let aborted = false;
-  const steps = [
-    ['ssh', 'SSH で接続'], ['probe', 'OS と CPU を確認'], ['check', 'エージェントを確認'], ['send', 'エージェントを転送'],
-    def.phone !== 'none' && ['cert', '証明書を用意'], ['svc', 'サービスとして登録'], ['start', 'エージェントを起動'],
-  ].filter(Boolean);
+  const steps = [['ssh', 'SSH で接続'], ['probe', 'サーバーを確認']];
   const items = {};
   const list = el('ol', { class: 'steps' }, steps.map(([k, label]) => {
-    const detail = el('div', { class: 'step-detail' }), extra = el('div');
-    const li = el('li', { class: 'step' }, el('span', { class: 'step-ic' }), el('div', { style: 'min-width:0' }, el('div', { class: 'step-label' }, label), detail, extra));
-    items[k] = { li, detail, extra };
+    const detail = el('div', { class: 'step-detail' });
+    const li = el('li', { class: 'step' }, el('span', { class: 'step-ic' }), el('div', { style: 'min-width:0' }, el('div', { class: 'step-label' }, label), detail));
+    items[k] = { li, detail };
     return li;
   }));
   const foot = el('div', { class: 'modal-foot' },
-    el('button', { class: 'link-btn', onclick: () => { aborted = true; m.close(); addServer(def, 'ssh'); } }, 'エージェントを入れずに SSH だけでつなぐ'),
     el('div', { class: 'grow' }),
     el('button', { class: 'btn', onclick: () => m.close() }, 'やめる'));
   const m = modal({ title: `${def.name} に接続`, body: el('div', {}, list, foot), width: 540, onClose: () => { aborted = true; } });
@@ -3365,53 +3371,13 @@ async function runSetup(def) {
   const wait = async ms => { await sleep(ms); if (aborted) throw new Error('abort'); };
   try {
     set('ssh', 'run'); await wait(700); set('ssh', 'done', `${def.user}@${def.host}:${def.port}`);
-    set('probe', 'run'); await wait(600); set('probe', 'done', def.router ? 'Linux · mipsel · BusyBox' : 'Linux · x86_64 · Ubuntu 24.04');
-    set('check', 'run'); await wait(500); set('check', 'done', '入っていません');
-    set('send', 'run');
-    if (def.router) {
-      await wait(700);
-      set('send', 'fail', '書き込みできる場所がありません');
-      foot.replaceChildren(el('div', { class: 'grow' }),
-        el('button', { class: 'btn', onclick: () => m.close() }, 'やめる'),
-        el('button', { class: 'btn primary', onclick: () => { aborted = true; m.close(); addServer(def, 'ssh'); } }, 'SSH だけでつなぐ'));
-      return;
-    }
-    const bar = el('div', { class: 'progress' }, el('i'));
-    items.send.extra.append(bar);
-    for (let p = 0; p <= 100; p += 4) {
-      bar.firstChild.style.width = p + '%';
-      items.send.detail.textContent = `drag-agent-linux-amd64 · ${(9.8 * p / 100).toFixed(1)} / 9.8 MB`;
-      await wait(45);
-    }
-    bar.remove();
-    set('send', 'done', '~/.drag/ · 9.8 MB');
-    if (items.cert) { set('cert', 'run'); await wait(800); set('cert', 'done', def.phone === 'public' ? `Let's Encrypt · ${def.host} の証明書` : '自己署名の証明書'); }
-    set('svc', 'run');
-    const how = await askInline(items.svc.extra);
-    await wait(600);
-    set('svc', 'done', how === 'sudo' ? 'systemd のサービス' : 'systemd のユーザーサービス');
-    set('start', 'run'); await wait(600);
-    const url = def.phone === 'none' ? null : def.phone === 'public' ? `https://${def.host}` : `https://${def.host}:8443`;
-    set('start', 'done', url ? `${url} で待ち受け中` : 'SSH の中だけで待ち受け中');
-    const srv = addServer(def, 'agent');
-    foot.replaceChildren(...[el('div', { class: 'grow' }),
-      url && el('button', { class: 'btn', onclick: () => { m.close(); openPair(srv); } }, 'スマホを登録'),
-      el('button', { class: 'btn primary', onclick: () => m.close() }, '開く')].filter(Boolean));
+    set('probe', 'run'); await wait(600);
+    set('probe', 'done', def.router ? 'Linux · mipsel · BusyBox · systemd と Docker はない' : 'Linux · x86_64 · Ubuntu 24.04 · systemd · Docker · screen · tmux');
+    addServer(def);
+    foot.replaceChildren(el('div', { class: 'grow' }), el('button', { class: 'btn primary', onclick: () => m.close() }, '開く'));
   } catch (e) {
     if (e.message !== 'abort') throw e;
   }
-}
-
-function askInline(box) {
-  return new Promise(res => {
-    const pass = el('input', { class: 'input', type: 'password', placeholder: 'sudo のパスワード' });
-    const ok = () => { if (!pass.value) { pass.focus(); return; } box.replaceChildren(); res('sudo'); };
-    pass.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
-    box.append(el('div', { class: 'inline-ask' }, pass,
-      el('button', { class: 'btn small primary', onclick: ok }, '登録する'),
-      el('button', { class: 'link-btn', onclick: () => { box.replaceChildren(); res('user'); } }, 'sudo を使わない')));
-    pass.focus();
-  });
 }
 
 /* ---------- スマホの登録・設定 ---------- */
@@ -3439,31 +3405,38 @@ function drawQR(canvas, seed) {
   }
 }
 
-function openPair(srv) {
-  if (srv.mode === 'ssh') { toast('SSH だけのモードではスマホから使えません', 'warn'); return; }
-  const url = srv.phone === 'lan' ? `https://${srv.lan}:8443` : `https://${srv.host}`;
+function openPair() {
+  const routes = [state.settings.phoneLan && ['lan', 'LAN 内'], state.settings.phonePublic && ['public', '外から']].filter(Boolean);
+  if (!routes.length) { toast('スマホの待ち受けが OFF です。設定の「スマホ」で ON にしてください', 'warn'); return; }
+  let route = routes[routes.length - 1][0];
+  const urlOf = r => r === 'lan' ? PC.lanUrl : publicUrl();
   const canvas = el('canvas', { class: 'qr', width: 222, height: 222 });
+  const urlEl = el('div', { class: 'mono small' });
   const timer = el('div', { class: 'muted small' });
   let left = 300;
-  const regen = () => { drawQR(canvas, url + Date.now()); left = 300; canvas.classList.remove('expired'); showLeft(); };
+  const regen = () => { urlEl.textContent = urlOf(route); drawQR(canvas, urlOf(route) + Date.now()); left = 300; canvas.classList.remove('expired'); showLeft(); };
   const showLeft = () => {
     if (left > 0) { timer.textContent = `${Math.floor(left / 60)}:${pad2(left % 60)} で無効になります`; return; }
     canvas.classList.add('expired');
     timer.replaceChildren('期限が切れました ', el('button', { class: 'link-btn', onclick: regen }, '作り直す'));
   };
   const iv = setInterval(() => { if (left > 0) { left--; showLeft(); } }, 1000);
+  const seg = el('div', { class: 'seg' });
+  const drawSeg = () => seg.replaceChildren(...routes.map(([v, l]) => el('button', { class: v === route ? 'active' : '', onclick: () => { route = v; drawSeg(); regen(); } }, l)));
+  drawSeg();
   regen();
+  const routeName = r => r === 'lan' ? 'LAN 内' : '外から';
   const devs = el('div', { class: 'dev-list' });
-  const drawDevs = () => devs.replaceChildren(...(srv.devices.length ? srv.devices.map(d => el('div', { class: 'dev' },
+  const drawDevs = () => devs.replaceChildren(...(state.devices.length ? state.devices.map(d => el('div', { class: 'dev' },
     ic('phone', 'dev-ic'),
-    el('div', { class: 'dev-text' }, el('div', { class: 'dev-name' }, d.name), el('div', { class: 'muted small' }, `最終ログイン ${d.last} · ${d.ip}`)),
-    el('button', { class: 'btn small', onclick: () => { srv.devices = srv.devices.filter(x => x !== d); drawDevs(); renderStatus(); } }, '無効にする'),
+    el('div', { class: 'dev-text' }, el('div', { class: 'dev-name' }, d.name), el('div', { class: 'muted small' }, `最終ログイン ${d.last} · ${d.ip} · ${routeName(d.route)}`)),
+    el('button', { class: 'btn small', onclick: () => { state.devices = state.devices.filter(x => x !== d); drawDevs(); renderStatus(); } }, '無効にする'),
   )) : [el('div', { class: 'muted small' }, 'まだありません')]));
   drawDevs();
   const fake = el('button', {
     class: 'link-btn',
     onclick: () => {
-      srv.devices.unshift({ name: 'Android (Chrome)', last: 'たった今', ip: srv.phone === 'lan' ? '192.168.1.42' : '198.51.100.77' });
+      state.devices.unshift({ name: 'Android (Chrome)', last: 'たった今', ip: route === 'lan' ? '192.168.1.42' : '198.51.100.88', route });
       drawDevs(); renderStatus(); regen();
       toast('スマホを登録しました', 'ok');
     },
@@ -3471,9 +3444,9 @@ function openPair(srv) {
   const hist = el('details', { class: 'history' }, el('summary', {}, 'ログインの履歴'),
     el('div', { class: 'hist-rows' }, HIST.map(h => el('div', { class: 'hist-row' }, el('span', { class: 'mono' }, h[0]), el('span', {}, h[1]), el('span', { class: 'mono muted' }, h[2]), el('span', { class: 'muted' }, h[3])))));
   const body = el('div', { class: 'pair' },
-    el('div', { class: 'pair-qr' }, canvas, el('div', { class: 'mono small' }, url), timer, fake),
+    el('div', { class: 'pair-qr' }, routes.length > 1 && seg, canvas, urlEl, timer, fake),
     el('div', {}, el('span', { class: 'field-label' }, '登録済みの端末'), devs, hist));
-  modal({ title: `${srv.name} にスマホを登録`, body, width: 640, onClose: () => clearInterval(iv) });
+  modal({ title: 'スマホを登録', body, width: 640, onClose: () => clearInterval(iv) });
 }
 
 /* ---------- 設定 ---------- */
@@ -3554,6 +3527,11 @@ function openSettings() {
     });
     return el('div', { class: 'set-sub' }, chips, add);
   };
+  const port = () => {
+    const i = el('input', { class: 'input set-select', value: S().publicPort, inputmode: 'numeric' });
+    i.addEventListener('change', () => { const n = parseInt(i.value, 10); if (n > 0 && n < 65536) setSetting('publicPort', n); else i.value = S().publicPort; });
+    return i;
+  };
   const conflict = () => {
     const sel = el('select', { class: 'input set-select' }, [['ask', '毎回聞く'], ['overwrite', '上書き'], ['keep', '両方残す'], ['skip', 'スキップ']].map(([v, l]) => el('option', { value: v }, l)));
     sel.value = S().uploadConflict;
@@ -3584,6 +3562,17 @@ function openSettings() {
       row('ウィンドウを画面の端へドラッグして並べる', '左右の端で半分、上の端で最大化', toggle('snap')),
       row('ログのウィンドウを開いたら末尾を追いかける', null, toggle('followLog')),
       row('同じ名前のファイルをアップロードしたとき', null, conflict()),
+    ]],
+    phone: ['スマホ', 'phone', () => [
+      row('LAN 内で待ち受ける', `${PC.lanUrl} · 自己署名の証明書`, toggle('phoneLan')),
+      row('インターネットに公開する', 'ルーターで、下のポートをこの PC へ転送しておく', toggle('phonePublic')),
+      row('公開するポート', 'IP アドレスの証明書は 80 番か 443 番で取る', port()),
+      row('証明書', S().cert === 'ip' ? `Let's Encrypt · ${PC.ip} · 10/30 まで。数日おきに自動で更新する` : "Let's Encrypt · DNS-01 で取る",
+        seg(() => S().cert, [['ip', 'IP アドレス'], ['domain', '自分のドメイン']], v => { setSetting('cert', v); show('phone'); })),
+      ...(S().cert === 'domain' ? [el('div', { class: 'set-sub' },
+        el('input', { class: 'input', value: PC.domain, spellcheck: 'false' }),
+        el('input', { class: 'input', type: 'password', placeholder: 'DNS サービスの API キー' }))] : []),
+      row('窓を閉じたとき', '通知領域に残り、サーバーとの接続とスマホの待ち受けを続ける。終了は通知領域のメニューから', null),
     ]],
   };
   const nav = el('div', { class: 'set-nav' });
@@ -3878,7 +3867,7 @@ function boot() {
   $('#btn-newfile').addEventListener('click', () => createHere(false));
   $('#btn-newfolder').addEventListener('click', () => createHere(true));
   $('#m-settings').addEventListener('click', openSettings);
-  $('#pair-btn').addEventListener('click', () => openPair(cur()));
+  $('#pair-btn').addEventListener('click', () => openPair());
   $('#btn-tile').addEventListener('click', tileWindows);
   $('#btn-clear').addEventListener('click', () => { const p = cur().panel; (p.fg || p.shell).clear(); });
   $('#btn-upload').addEventListener('click', () => {

@@ -6,7 +6,7 @@ const ICONS = {
   check: '<path d="m5 12 5 5 9-10"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
-  server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  pc: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
 };
 
 function el(tag, props, ...kids) {
@@ -33,7 +33,7 @@ try {
   if (s.accent) document.documentElement.style.setProperty('--accent', s.accent);
 } catch { /* 読めなければ初期の見た目 */ }
 
-const server = { name: 'mc-server', url: 'https://203.0.113.10' };
+const pc = { name: 'DESKTOP-01', url: 'https://203.0.113.50' };
 const card = document.getElementById('card');
 const brand = () => el('div', { class: 'brand pair-brand' }, 'DRAG');
 
@@ -55,7 +55,7 @@ const views = {
     return [
       brand(),
       el('div', { class: 'pair-title' }, 'この端末を登録します'),
-      el('div', { class: 'pair-server' }, ic('server'), el('div', {}, el('div', {}, server.name), el('div', { class: 'mono' }, server.url))),
+      el('div', { class: 'pair-server' }, ic('pc'), el('div', {}, el('div', {}, pc.name), el('div', { class: 'mono' }, pc.url))),
       el('label', { class: 'field' }, el('span', { class: 'field-label' }, '端末の名前'), name),
       el('button', { class: 'btn primary', onclick: () => { clearInterval(iv); show('done', name.value.trim() || guessDevice()); } }, '登録する'),
       timer,
@@ -65,8 +65,8 @@ const views = {
     return [
       el('div', { class: 'pair-mark ok' }, ic('check')),
       el('div', { class: 'pair-title' }, '登録しました'),
-      el('div', { class: 'pair-text' }, `${device} を ${server.name} に登録しました。`, el('br'), '次からはこの端末でページを開くだけで使えます。'),
-      el('a', { class: 'btn primary', href: 'index.html' }, `${server.name} を開く`),
+      el('div', { class: 'pair-text' }, `${device} を登録しました。`, el('br'), '次からはこの端末でページを開くだけで使えます。', el('br'), 'PC で DRAG が動いている間だけ開けます。'),
+      el('a', { class: 'btn primary', href: 'index.html' }, 'DRAG を開く'),
     ];
   },
   expired() {
@@ -81,7 +81,7 @@ const views = {
       brand(),
       el('div', { class: 'pair-mark info' }, ic('lock')),
       el('div', { class: 'pair-title' }, 'この端末は登録されていません'),
-      el('div', { class: 'pair-text' }, 'PC アプリでサーバーを開き、「スマホを登録」に出る QR コードをこの端末で読み取ってください。'),
+      el('div', { class: 'pair-text' }, 'PC アプリの「スマホを登録」に出る QR コードを、この端末で読み取ってください。'),
     ];
   },
 };
