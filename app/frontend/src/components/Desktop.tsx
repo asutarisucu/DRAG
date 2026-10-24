@@ -4,6 +4,8 @@ import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
 import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
 import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
+import { MonitorView } from './Monitor'
+import { openTool, TOOLS } from '../tools'
 import { onForeground } from '../shellBus'
 import { useMobile } from '../mobile'
 import { useSettings } from '../settings'
@@ -116,6 +118,7 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
               : w.kind === 'log' ? <LogView win={w} serverId={serverId} home={home} />
                 : w.kind === 'image' ? <ImageView win={w} serverId={serverId} />
                   : w.kind === 'archive' ? <ArchiveView win={w} serverId={serverId} home={home} />
+                    : w.kind === 'monitor' ? <MonitorView win={w} serverId={serverId} home={home} />
                     : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} shared={w.shared} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
           </Window>
         ))}
@@ -204,6 +207,11 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
       <button className="grid h-8 w-[34px] place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t('desktop.newTerminal')} onClick={onNewTerminal}>
         <Icon name="terminal" size={18} />
       </button>
+      {TOOLS.map(([k, icon]) => (
+        <button key={k} data-tool={k} className="grid h-8 w-[34px] place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t(`tools.${k}`)} onClick={() => openTool(serverId, k)}>
+          <Icon name={icon} size={18} />
+        </button>
+      ))}
       <span className="mx-1.5 h-[22px] w-px flex-none bg-line-strong" />
       <div ref={box} className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]">
         {wins.map((w, i) => {

@@ -56,6 +56,7 @@ type conn struct {
 	info   *remote.Info
 	// つなぎ直しは PC とスマホの両方から来るので、1つずつにする
 	redial sync.Mutex
+	hist   *store.History
 }
 
 func NewApp() *App {
@@ -222,6 +223,7 @@ func (a *App) Connect(req ConnectRequest) ConnectResult {
 	a.servers[id] = c
 	a.mu.Unlock()
 	go a.watch(id, s)
+	a.startMetrics(id, c, s)
 	// ほかの端末の画面にもタブを足す。開いた端末は、接続の手順を見せてから自分で足す
 	a.emitOthers("server:opened", serverInfo(id, c))
 	if _, err := a.saved.Put(store.Server{Name: req.Name, Host: req.Host, Port: req.Port, User: req.User, Auth: req.Auth, KeyFile: req.KeyFile}); err != nil {
@@ -282,6 +284,7 @@ func (a *App) Reconnect(id string) ConnectResult {
 	a.mu.Unlock()
 	old.Close()
 	go a.watch(id, s)
+	a.startMetrics(id, c, s)
 	r.ID = id
 	return r
 }

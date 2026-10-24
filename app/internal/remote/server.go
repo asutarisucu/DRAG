@@ -58,6 +58,8 @@ type link struct {
 	mu     sync.Mutex
 	closed bool
 	sudo   map[string]*sudoMode // 端末ごとの sudo モード。OFF の端末は入らない
+	// 前に読んだプロセスごとの CPU 時間。使用率を出すのに使う
+	procPrev procSnap
 }
 
 // As は、同じ接続を dev の端末から見たものを返す

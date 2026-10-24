@@ -18,6 +18,9 @@ import { TerminalPanel } from './components/TerminalPanel'
 import { Toasts } from './components/Toasts'
 import { setSettings, useSettings } from './settings'
 import { setMTab, useMobile, useMTab, type MTab } from './mobile'
+import { fmtRate, fmtUptime, pct, useMetrics } from './metrics'
+import { Spark } from './components/Spark'
+import { openTool } from './tools'
 import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
@@ -207,6 +210,8 @@ export default function App() {
               </span>
             )}
             {cur && !isRemote && <PhoneCount onClick={openPair} />}
+            <div className="flex-1" />
+            {cur && <StatusMetrics serverId={cur.id} />}
           </footer>
         )}
 
@@ -235,6 +240,32 @@ function MobileNav({ tab }: { tab: MTab }) {
       ))}
     </nav>
   )
+}
+
+// 下の欄の稼働時間・CPU・メモリ・ネットワーク。押すとリソース監視の詳細を開く
+function StatusMetrics({ serverId }: { serverId: string }) {
+  const { t } = useTranslation()
+  const sb = useSettings().sb
+  const ms = useMetrics(serverId)
+  const m = ms.at(-1)
+  if (!m) return null
+  const item = 'flex h-[22px] items-center gap-1.5 rounded px-1.5 whitespace-nowrap hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text'
+  const gauge = (key: 'cpu' | 'mem', label: string, values: number[], cls = '') => (
+    <button className={`${item} ${cls}`} data-sb={key} title={t('mon.detailOf', { name: label })} onClick={() => openTool(serverId, 'monitor', key)}>
+      {label}<Spark values={values} max={100} className="sb" /><span className="num">{values.at(-1)!.toFixed(0)}%</span>
+    </button>
+  )
+  return <>
+    {sb.uptime && <span className={item.replace(/hover:\S+/g, '')} data-sb="uptime" title={t('mon.uptimeHint')}><Icon name="clock" size={13} />{fmtUptime(m.uptime, t)}</span>}
+    {sb.cpu && gauge('cpu', 'CPU', ms.map(x => x.cpu))}
+    {sb.mem && gauge('mem', t('mon.mem'), ms.map(x => pct(x.memUsed, x.memTotal)), 'sb-mem')}
+    {sb.net && (
+      <button className={item} data-sb="net" title={t('mon.detailOf', { name: t('mon.net') })} onClick={() => openTool(serverId, 'monitor', 'net')}>
+        <span className="text-ok" title={t('mon.down')}><Icon name="down" size={13} /></span><span className="num">{fmtRate(m.rx)}</span>
+        <span className="text-accent" title={t('mon.up')}><Icon name="up" size={13} /></span><span className="num">{fmtRate(m.tx)}</span>
+      </button>
+    )}
+  </>
 }
 
 // 下の欄の「スマホ N台」。押すとスマホの登録の窓を開く

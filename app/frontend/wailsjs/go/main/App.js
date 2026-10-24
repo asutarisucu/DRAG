@@ -14,6 +14,10 @@ export function ArchiveRead(arg1, arg2) {
   return window['go']['main']['App']['ArchiveRead'](arg1, arg2);
 }
 
+export function BigDirs(arg1) {
+  return window['go']['main']['App']['BigDirs'](arg1);
+}
+
 export function CloseShell(arg1) {
   return window['go']['main']['App']['CloseShell'](arg1);
 }
@@ -38,6 +42,10 @@ export function EnableSudo(arg1, arg2) {
   return window['go']['main']['App']['EnableSudo'](arg1, arg2);
 }
 
+export function History(arg1, arg2) {
+  return window['go']['main']['App']['History'](arg1, arg2);
+}
+
 export function ListDir(arg1, arg2) {
   return window['go']['main']['App']['ListDir'](arg1, arg2);
 }
@@ -56,6 +64,14 @@ export function LogStop(arg1) {
 
 export function LogTail(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['LogTail'](arg1, arg2, arg3, arg4);
+}
+
+export function Mounts(arg1) {
+  return window['go']['main']['App']['Mounts'](arg1);
+}
+
+export function Network(arg1) {
+  return window['go']['main']['App']['Network'](arg1);
 }
 
 export function NewEntry(arg1, arg2, arg3, arg4) {
@@ -100,6 +116,10 @@ export function PickUploadFiles() {
 
 export function Probe(arg1) {
   return window['go']['main']['App']['Probe'](arg1);
+}
+
+export function Processes(arg1) {
+  return window['go']['main']['App']['Processes'](arg1);
 }
 
 export function ReadImage(arg1, arg2) {

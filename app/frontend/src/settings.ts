@@ -13,16 +13,20 @@ export type Settings = {
   autoCmds: string[]
   snap: boolean
   followLog: boolean
+  // 下の欄に出す項目
+  sb: { uptime: boolean; cpu: boolean; mem: boolean; net: boolean }
 }
 
 export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
   autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'], snap: true, followLog: true,
+  sb: { uptime: true, cpu: true, mem: true, net: true },
 }
 const KEY = 'drag-settings'
 
 function load(): Settings {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}')
+    return { ...DEFAULTS, ...saved, sb: { ...DEFAULTS.sb, ...saved.sb } }
   } catch {
     return { ...DEFAULTS }
   }

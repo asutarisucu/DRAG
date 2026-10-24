@@ -115,7 +115,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </button>
           ))}
           {!mobile && <div className="flex-1" />}
-          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog })}>
+          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog, sb: DEFAULTS.sb })}>
             {t('settings.reset')}
           </button>
         </div>
@@ -128,6 +128,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <Row label={t('settings.theme')}>
               <Seg value={s.theme} options={[['dark', t('settings.dark')], ['light', t('settings.light')]]} onPick={theme => setSettings({ theme })} />
             </Row>
+            {!isRemote && (
+              <Row label={t('settings.statusItems')}>
+                <div className="flex flex-wrap justify-end gap-x-3.5 gap-y-1">
+                  {(['uptime', 'cpu', 'mem', 'net'] as const).map(k => (
+                    <label key={k} className="inline-flex cursor-pointer items-center gap-1.5 select-none">
+                      <input type="checkbox" className="accent-[var(--accent)]" checked={s.sb[k]} onChange={e => setSettings({ sb: { ...s.sb, [k]: e.target.checked } })} />{t(`settings.sb.${k}`)}
+                    </label>
+                  ))}
+                </div>
+              </Row>
+            )}
           </>}
           {page === 'ops' && <>
             <Row label={t('settings.autoOn')} desc={t('settings.autoOnDesc')}>

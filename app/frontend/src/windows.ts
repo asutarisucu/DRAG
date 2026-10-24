@@ -6,7 +6,7 @@ export type Rect = { x: number; y: number; w: number; h: number }
 export type Win = {
   id: string
   serverId: string
-  kind: 'session' | 'terminal' | 'editor' | 'log' | 'image' | 'archive'
+  kind: 'session' | 'terminal' | 'editor' | 'log' | 'image' | 'archive' | 'monitor' | 'services' | 'docker'
   path?: string // ファイルのウィンドウで開いているファイル
   title: string
   icon: IconName
@@ -23,6 +23,7 @@ export type Win = {
   sessionKey?: string // screen か tmux のセッションなら "screen:名前" の形
   // ほかの端末で開いているシェルを見ているときの、そのシェルの大きさ。閉じてもシェルは閉じない
   shared?: { cols: number; rows: number }
+  view?: string // リソース監視で出している詳細 (cpu・mem・disk・net)。概要なら空
 }
 
 let wins: Win[] = []

@@ -27,6 +27,7 @@ var phoneMethods = map[string]bool{
 	"Sessions": true, "EnableSudo": true, "DisableSudo": true,
 	"OpenText": true, "SaveText": true, "ReadImage": true, "LogTail": true, "LogFollow": true, "LogStop": true,
 	"ArchiveOpen": true, "ArchiveRead": true, "ArchiveClose": true,
+	"History": true, "Processes": true, "Mounts": true, "BigDirs": true, "Network": true,
 }
 
 const defaultPhonePort = 8443

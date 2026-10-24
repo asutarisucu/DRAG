@@ -401,6 +401,36 @@ export namespace phone {
 
 export namespace remote {
 	
+	export class Conn {
+	    remote: string;
+	    port: number;
+	    proc: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Conn(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.remote = source["remote"];
+	        this.port = source["port"];
+	        this.proc = source["proc"];
+	    }
+	}
+	export class DirSize {
+	    path: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DirSize(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.size = source["size"];
+	    }
+	}
 	export class Entry {
 	    name: string;
 	    path: string;
@@ -423,6 +453,20 @@ export namespace remote {
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
 	        this.locked = source["locked"];
+	    }
+	}
+	export class Iface {
+	    name: string;
+	    addrs: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Iface(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.addrs = source["addrs"];
 	    }
 	}
 	export class Info {
@@ -449,6 +493,22 @@ export namespace remote {
 	        this.tmux = source["tmux"];
 	    }
 	}
+	export class Listen {
+	    port: number;
+	    addr: string;
+	    proc: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Listen(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.addr = source["addr"];
+	        this.proc = source["proc"];
+	    }
+	}
 	export class LogChunk {
 	    text: string;
 	    start: number;
@@ -463,6 +523,80 @@ export namespace remote {
 	        this.text = source["text"];
 	        this.start = source["start"];
 	        this.end = source["end"];
+	    }
+	}
+	export class Mount {
+	    path: string;
+	    dev: string;
+	    size: number;
+	    used: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Mount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.dev = source["dev"];
+	        this.size = source["size"];
+	        this.used = source["used"];
+	    }
+	}
+	export class NetInfo {
+	    ifaces: Iface[];
+	    conns: Conn[];
+	    listen: Listen[];
+	
+	    static createFrom(source: any = {}) {
+	        return new NetInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ifaces = this.convertValues(source["ifaces"], Iface);
+	        this.conns = this.convertValues(source["conns"], Conn);
+	        this.listen = this.convertValues(source["listen"], Listen);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Proc {
+	    pid: number;
+	    user: string;
+	    name: string;
+	    cmd: string;
+	    cpu: number;
+	    rss: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Proc(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
+	        this.user = source["user"];
+	        this.name = source["name"];
+	        this.cmd = source["cmd"];
+	        this.cpu = source["cpu"];
+	        this.rss = source["rss"];
 	    }
 	}
 	export class Props {
@@ -542,6 +676,28 @@ export namespace remote {
 
 export namespace store {
 	
+	export class Point {
+	    t: number;
+	    cpu: number;
+	    mem: number;
+	    disk: number;
+	    rx: number;
+	    tx: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Point(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.t = source["t"];
+	        this.cpu = source["cpu"];
+	        this.mem = source["mem"];
+	        this.disk = source["disk"];
+	        this.rx = source["rx"];
+	        this.tx = source["tx"];
+	    }
+	}
 	export class Server {
 	    id: string;
 	    name: string;
