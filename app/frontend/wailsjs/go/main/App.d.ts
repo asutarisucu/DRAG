@@ -53,7 +53,7 @@ export function Network(arg1:string):Promise<remote.NetInfo>;
 
 export function NewEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
-export function NewPairing():Promise<main.Pairing>;
+export function NewPairing(arg1:string):Promise<main.Pairing>;
 
 export function OpenShell(arg1:string,arg2:number,arg3:number,arg4:string):Promise<string>;
 
@@ -102,6 +102,8 @@ export function Sessions(arg1:string):Promise<Array<remote.Session>>;
 export function SetLanguage(arg1:string):Promise<void>;
 
 export function SetPhoneLAN(arg1:boolean):Promise<main.PhoneState>;
+
+export function SetPhonePublic(arg1:boolean,arg2:number):Promise<main.PhoneState>;
 
 export function ShellCwd(arg1:string):Promise<string>;
 

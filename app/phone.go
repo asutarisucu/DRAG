@@ -31,25 +31,42 @@ var phoneMethods = map[string]bool{
 	"Services": true, "ServiceAction": true, "Docker": true, "DockerAction": true, "DockerMounts": true, "DockerStats": true, "LogStream": true,
 }
 
-const defaultPhonePort = 8443
+const (
+	defaultPhonePort  = 8443
+	defaultPublicPort = 443
+)
 
 // PhoneSettings はスマホの待ち受けの設定。PC の設定フォルダの phone.json に置く
 type PhoneSettings struct {
 	LAN  bool `json:"lan"`
 	Port int  `json:"port"`
+	// 直接公開。ルーターで PublicPort を PC へ転送しておく
+	Public     bool `json:"public"`
+	PublicPort int  `json:"publicPort"`
 }
 
 func phoneSettingsPath() string { return filepath.Join(configDir(), "phone.json") }
 
 func loadPhoneSettings() PhoneSettings {
-	ps := PhoneSettings{LAN: true, Port: defaultPhonePort}
+	ps := PhoneSettings{LAN: true, Port: defaultPhonePort, PublicPort: defaultPublicPort}
 	if b, err := os.ReadFile(phoneSettingsPath()); err == nil {
 		json.Unmarshal(b, &ps)
 	}
 	if ps.Port <= 0 || ps.Port > 65535 {
 		ps.Port = defaultPhonePort
 	}
+	if ps.PublicPort <= 0 || ps.PublicPort > 65535 {
+		ps.PublicPort = defaultPublicPort
+	}
 	return ps
+}
+
+func savePhoneSettings(ps PhoneSettings) error {
+	b, _ := json.MarshalIndent(ps, "", "  ")
+	if err := os.MkdirAll(configDir(), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(phoneSettingsPath(), b, 0o600)
 }
 
 // phoneAddr は待ち受けるアドレス。DRAG_PHONE_LISTEN があればそれを使う。
@@ -73,9 +90,15 @@ func (a *App) startPhone() {
 		Call:    a.phoneCall,
 		Changed: func() { runtime.EventsEmit(a.ctx, "phone:changed") },
 	})
-	if ps := loadPhoneSettings(); ps.LAN {
+	ps := loadPhoneSettings()
+	if ps.LAN {
 		if err := a.phone.Start(phoneAddr(ps)); err != nil {
 			runtime.LogWarningf(a.ctx, "スマホの待ち受けを始められません: %v", err)
+		}
+	}
+	if ps.Public {
+		if err := a.phone.StartPublic(phone.PublicConfig{Port: ps.PublicPort}); err != nil {
+			runtime.LogWarningf(a.ctx, "直接公開の待ち受けを始められません: %v", err)
 		}
 	}
 }
@@ -116,29 +139,46 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 // PhoneState は、設定の画面とスマホの登録の窓に出す待ち受けの様子
 type PhoneState struct {
 	Settings PhoneSettings `json:"settings"`
-	Status   phone.Status  `json:"status"`
+	Status   phone.Status  `json:"status"` // LAN 内
+	Public   phone.Status  `json:"public"` // 直接公開
 }
 
 func (a *App) PhoneState() PhoneState {
-	return PhoneState{Settings: loadPhoneSettings(), Status: a.phone.Status()}
+	return PhoneState{Settings: loadPhoneSettings(), Status: a.phone.Status(phone.RouteLAN), Public: a.phone.Status(phone.RoutePublic)}
 }
 
 // SetPhoneLAN は LAN での待ち受けを切り替え、設定に書く
 func (a *App) SetPhoneLAN(on bool) (PhoneState, error) {
 	ps := loadPhoneSettings()
 	ps.LAN = on
-	b, _ := json.MarshalIndent(ps, "", "  ")
-	if err := os.MkdirAll(configDir(), 0o700); err != nil {
-		return a.PhoneState(), err
-	}
-	if err := os.WriteFile(phoneSettingsPath(), b, 0o600); err != nil {
+	if err := savePhoneSettings(ps); err != nil {
 		return a.PhoneState(), err
 	}
 	var err error
 	if on {
 		err = a.phone.Start(phoneAddr(ps))
 	} else {
-		a.phone.Stop()
+		a.phone.StopRoute(phone.RouteLAN)
+	}
+	return a.PhoneState(), err
+}
+
+// SetPhonePublic は直接公開を切り替え、設定に書く。ON にすると IP アドレスの証明書を取り始める。
+// グローバル IP は Cloudflare (1.1.1.1) に聞いて調べる
+func (a *App) SetPhonePublic(on bool, port int) (PhoneState, error) {
+	if port <= 0 || port > 65535 {
+		return a.PhoneState(), errors.New("ポートは 1 から 65535 までです")
+	}
+	ps := loadPhoneSettings()
+	ps.Public, ps.PublicPort = on, port
+	if err := savePhoneSettings(ps); err != nil {
+		return a.PhoneState(), err
+	}
+	var err error
+	if on {
+		err = a.phone.StartPublic(phone.PublicConfig{Port: port})
+	} else {
+		a.phone.StopRoute(phone.RoutePublic)
 	}
 	return a.PhoneState(), err
 }
@@ -151,9 +191,9 @@ type Pairing struct {
 	Size    int    `json:"size"`
 }
 
-// NewPairing は使い捨てのトークンを作り、その URL の QR コードを返す
-func (a *App) NewPairing() (Pairing, error) {
-	u, exp, err := a.phone.NewPairURL()
+// NewPairing は経路 route ("lan" か "public") の使い捨てのトークンを作り、その URL の QR コードを返す
+func (a *App) NewPairing(route string) (Pairing, error) {
+	u, exp, err := a.phone.NewPairURL(route)
 	if err != nil {
 		return Pairing{}, err
 	}

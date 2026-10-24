@@ -34,6 +34,18 @@ await pc.waitForSelector('[role=dialog] button:has-text("開く")', { timeout: 1
 await pc.click('[role=dialog] button:has-text("開く")');
 await pc.waitForSelector('.tree-row');
 
+// 設定のスマホのページ。直接公開は ON にせず、項目とポートの確かめだけを見る (ON にすると本物の Let's Encrypt に頼む)
+await pc.click('button[title="設定"]');
+await pc.click('[role=dialog] button:has-text("スマホ")');
+const setText = () => pc.textContent('[role=dialog]');
+ok('設定に LAN と直接公開の項目が出る', await waitFor(async () => (await setText()).includes('LAN 内で待ち受ける') && (await setText()).includes('インターネットに公開する') && (await setText()).includes('公開すると Let\'s Encrypt で取る')));
+const portInput = pc.locator('[role=dialog] input[inputmode="numeric"]');
+ok('公開するポートは 443 から始まる', await portInput.inputValue() === '443');
+await portInput.fill('70000');
+await portInput.press('Enter');
+ok('範囲の外のポートは受け付けない', await waitFor(async () => (await setText()).includes('ポートは 1 から 65535 までです') && await portInput.inputValue() === '443'));
+await pc.keyboard.press('Escape');
+
 // 登録していない端末には画面を出さない
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, ignoreHTTPSErrors: true,

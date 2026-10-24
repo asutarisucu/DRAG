@@ -98,8 +98,8 @@ export function NewEntry(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['NewEntry'](arg1, arg2, arg3, arg4);
 }
 
-export function NewPairing() {
-  return window['go']['main']['App']['NewPairing']();
+export function NewPairing(arg1) {
+  return window['go']['main']['App']['NewPairing'](arg1);
 }
 
 export function OpenShell(arg1, arg2, arg3, arg4) {
@@ -196,6 +196,10 @@ export function SetLanguage(arg1) {
 
 export function SetPhoneLAN(arg1) {
   return window['go']['main']['App']['SetPhoneLAN'](arg1);
+}
+
+export function SetPhonePublic(arg1, arg2) {
+  return window['go']['main']['App']['SetPhonePublic'](arg1, arg2);
 }
 
 export function ShellCwd(arg1) {

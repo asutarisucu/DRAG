@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NewPairing, PhoneDevices, PhoneHistory, RevokePhone } from '../../wailsjs/go/main/App'
+import { NewPairing, PhoneDevices, PhoneHistory, PhoneState, RevokePhone } from '../../wailsjs/go/main/App'
 import type { main, phone } from '../../wailsjs/go/models'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { toast } from '../toasts'
@@ -38,17 +38,28 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const { devices, history } = usePhoneDevices()
   const [pair, setPair] = useState<main.Pairing | null>(null)
+  // 待ち受けている経路。両方なら上で切り替える。mock/ と同じく、外からがあればそちらを先に出す
+  const [routes, setRoutes] = useState<string[]>([])
+  const [route, setRoute] = useState('')
+  useEffect(() => {
+    PhoneState().then(s => {
+      const r = [s.status.running && 'lan', s.public.running && 'public'].filter(Boolean) as string[]
+      setRoutes(r)
+      setRoute(r.at(-1) ?? 'lan')
+    })
+  }, [])
   const [error, setError] = useState('')
   const [now, setNow] = useState(Date.now())
 
   const created = useRef(0)
   const seq = useRef(0)
   const regen = useCallback(() => {
+    if (!route) return
     created.current = Date.now()
     // 続けて作り直したときは、最後に頼んだものだけを出す
     const n = ++seq.current
-    NewPairing().then(p => { if (n === seq.current) { setPair(p); setError('') } }, e => setError(errText(e)))
-  }, [])
+    NewPairing(route).then(p => { if (n === seq.current) { setPair(p); setError('') } }, e => { if (n === seq.current) { setPair(null); setError(errText(e)) } })
+  }, [route])
   useEffect(regen, [regen])
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 1000)
@@ -68,6 +79,11 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
     <Modal title={t('pair.title')} width={640} onClose={onClose}>
       <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-6">
         <div className="grid content-start justify-items-center gap-2 text-center">
+          {routes.length > 1 && (
+            <div className="seg" data-routes>
+              {routes.map(r => <button key={r} className={r === route ? 'active' : ''} onClick={() => setRoute(r)}>{t(`pair.routes.${r}`)}</button>)}
+            </div>
+          )}
           {error
             ? <div className="grid h-[222px] w-[222px] place-items-center rounded-xl border border-line p-4 text-[12.5px] text-err">{error}</div>
             : (

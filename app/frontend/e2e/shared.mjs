@@ -82,9 +82,13 @@ ok('スマホで打ったものが PC に出る', await waitFor(async () => (awa
 
 // PC で幅を変えると、スマホの描く幅も合わせる
 await pc.setViewportSize({ width: 1200, height: 900 });
-await waitFor(async () => (await screenW(pc, pcTerm)) < pcW - 20);
-const pcW2 = await screenW(pc, pcTerm);
-ok('PC で幅を変えるとスマホも合わせる', pcW2 < pcW && await waitFor(async () => Math.abs((await screenW(phone, '[data-shared]')) - pcW2) <= 2), `${pcW} → ${pcW2} / phone ${await screenW(phone, '[data-shared]')}`);
+// PC の側は幅を合わせ直すまで少しかかるので、毎回測り直して比べる
+let pcW2 = pcW;
+const followed = await waitFor(async () => {
+  pcW2 = await screenW(pc, pcTerm);
+  return pcW2 < pcW - 20 && Math.abs((await screenW(phone, '[data-shared]')) - pcW2) <= 2;
+});
+ok('PC で幅を変えるとスマホも合わせる', followed, `${pcW} → ${pcW2} / phone ${await screenW(phone, '[data-shared]')}`);
 
 // スマホで閉じても PC のシェルは残る
 await phone.locator('[data-win] button[title="閉じる"]').tap();

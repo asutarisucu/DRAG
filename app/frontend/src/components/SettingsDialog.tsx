@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PhoneState, SetPhoneLAN } from '../../wailsjs/go/main/App'
+import { EventsOn } from '../../wailsjs/runtime/runtime'
+import { PhoneState, SetPhoneLAN, SetPhonePublic } from '../../wailsjs/go/main/App'
 import type { main } from '../../wailsjs/go/models'
 import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
@@ -84,13 +85,48 @@ function PhonePage() {
   const { t } = useTranslation()
   const [st, setSt] = useState<main.PhoneState | null>(null)
   const [error, setError] = useState('')
-  useEffect(() => { PhoneState().then(setSt) }, [])
+  const [port, setPort] = useState('')
+  // 証明書を取り終えたら、期限を出し直す
+  useEffect(() => {
+    const load = () => PhoneState().then(s => { setSt(s); setPort(p => p || String(s.settings.publicPort)) })
+    load()
+    return EventsOn('phone:changed', load)
+  }, [])
   if (!st) return null
+  const done = (s: main.PhoneState) => { setSt(s); setError('') }
+  const failed = (e: unknown) => { setError(String(e)); PhoneState().then(setSt) }
   const desc = [st.status.url || `:${st.settings.port}`, t('settings.selfSigned')].join(' · ')
+  const pub = st.public
+  const until = pub.certUntil ? new Date(pub.certUntil) : null
+  const certDesc = !st.settings.public ? t('settings.certOff')
+    : pub.error ? pub.error
+      : pub.pending || !until ? t('settings.certPending')
+        : t('settings.certIP', { url: pub.url, until: `${until.getMonth() + 1}/${until.getDate()}` })
+  const applyPort = () => {
+    const n = Number(port)
+    if (n === st.settings.publicPort) return
+    SetPhonePublic(st.settings.public, n).then(done, e => { failed(e); setPort(String(st.settings.publicPort)) })
+  }
   return (
     <>
       <Row label={t('settings.phoneLan')} desc={error || st.status.error || desc}>
-        <Switch on={st.settings.lan} onChange={on => SetPhoneLAN(on).then(s => { setSt(s); setError('') }, e => { setError(String(e)); PhoneState().then(setSt) })} />
+        <Switch on={st.settings.lan} onChange={on => SetPhoneLAN(on).then(done, failed)} />
+      </Row>
+      <Row label={t('settings.phonePublic')} desc={t('settings.phonePublicDesc')}>
+        <Switch on={st.settings.public} onChange={on => SetPhonePublic(on, Number(port) || st.settings.publicPort).then(done, failed)} />
+      </Row>
+      <Row label={t('settings.publicPort')} desc={t('settings.publicPortDesc')}>
+        <input
+          className="field h-8 w-[100px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+          inputMode="numeric"
+          value={port}
+          onChange={e => setPort(e.target.value.replace(/\D/g, ''))}
+          onBlur={applyPort}
+          onKeyDown={e => { if (e.key === 'Enter') applyPort() }}
+        />
+      </Row>
+      <Row label={t('settings.cert')} desc={certDesc}>
+        <span className="text-[12px] text-muted">{t('settings.certKind')}</span>
       </Row>
     </>
   )

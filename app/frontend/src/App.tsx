@@ -44,7 +44,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [pairOpen, setPairOpen] = useState(false)
   // スマホの待ち受けが止まっていれば、登録の窓の代わりに設定を案内する
-  const openPair = () => PhoneState().then(s => s.status.running ? setPairOpen(true) : toast(t('pair.off'), 'warn'))
+  const openPair = () => PhoneState().then(s => s.status.running || s.public.running ? setPairOpen(true) : toast(t('pair.off'), 'warn'))
   const update = (id: string, f: (s: Server) => Partial<Server>) => setServers(list => list.map(s => s.id === id ? { ...s, ...f(s) } : s))
 
   useEffect(() => EventsOn('server:closed', (id: string) => {

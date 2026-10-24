@@ -169,7 +169,7 @@ func TestPairTokensStayValidUntilUsed(t *testing.T) {
 	for i := 0; i < pairLimit+2; i++ {
 		s.NewPairURL()
 	}
-	if len(s.pairs) != pairLimit {
-		t.Fatalf("トークンが %d 個残った", len(s.pairs))
+	if len(s.routes[RouteLAN].pairs) != pairLimit {
+		t.Fatalf("トークンが %d 個残った", len(s.routes[RouteLAN].pairs))
 	}
 }
