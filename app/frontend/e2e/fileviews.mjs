@@ -81,7 +81,7 @@ ok('ログを末尾から出す', await waitFor(async () => (await logText()).in
 sh(`echo '[12:00:02 ERROR]: Something broke' >> ${D}/server.log`);
 ok('追記を追いかける', await waitFor(async () => (await logText()).includes('Something broke')));
 const errColor = await page.$eval('[data-log]', e => [...e.querySelectorAll('span')].find(s => s.textContent.includes('Something broke'))?.className ?? '');
-ok('エラーの行に色が付く', errColor.includes('text-err'), errColor);
+ok('エラーの行に色が付く', errColor.includes('text-term-err'), errColor);
 // 上へスクロールすると前を読み足す
 const before = await page.$eval('[data-log]', e => e.children.length);
 for (let i = 0; i < 6; i++) {

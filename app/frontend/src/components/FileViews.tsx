@@ -26,7 +26,7 @@ function Gutter({ lines, scrollTop }: { lines: number; scrollTop: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = scrollTop }, [scrollTop])
   return (
-    <div ref={ref} className="w-11 flex-none overflow-hidden border-r border-[color-mix(in_srgb,#cfd6e0_15%,transparent)] py-2 pr-2.5 text-right font-mono text-[12.5px] leading-[1.5] whitespace-pre text-[#5c6779] select-none">
+    <div ref={ref} className="w-11 flex-none overflow-hidden border-r border-[color-mix(in_srgb,var(--term-fg)_15%,transparent)] py-2 pr-2.5 text-right font-mono text-[12.5px] leading-[1.5] whitespace-pre text-term-dim select-none">
       {Array.from({ length: lines }, (_, i) => i + 1).join('\n')}
     </div>
   )
@@ -112,7 +112,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
         <Gutter lines={lines} scrollTop={scroll} />
         <textarea
           ref={ta}
-          className="m-0 flex-1 resize-none overflow-auto border-0 bg-transparent px-3 py-2 font-mono text-[12.5px] leading-[1.5] whitespace-pre text-[#eef2f8] outline-none [tab-size:2]"
+          className="m-0 flex-1 resize-none overflow-auto border-0 bg-transparent px-3 py-2 font-mono text-[12.5px] leading-[1.5] whitespace-pre text-term-strong outline-none [tab-size:2]"
           spellCheck={false}
           wrap="off"
           value={text ?? ''}
@@ -167,8 +167,8 @@ function LogLines({ lines, filter }: { lines: string[]; filter: string }) {
     const p = logParts(l)
     return (
       <div key={i} className="break-all whitespace-pre-wrap">
-        <span className="text-[#5c6779]">{p.head}</span>
-        <span className={p.c === 'warn' ? 'text-warn' : p.c === 'err' ? 'text-err' : p.c === 'ok' ? 'text-ok' : ''}>{p.body}</span>
+        <span className="text-term-dim">{p.head}</span>
+        <span className={p.c === 'warn' ? 'text-term-warn' : p.c === 'err' ? 'text-term-err' : p.c === 'ok' ? 'text-term-prompt' : ''}>{p.body}</span>
       </div>
     )
   })
@@ -272,7 +272,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
           <input type="checkbox" className="accent-[var(--accent)]" checked={follow} onChange={e => setFollow(e.target.checked)} />{t('log.follow')}
         </label>
       </div>
-      <div ref={out} data-log className="min-h-0 flex-1 overflow-auto bg-term px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-[#cfd6e0]" onScroll={onScroll}>
+      <div ref={out} data-log className="min-h-0 flex-1 overflow-auto bg-term px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-term-fg" onScroll={onScroll}>
         <LogLines lines={lines} filter={filter} />
         {error && <div className="text-err">{error}</div>}
       </div>
@@ -366,11 +366,11 @@ export function ArchiveView({ win, serverId, home }: { win: Win; serverId: strin
           <span className="text-[11.5px] text-muted">{single ? t('archive.extracted') : t('archive.readonly')}</span>
         </div>
         {view.path.toLowerCase().endsWith('.log')
-          ? <div className="min-h-0 flex-1 overflow-auto bg-term px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-[#cfd6e0]"><LogLines lines={view.text.split('\n')} filter="" /></div>
+          ? <div className="min-h-0 flex-1 overflow-auto bg-term px-2.5 py-1.5 font-mono text-[12px] leading-[1.5] text-term-fg"><LogLines lines={view.text.split('\n')} filter="" /></div>
           : (
             <div className="flex min-h-0 flex-1 bg-term">
               <Gutter lines={lines} scrollTop={scroll} />
-              <pre className="m-0 flex-1 overflow-auto px-3 py-2 font-mono text-[12.5px] leading-[1.5] text-[#eef2f8]" onScroll={e => setScroll(e.currentTarget.scrollTop)}>{view.text}</pre>
+              <pre className="m-0 flex-1 overflow-auto px-3 py-2 font-mono text-[12.5px] leading-[1.5] text-term-strong" onScroll={e => setScroll(e.currentTarget.scrollTop)}>{view.text}</pre>
             </div>
           )}
       </>

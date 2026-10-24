@@ -615,3 +615,56 @@ func TestSudoModeNopasswd(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// ゴミ箱の中を一覧にし、完全に削除する
+func TestTrashListAndDelete(t *testing.T) {
+	s := dialTrusted(t)
+	dir := testDir(t, s)
+	a, b := dir+"/trash-a.txt", dir+"/trash-b"
+	if err := s.CreateFile(a); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Mkdir(b); err != nil {
+		t.Fatal(err)
+	}
+	ia, err := s.Trash(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ib, err := s.Trash(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.TrashList()
+	if err != nil {
+		t.Fatal(err)
+	}
+	find := func(name string) *TrashEntry {
+		for i := range list {
+			if list[i].Name == name {
+				return &list[i]
+			}
+		}
+		return nil
+	}
+	ea, eb := find(ia.Name), find(ib.Name)
+	if ea == nil || eb == nil || ea.From != a || ea.Dir || !eb.Dir || time.Since(time.Unix(ea.Deleted, 0)) > time.Minute {
+		t.Fatalf("%+v", list)
+	}
+	if err := s.TrashDelete([]string{ia.Name}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = s.TrashList()
+	if find(ia.Name) != nil || find(ib.Name) == nil {
+		t.Fatalf("1つだけ消えていない %+v", list)
+	}
+	if err := s.TrashDelete([]string{"../x"}); err == nil {
+		t.Fatal("ゴミ箱の外の名前を受け付けた")
+	}
+	if err := s.TrashDelete(nil); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ = s.TrashList(); len(list) != 0 {
+		t.Fatalf("空にならない %+v", list)
+	}
+}

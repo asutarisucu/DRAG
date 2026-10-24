@@ -16,6 +16,7 @@ import { Icon } from './Icon'
 import { Menu, type MenuItem } from './Menu'
 import { KIND_ICON, fileKind } from '../fileKind'
 import { openFile } from '../openFile'
+import { openTool } from '../tools'
 
 type Entry = remote.Entry
 type Dir = { entries?: Entry[]; error?: string; loading: boolean }
@@ -207,6 +208,16 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   }
   const showProps = (n: Node) => withSudo(serverId, t('sudo.read', { name: n.name || n.path }), () => Stat(serverId, n.path)).then(pr => setProps({ node: n, props: pr }), fail)
 
+  // ゴミ箱の窓で元に戻したものを、ツリーで開いて選ぶ。戻した先のフォルダを読んでいなければ何もしない
+  useEffect(() => {
+    const onReveal = (e: Event) => {
+      const d = (e as CustomEvent<{ serverId: string; path: string }>).detail
+      if (d.serverId === serverId && dirs[parentOf(d.path)]) after([parentOf(d.path)], d.path)
+    }
+    window.addEventListener('drag:tree-reveal', onReveal)
+    return () => window.removeEventListener('drag:tree-reveal', onReveal)
+  })
+
   // Wails が知らせる PC からのドロップ。どの行に落ちたかは App が調べて渡す
   useEffect(() => {
     const onDrop = (e: Event) => {
@@ -239,6 +250,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     { sep: true },
     { icon: 'link', label: t('menu.copyPath'), fn: () => copyPath(n.path) },
     !isRemote && { icon: 'download', label: n.dir ? t('menu.downloadZip') : t('menu.download'), disabled: n.path === '/', fn: () => download(n) },
+    n.path === top && { icon: 'trash', label: t('menu.openTrash'), fn: () => openTool(serverId, 'trash') },
     { icon: 'info', label: t('menu.props'), fn: () => showProps(n) },
   ]
 
@@ -366,27 +378,41 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     }), ...pending(path, depth)]
   }
 
+  // 見出しのボタンは、選んでいるフォルダ (ファイルならそのフォルダ) に作る。選んでいなければいちばん上
+  const here = () => !selected ? top : nodeOf(selected).dir ? selected : parentOf(selected)
   return (
-    <div ref={box} tabIndex={0} className="min-h-0 flex-1 overflow-auto pb-5 outline-none" onKeyDown={onKey}>
-      <div
-        className={`mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
-        title={top + '\n' + t('upload.dropHint')}
-        data-tree-top={top}
-        {...dropProps(top)}
-        onClick={() => setSelected(top)}
-        onContextMenu={ev => contextMenu(ev, nodeOf(top))}
-      >
-        {top !== '/' && <button className={navBtn} title={t('files.up')} onClick={e => { e.stopPropagation(); goTo(parentOf(top)) }}><Icon name="up" size={13} /></button>}
-        {top !== root && <button className={navBtn} title={t('files.home')} onClick={e => { e.stopPropagation(); goTo(root) }}><Icon name="home" size={13} /></button>}
-        <Icon name="folder" size={14} className="f-dir" />
-        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{top}</span>
-        {moreButton(nodeOf(top))}
+    <>
+      {!mobile && (
+        <div className="flex h-9 flex-none items-center gap-0.5 pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">
+          <span className="flex-1">{t('files.title')}</span>
+          <button className={headBtn} title={t('menu.newFile')} onClick={() => create(here(), false)}><Icon name="filePlus" /></button>
+          <button className={headBtn} title={t('menu.newFolder')} onClick={() => create(here(), true)}><Icon name="folderPlus" /></button>
+          {!isRemote && <button className={headBtn} title={t('files.upload')} onClick={() => pickUpload(here())}><Icon name="upload" /></button>}
+          <button className={headBtn} title={t('files.collapse')} onClick={() => setOpen({ [top]: true })}><Icon name="collapse" /></button>
+          <button className={headBtn} title={t('tools.trash')} onClick={() => openTool(serverId, 'trash')}><Icon name="trash" /></button>
+        </div>
+      )}
+      <div ref={box} tabIndex={0} className="min-h-0 flex-1 overflow-auto pb-5 outline-none" onKeyDown={onKey}>
+        <div
+          className={`mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
+          title={top + '\n' + t('upload.dropHint')}
+          data-tree-top={top}
+          {...dropProps(top)}
+          onClick={() => setSelected(top)}
+          onContextMenu={ev => contextMenu(ev, nodeOf(top))}
+        >
+          {top !== '/' && <button className={navBtn} title={t('files.up')} onClick={e => { e.stopPropagation(); goTo(parentOf(top)) }}><Icon name="up" size={13} /></button>}
+          {top !== root && <button className={navBtn} title={t('files.home')} onClick={e => { e.stopPropagation(); goTo(root) }}><Icon name="home" size={13} /></button>}
+          <Icon name="folder" size={14} className="f-dir" />
+          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{top}</span>
+          {moreButton(nodeOf(top))}
+        </div>
+        {rows(top, 0)}
+        {menu && <Menu x={menu.x} y={menu.y} title={pathArg(root, menu.node.path)} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
+        {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
+        {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
       </div>
-      {rows(top, 0)}
-      {menu && <Menu x={menu.x} y={menu.y} title={pathArg(root, menu.node.path)} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
-      {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
-      {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
-    </div>
+    </>
   )
 }
 
@@ -422,6 +448,7 @@ function RenameInput({ name, dir, onDone }: { name: string; dir: boolean; onDone
   )
 }
 
+const headBtn = 'grid h-[26px] w-[26px] place-items-center rounded-md text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
 const navBtn = 'grid h-[22px] w-[22px] flex-none place-items-center rounded-[5px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
 
 function Note({ depth, text, err = false }: { depth: number; text: string; err?: boolean }) {

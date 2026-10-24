@@ -19,6 +19,28 @@ function Seg<T extends string>({ value, options, onPick }: { value: T; options: 
   )
 }
 
+// アクセントの色の候補。mock/app.js の ACCENTS と同じ
+const ACCENTS: [string, string][] = [['#5b9dff', 'blue'], ['#8b7bff', 'purple'], ['#3fcf8e', 'green'], ['#f1a33c', 'orange'], ['#ff6b9d', 'pink'], ['#2fc3d9', 'cyan']]
+
+function Accent({ value, onPick }: { value: string; onPick: (c: string) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {ACCENTS.map(([c, name]) => (
+        <button
+          key={c}
+          title={t(`settings.accents.${name}`)}
+          data-accent={c}
+          className={`h-6 w-6 rounded-full border-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,.25)] ${value.toLowerCase() === c ? 'border-text' : 'border-transparent'}`}
+          style={{ background: c }}
+          onClick={() => onPick(c)}
+        />
+      ))}
+      <input type="color" className="swatch-custom" title={t('settings.accentCustom')} value={value} onChange={e => onPick(e.target.value)} />
+    </div>
+  )
+}
+
 function Row({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-[18px] border-b border-line py-[13px]">
@@ -151,7 +173,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </button>
           ))}
           {!mobile && <div className="flex-1" />}
-          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog, sb: DEFAULTS.sb })}>
+          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, accent: DEFAULTS.accent, desk: DEFAULTS.desk, term: DEFAULTS.term, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog, sb: DEFAULTS.sb })}>
             {t('settings.reset')}
           </button>
         </div>
@@ -163,6 +185,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </Row>
             <Row label={t('settings.theme')}>
               <Seg value={s.theme} options={[['dark', t('settings.dark')], ['light', t('settings.light')]]} onPick={theme => setSettings({ theme })} />
+            </Row>
+            <Row label={t('settings.accent')} desc={t('settings.accentDesc')}>
+              <Accent value={s.accent} onPick={accent => setSettings({ accent })} />
+            </Row>
+            <Row label={t('settings.desk')}>
+              <Seg value={s.desk} options={[['gradient', t('settings.deskGradient')], ['dots', t('settings.deskDots')], ['plain', t('settings.deskPlain')]]} onPick={desk => setSettings({ desk })} />
             </Row>
             {!isRemote && (
               <Row label={t('settings.statusItems')}>
@@ -201,14 +229,24 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </Row>
           </>}
           {page === 'phone' && <PhonePage />}
-          {page === 'term' && (
+          {page === 'term' && <>
+            <Row label={t('settings.termScheme')}>
+              <Seg value={s.term} options={[['dark', t('settings.dark')], ['light', t('settings.light')], ['solarized', 'Solarized']]} onPick={term => setSettings({ term })} />
+            </Row>
             <Row label={t('settings.termSize')}>
               <div className="flex items-center gap-2.5">
                 <input type="range" min={11} max={18} step={1} value={s.termSize} className="w-40 accent-[var(--accent)]" onChange={e => setSettings({ termSize: +e.target.value })} />
                 <span className="font-mono text-[11.5px]">{s.termSize}px</span>
               </div>
             </Row>
-          )}
+            {/* 配色の見本。色は style.css の --term-* */}
+            <div className="mt-3.5 rounded-[10px] border border-line bg-term px-3.5 py-2.5 font-mono leading-[1.45] whitespace-pre-wrap text-term-fg" style={{ fontSize: s.termSize }} data-term-preview>
+              <div><span className="text-term-prompt">user@server:~$ </span><span className="text-term-strong">ls</span></div>
+              <div><span className="font-semibold text-term-dir">backups</span>  <span className="font-semibold text-term-dir">mc</span>  notes.txt  <span className="text-term-hl">mc-2026-10-24.tar.gz</span></div>
+              <div><span className="text-term-dim">[09:41:07 WARN]: </span><span className="text-term-warn">Can't keep up! Is the server overloaded?</span></div>
+              <div className="text-term-err">foo: command not found</div>
+            </div>
+          </>}
         </div>
       </div>
     </Modal>

@@ -318,7 +318,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
               ))}
             </div>
           )
-          : <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{view === 'files' ? t('files.title') : t('sessions.title')}</div>}
+          : view === 'sessions' && <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{t('sessions.title')}</div>}
         {/* ツリーの開き具合を残すため、隠すだけにする */}
         <div className={`flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
           <FileTree serverId={s.id} root={s.home} generation={s.gen} />

@@ -5,6 +5,9 @@ import i18n from './i18n'
 export type Settings = {
   lang: 'ja' | 'en'
   theme: 'dark' | 'light'
+  accent: string // #rrggbb
+  desk: 'gradient' | 'dots' | 'plain' // デスクトップの背景
+  term: 'dark' | 'light' | 'solarized' // ターミナルの配色
   termSize: number
   sidebarW: number
   terminalH: number
@@ -17,7 +20,7 @@ export type Settings = {
   sb: { uptime: boolean; cpu: boolean; mem: boolean; net: boolean }
 }
 
-export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
+export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', accent: '#5b9dff', desk: 'gradient', term: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
   autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'], snap: true, followLog: true,
   sb: { uptime: true, cpu: true, mem: true, net: true },
 }
@@ -37,6 +40,9 @@ const listeners = new Set<() => void>()
 
 function apply(s: Settings) {
   document.documentElement.dataset.theme = s.theme
+  document.documentElement.dataset.desk = s.desk
+  document.documentElement.dataset.term = s.term
+  document.documentElement.style.setProperty('--accent', s.accent)
   document.documentElement.lang = s.lang
   if (i18n.language !== s.lang) i18n.changeLanguage(s.lang)
 }

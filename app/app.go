@@ -483,7 +483,35 @@ func (a *App) TrashEntry(serverID, p string) (remote.TrashItem, error) {
 	if err != nil {
 		return remote.TrashItem{}, err
 	}
-	return s.Trash(p)
+	it, err := s.Trash(p)
+	if err == nil {
+		a.emit("trash:changed", serverID)
+	}
+	return it, err
+}
+
+// ゴミ箱に入れる・戻す・消すと、"trash:changed" (serverID) をすべての画面に送る。開いているゴミ箱の窓を読み直すため
+
+// TrashList はゴミ箱の中の一覧
+func (a *App) TrashList(serverID string) ([]remote.TrashEntry, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return nil, err
+	}
+	return s.TrashList()
+}
+
+// TrashDelete はゴミ箱の中のものを完全に削除する。names が空ならゴミ箱を空にする
+func (a *App) TrashDelete(serverID string, names []string) error {
+	s, err := a.server(serverID)
+	if err != nil {
+		return err
+	}
+	if err := s.TrashDelete(names); err != nil {
+		return err
+	}
+	a.emit("trash:changed", serverID)
+	return nil
 }
 
 func (a *App) RestoreEntry(serverID string, item remote.TrashItem) (string, error) {
@@ -491,7 +519,11 @@ func (a *App) RestoreEntry(serverID string, item remote.TrashItem) (string, erro
 	if err != nil {
 		return "", err
 	}
-	return s.Restore(item)
+	p, err := s.Restore(item)
+	if err == nil {
+		a.emit("trash:changed", serverID)
+	}
+	return p, err
 }
 
 // progress は送った量を "transfer:progress" (key, done, total) のイベントで送る。多すぎないよう 0.1 秒に1回まで

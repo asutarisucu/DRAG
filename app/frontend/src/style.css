@@ -19,6 +19,14 @@
   --warn: #f1b44c;
   --err: #ff6b6b;
   --term-bg: #0a0d11;
+  --term-fg: #cfd6e0;
+  --term-strong: #eef2f8;
+  --term-prompt: #3fcf8e;
+  --term-dim: #5c6779;
+  --term-dir: var(--accent);
+  --term-hl: #e5c07b;
+  --term-err: #ff6b6b;
+  --term-warn: #f1b44c;
   --desk: #0d1117;
   --win-bg: #0f1318;
   --bar-1: #1a2029;
@@ -57,6 +65,28 @@
   --shadow: 0 18px 50px rgba(20, 30, 50, .16), 0 2px 8px rgba(20, 30, 50, .1);
   color-scheme: light;
 }
+/* ターミナルの配色。ターミナル・エディター・ログの窓に効く。画面のテーマとは別に選ぶ */
+:root[data-term="light"] {
+  --term-bg: #fbfbfd;
+  --term-fg: #2b3240;
+  --term-strong: #0f1520;
+  --term-prompt: #18875a;
+  --term-dim: #8a93a3;
+  --term-hl: #946400;
+  --term-err: #c8302b;
+  --term-warn: #a86b00;
+}
+:root[data-term="solarized"] {
+  --term-bg: #002b36;
+  --term-fg: #93a1a1;
+  --term-strong: #eee8d5;
+  --term-prompt: #859900;
+  --term-dim: #586e75;
+  --term-dir: #268bd2;
+  --term-hl: #b58900;
+  --term-err: #dc322f;
+  --term-warn: #cb4b16;
+}
 :root[data-theme="light"] .f-dir { color: #c08a1e; }
 :root[data-theme="light"] .f-log { color: #1b86bd; }
 :root[data-theme="light"] .f-img { color: #9b51c9; }
@@ -81,6 +111,14 @@
   --color-warn: var(--warn);
   --color-err: var(--err);
   --color-term: var(--term-bg);
+  --color-term-fg: var(--term-fg);
+  --color-term-strong: var(--term-strong);
+  --color-term-prompt: var(--term-prompt);
+  --color-term-dim: var(--term-dim);
+  --color-term-dir: var(--term-dir);
+  --color-term-hl: var(--term-hl);
+  --color-term-err: var(--term-err);
+  --color-term-warn: var(--term-warn);
   --color-desk: var(--desk);
   --color-field: var(--field);
   --color-btn-hover: var(--btn-hover);
@@ -114,6 +152,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, white), color-mix(in srgb, var(--accent) 88%, white)); }
 .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
+.swatch-custom { width: 30px; height: 30px; padding: 2px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--field); cursor: pointer; }
+.swatch-custom::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch-custom::-webkit-color-swatch { border: 0; border-radius: 50%; }
+
 .desk-bg {
   background:
     radial-gradient(1100px 520px at 85% -10%, color-mix(in srgb, var(--accent-2) 16%, transparent), transparent 60%),
@@ -121,6 +163,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text) 5.5%, transparent) 1px, transparent 0) 0 0 / 22px 22px,
     var(--desk);
 }
+:root[data-desk="dots"] .desk-bg { background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 0) 0 0 / 22px 22px, var(--desk); }
+:root[data-desk="plain"] .desk-bg { background: var(--desk); }
 
 /* ファイルツリーの縦の線 */
 .tree-row::before {

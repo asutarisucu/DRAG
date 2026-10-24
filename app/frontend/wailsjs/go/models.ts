@@ -824,6 +824,24 @@ export namespace remote {
 	        this.locked = source["locked"];
 	    }
 	}
+	export class TrashEntry {
+	    name: string;
+	    from: string;
+	    deleted: number;
+	    dir: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrashEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.from = source["from"];
+	        this.deleted = source["deleted"];
+	        this.dir = source["dir"];
+	    }
+	}
 	export class TrashItem {
 	    name: string;
 	    from: string;

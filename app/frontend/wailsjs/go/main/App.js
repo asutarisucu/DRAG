@@ -222,8 +222,16 @@ export function Stat(arg1, arg2) {
   return window['go']['main']['App']['Stat'](arg1, arg2);
 }
 
+export function TrashDelete(arg1, arg2) {
+  return window['go']['main']['App']['TrashDelete'](arg1, arg2);
+}
+
 export function TrashEntry(arg1, arg2) {
   return window['go']['main']['App']['TrashEntry'](arg1, arg2);
+}
+
+export function TrashList(arg1) {
+  return window['go']['main']['App']['TrashList'](arg1);
 }
 
 export function Upload(arg1, arg2, arg3, arg4, arg5) {

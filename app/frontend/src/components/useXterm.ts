@@ -1,9 +1,26 @@
 import { useEffect, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useSettings, type Settings } from '../settings'
 
 export type TermSize = { cols: number; rows: number }
+
+// ターミナルの配色。背景と文字は style.css の --term-bg と --term-fg と同じ。ダークは 16 色を xterm.js のままにする
+const SCHEMES: Record<Settings['term'], ITheme> = {
+  dark: { background: '#0a0d11', foreground: '#cfd6e0' },
+  light: {
+    background: '#fbfbfd', foreground: '#2b3240',
+    black: '#2b3240', red: '#c8302b', green: '#18875a', yellow: '#946400', blue: '#1f6feb', magenta: '#8250df', cyan: '#17809f', white: '#8a93a3',
+    brightBlack: '#5c6779', brightRed: '#e5534b', brightGreen: '#1f9d6a', brightYellow: '#a86b00', brightBlue: '#3b82f6', brightMagenta: '#a371f7', brightCyan: '#1b95b8', brightWhite: '#b8c0cc',
+  },
+  solarized: {
+    background: '#002b36', foreground: '#93a1a1',
+    black: '#073642', red: '#dc322f', green: '#859900', yellow: '#b58900', blue: '#268bd2', magenta: '#d33682', cyan: '#2aa198', white: '#eee8d5',
+    brightBlack: '#002b36', brightRed: '#cb4b16', brightGreen: '#586e75', brightYellow: '#657b83', brightBlue: '#839496', brightMagenta: '#6c71c4', brightCyan: '#93a1a1', brightWhite: '#fdf6e3',
+  },
+}
+const themeOf = (s: Settings): ITheme => ({ ...SCHEMES[s.term], cursor: s.accent, selectionBackground: s.accent + '55' })
 
 // xterm.js の画面を host に開き、host の大きさに合わせ続ける。
 // fixed を渡したときは合わせず、その桁数と行数で描く。ほかの端末で開いているシェルを、その端末の幅のまま見るときに使う。
@@ -14,6 +31,8 @@ export function useXterm(host: React.RefObject<HTMLDivElement | null>, fontSize:
   const sizeRef = useRef(fontSize)
   const fixedRef = useRef(fixed)
   fixedRef.current = fixed
+  const settings = useSettings()
+  const themeRef = useRef(themeOf(settings))
 
   useEffect(() => {
     const el = host.current!
@@ -23,7 +42,7 @@ export function useXterm(host: React.RefObject<HTMLDivElement | null>, fontSize:
       lineHeight: 1.15,
       cursorBlink: true,
       scrollback: 5000,
-      theme: { background: '#0a0d11', foreground: '#cfd6e0', cursor: '#5b9dff', selectionBackground: '#5b9dff55' },
+      theme: themeRef.current,
       ...(fixedRef.current ?? {}),
     })
     const fit = new FitAddon()
@@ -82,6 +101,11 @@ export function useXterm(host: React.RefObject<HTMLDivElement | null>, fontSize:
   useEffect(() => {
     if (fixed) termRef.current?.resize(fixed.cols, fixed.rows)
   }, [fixed?.cols, fixed?.rows])
+
+  useEffect(() => {
+    themeRef.current = themeOf(settings)
+    if (termRef.current) termRef.current.options.theme = themeRef.current
+  }, [settings.term, settings.accent])
 
   useEffect(() => {
     sizeRef.current = fontSize

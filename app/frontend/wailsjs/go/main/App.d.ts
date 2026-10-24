@@ -115,6 +115,10 @@ export function ShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function Stat(arg1:string,arg2:string):Promise<remote.Props>;
 
+export function TrashDelete(arg1:string,arg2:Array<string>):Promise<void>;
+
 export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;
+
+export function TrashList(arg1:string):Promise<Array<remote.TrashEntry>>;
 
 export function Upload(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<string>;

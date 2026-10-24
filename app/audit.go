@@ -55,6 +55,15 @@ func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
 			json.Unmarshal(raw[1], &it)
 		}
 		return []string{fmt.Sprintf("元に戻す %s", it.From)}
+	case "TrashDelete":
+		var names []string
+		if len(raw) > 1 {
+			json.Unmarshal(raw[1], &names)
+		}
+		if len(names) == 0 {
+			return []string{"ゴミ箱を空にする"}
+		}
+		return []string{"ゴミ箱から完全に削除 " + strings.Join(names, ", ")}
 	case "SaveText":
 		return []string{fmt.Sprintf("保存 %s", arg(1))}
 	case "EnableSudo":

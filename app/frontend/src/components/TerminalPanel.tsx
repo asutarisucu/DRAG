@@ -271,6 +271,8 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
             <span className="text-[11px] whitespace-nowrap text-muted">{mobile ? t('desktop.chipHintMobile') : t('desktop.chipHint')}</span>
           </div>
         )}
+        <div className="flex-1" />
+        <button className="grid h-[26px] w-[26px] flex-none place-items-center rounded-md text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text" title={t('terminal.clear')} onClick={() => termRef.current?.clear()}><Icon name="eraser" /></button>
       </div>
       <div ref={host} className="min-h-0 flex-1" />
       {mobile && <ExtraKeys ctrl={ctrl} onCtrl={() => setCtrl(!ctrl)} onKey={seq => termRef.current?.input(seq, false)} arrow={k => (termRef.current?.modes.applicationCursorKeysMode ? '\x1bO' : '\x1b[') + k} />}

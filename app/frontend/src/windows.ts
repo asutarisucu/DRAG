@@ -6,7 +6,7 @@ export type Rect = { x: number; y: number; w: number; h: number }
 export type Win = {
   id: string
   serverId: string
-  kind: 'session' | 'terminal' | 'editor' | 'log' | 'image' | 'archive' | 'monitor' | 'services' | 'docker'
+  kind: 'session' | 'terminal' | 'editor' | 'log' | 'image' | 'archive' | 'monitor' | 'services' | 'docker' | 'trash'
   path?: string // ファイルのウィンドウで開いているファイル
   title: string
   icon: IconName
