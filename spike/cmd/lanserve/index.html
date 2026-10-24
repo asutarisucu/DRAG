@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRAG 検証 LAN の待ち受け</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css">
+<style>
+  html, body { margin: 0; background: #0c0f13; color: #d7dee9; font: 13px system-ui, sans-serif; }
+  #checks { margin: 0; padding: 8px 12px; border-bottom: 1px solid #303a48; list-style: none; display: grid; gap: 2px; }
+  .ok { color: #3fb97a; } .ng { color: #f06c6c; }
+  /* ターミナルは PC の幅のまま描き、はみ出した分を横にスクロールさせる */
+  #wrap { overflow-x: auto; overflow-y: hidden; }
+  #term { display: inline-block; }
+</style>
+</head>
+<body>
+<ul id="checks"></ul>
+<div id="wrap"><div id="term"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js"></script>
+<script>
+  const report = { ua: navigator.userAgent, t0: performance.now() };
+  const list = document.getElementById('checks');
+  const mark = (key, ok, text) => {
+    report[key] = ok;
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="${ok ? 'ok' : 'ng'}">${ok ? 'OK' : 'NG'}</span> ${text}`;
+    list.append(li);
+  };
+  const send = () => fetch('/report', { method: 'POST', body: JSON.stringify(report) }).catch(() => {});
+
+  // このページは cookie の合言葉が合ったときだけ返る
+  mark('cookie', true, 'cookie で入れた');
+  mark('secure', window.isSecureContext, `isSecureContext ${window.isSecureContext}`);
+  mark('subtle', !!(window.crypto && crypto.subtle), 'crypto.subtle がある');
+  mark('clipboard', !!(navigator.clipboard && navigator.clipboard.writeText), 'navigator.clipboard がある');
+  let ls = false;
+  try { localStorage.setItem('drag-check', '1'); ls = localStorage.getItem('drag-check') === '1'; } catch { }
+  mark('localStorage', ls, 'localStorage に書ける');
+
+  const cols = 120, rows = 30;
+  const term = new Terminal({ cols, rows, fontSize: 13, scrollback: 5000 });
+  term.open(document.getElementById('term'));
+
+  const ws = new WebSocket(`wss://${location.host}/ws?cols=${cols}&rows=${rows}`);
+  ws.binaryType = 'arraybuffer';
+  let first = true;
+  ws.onopen = () => { report.wsOpenMs = Math.round(performance.now() - report.t0); mark('ws', true, `WebSocket がつながった ${report.wsOpenMs} ms`); };
+  ws.onmessage = e => {
+    if (first) {
+      first = false;
+      report.firstOutputMs = Math.round(performance.now() - report.t0);
+      mark('output', true, `シェルの出力が届いた ${report.firstOutputMs} ms`);
+      send();
+    }
+    term.write(new Uint8Array(e.data));
+  };
+  ws.onclose = e => { report.wsClose = `${e.code} ${e.reason}`; if (first) { mark('ws', false, `WebSocket が閉じた ${e.code}`); send(); } };
+  const enc = new TextEncoder();
+  term.onData(d => { if (ws.readyState === 1) ws.send(enc.encode(d)); });
+
+  // xterm.js 6.0.0 はタッチでスクロールバックを動かさない。
+  // 縦に動かしたときだけ受け取って行を送る。横は wrap の横スクロールに任せる
+  const el = document.getElementById('term');
+  let touch = null;
+  el.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    touch = { x: t.clientX, y: t.clientY, dir: null, rest: 0 };
+  }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (!touch || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if (!touch.dir) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      touch.dir = Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+    }
+    if (touch.dir !== 'y') return;
+    e.preventDefault();
+    const rowH = document.querySelector('.xterm-screen').clientHeight / term.rows;
+    touch.rest += touch.y - t.clientY;
+    const n = Math.trunc(touch.rest / rowH);
+    if (n) { term.scrollLines(n); touch.rest -= n * rowH; }
+    touch.x = t.clientX; touch.y = t.clientY;
+  }, { passive: false });
+  el.addEventListener('touchend', () => { touch = null; });
+</script>
+</body>
+</html>
