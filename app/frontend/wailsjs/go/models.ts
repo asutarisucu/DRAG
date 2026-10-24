@@ -21,6 +21,22 @@ export namespace archive {
 
 export namespace main {
 	
+	export class AgentPairing {
+	    url: string;
+	    expires: number;
+	    route: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AgentPairing(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.expires = source["expires"];
+	        this.route = source["route"];
+	    }
+	}
 	export class ArchiveInfo {
 	    id: string;
 	    entries: archive.Entry[];
@@ -599,6 +615,26 @@ export namespace remote {
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
 	        this.locked = source["locked"];
+	    }
+	}
+	export class ExecResult {
+	    stdout: string;
+	    stderr: string;
+	    code: number;
+	    timedOut: boolean;
+	    truncated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExecResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.stdout = source["stdout"];
+	        this.stderr = source["stderr"];
+	        this.code = source["code"];
+	        this.timedOut = source["timedOut"];
+	        this.truncated = source["truncated"];
 	    }
 	}
 	export class Iface {

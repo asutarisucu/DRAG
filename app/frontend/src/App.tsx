@@ -59,6 +59,8 @@ export default function App() {
     setActive(a => activate || !a ? c.id : a)
   }
   useEffect(() => EventsOn('server:opened', (c: Connected) => addServer(c, false)), [])
+  // AI エージェントがスマホの登録 URL を出したら知らせる。出したことはスマホの履歴にも残る
+  useEffect(() => EventsOn('agent:pair', (route: string) => toast(t('pair.agentIssued', { route: t(`pair.routes.${route}`) }), 'warn')), [t])
   useEffect(() => EventsOn('server:removed', (id: string) => {
     setServers(list => {
       const rest = list.filter(s => s.id !== id)

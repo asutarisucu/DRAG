@@ -147,7 +147,8 @@ const ja = {
     history: 'ログインと操作の履歴',
     off: 'スマホの待ち受けが OFF です。設定の「スマホ」で ON にしてください',
     routes: { lan: 'LAN 内', public: '外から' },
-    kinds: { pair: '登録', login: 'ログイン', 'pair-failed': '使えない QR コード', denied: '登録していない端末', op: '操作' },
+    kinds: { pair: '登録', login: 'ログイン', 'pair-failed': '使えない QR コード', denied: '登録していない端末', op: '操作', agent: 'エージェント' },
+    agentIssued: 'AI エージェントが、スマホの登録 URL ({{route}}) を出しました',
   },
   tools: {
     monitor: 'リソース監視',

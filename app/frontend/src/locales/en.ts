@@ -148,7 +148,8 @@ const en: Messages = {
     history: 'Logins and actions',
     off: 'Phone access is off. Turn it on in Settings > Phone',
     routes: { lan: 'LAN', public: 'Internet' },
-    kinds: { pair: 'Registered', login: 'Login', 'pair-failed': 'Unusable QR code', denied: 'Unregistered device', op: 'Action' },
+    kinds: { pair: 'Registered', login: 'Login', 'pair-failed': 'Unusable QR code', denied: 'Unregistered device', op: 'Action', agent: 'Agent' },
+    agentIssued: 'An AI agent issued a phone pairing URL ({{route}})',
   },
   tools: {
     monitor: 'Resource monitor',

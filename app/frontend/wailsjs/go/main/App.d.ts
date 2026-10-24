@@ -5,6 +5,8 @@ import {remote} from '../models';
 import {store} from '../models';
 import {phone} from '../models';
 
+export function AgentPair(arg1:string):Promise<main.AgentPairing>;
+
 export function ArchiveClose(arg1:string):Promise<void>;
 
 export function ArchiveOpen(arg1:string,arg2:string):Promise<main.ArchiveInfo>;
@@ -36,6 +38,8 @@ export function DockerVolumeSizes(arg1:string):Promise<Record<string, string>>;
 export function Download(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function EnableSudo(arg1:string,arg2:string):Promise<void>;
+
+export function Exec(arg1:string,arg2:string,arg3:number):Promise<remote.ExecResult>;
 
 export function History(arg1:string,arg2:string):Promise<Array<store.Point>>;
 
@@ -126,3 +130,5 @@ export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;
 export function TrashList(arg1:string):Promise<Array<remote.TrashEntry>>;
 
 export function Upload(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<string>;
+
+export function WriteText(arg1:string,arg2:string,arg3:string):Promise<void>;

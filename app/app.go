@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"maps"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -33,7 +34,8 @@ type core struct {
 	ctx   context.Context
 	saved *store.Servers
 	phone *phone.Server
-	tray  *tray // 通知領域に置かないときは nil
+	tray  *tray        // 通知領域に置かないときは nil
+	agent *http.Server // AI エージェントの窓口。開けなかったときは nil
 
 	mu      sync.Mutex
 	next    int
@@ -70,11 +72,13 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.startPhone()
+	a.startAgent()
 	a.startTray()
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	a.stopTray()
+	a.stopAgent()
 	a.phone.Stop()
 	a.closeFiles()
 	a.mu.Lock()

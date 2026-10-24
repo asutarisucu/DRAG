@@ -125,7 +125,7 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
                 <div key={i} className="grid grid-cols-[90px_minmax(0,1fr)_minmax(0,auto)_auto] gap-2.5" data-kind={h.kind}>
                   <span className="font-mono">{when(h.time)}</span>
                   <span className="truncate">{h.device || '—'}</span>
-                  {h.kind === 'op'
+                  {h.kind === 'op' || h.kind === 'agent'
                     ? <span className="truncate font-mono" title={h.what}>{h.what}</span>
                     : <span className="font-mono text-muted">{h.ip}</span>}
                   <span className={h.kind === 'denied' || h.kind === 'pair-failed' ? 'text-warn' : 'text-muted'}>{kindLabel(h.kind)}</span>

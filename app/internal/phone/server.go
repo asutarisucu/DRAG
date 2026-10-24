@@ -366,6 +366,12 @@ func (s *Server) Record(dev Device, what string) {
 	s.changed()
 }
 
+// Note は、スマホ以外 (AI エージェントなど) の操作をスマホの履歴に残す
+func (s *Server) Note(kind, route, what string) {
+	s.devs.log(Login{Time: time.Now(), Kind: kind, Device: "AI エージェント", Route: route, What: what})
+	s.changed()
+}
+
 // Revoke は端末を無効にし、その端末の画面を切る
 func (s *Server) Revoke(id string) error {
 	if err := s.devs.remove(id); err != nil {

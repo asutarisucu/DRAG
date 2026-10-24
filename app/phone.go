@@ -109,7 +109,28 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 	if !phoneMethods[method] {
 		return nil, fmt.Errorf("スマホからは使えません: %s", method)
 	}
-	m := reflect.ValueOf(&App{core: a.core, dev: dev.ID}).MethodByName(method)
+	// 打っている途中の行は、呼び出しの前に組み立てておく
+	lines := audit(dev, method, raw)
+	res, err := invoke(&App{core: a.core, dev: dev.ID}, method, raw)
+	if err != nil {
+		return nil, err
+	}
+	if r, ok := res.(ConnectResult); ok && r.Error != "" {
+		return res, nil
+	}
+	for _, l := range lines {
+		a.phone.Record(dev, l)
+	}
+	return res, nil
+}
+
+// invoke は、target のメソッドを JSON の引数で呼ぶ。引数の数と型が合わなければ呼ばない。
+// 戻り値は Wails と同じく、なし・値・error・値と error のどれか
+func invoke(target *App, method string, raw []json.RawMessage) (any, error) {
+	m := reflect.ValueOf(target).MethodByName(method)
+	if !m.IsValid() {
+		return nil, fmt.Errorf("%s というメソッドはありません", method)
+	}
 	t := m.Type()
 	if t.NumIn() != len(raw) {
 		return nil, fmt.Errorf("%s の引数の数が違います", method)
@@ -122,12 +143,8 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 		}
 		in[i] = v.Elem()
 	}
-	// 打っている途中の行は、呼び出しの前に組み立てておく
-	lines := audit(dev, method, raw)
-	out := m.Call(in)
-	// 戻り値は Wails と同じく、なし・値・error・値と error のどれか
 	var res any
-	for _, o := range out {
+	for _, o := range m.Call(in) {
 		if o.Type() == reflect.TypeFor[error]() {
 			if !o.IsNil() {
 				return nil, o.Interface().(error)
@@ -135,12 +152,6 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 			continue
 		}
 		res = o.Interface()
-	}
-	if r, ok := res.(ConnectResult); ok && r.Error != "" {
-		return res, nil
-	}
-	for _, l := range lines {
-		a.phone.Record(dev, l)
 	}
 	return res, nil
 }
