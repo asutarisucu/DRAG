@@ -24,17 +24,22 @@ import (
 	"golang.org/x/crypto/acme"
 )
 
-// 直接公開。ルーターのポート転送で PC の待ち受けを外に出し、Let's Encrypt の IP アドレスの証明書で HTTPS にする。
-// 証明書は shortlived (160 時間) なので、残りが半分を切ったら取り直す。グローバル IP が変わったら、その IP で取り直す
+// 直接公開。ルーターのポート転送で PC の待ち受けを外に出し、Let's Encrypt の証明書で HTTPS にする。
+// 証明書は IP アドレスか自分のドメイン。IP アドレスは shortlived (160 時間) で、グローバル IP が変わったらその IP で取り直す。
+// ドメインは DNS-01 で、DNS サービスの API で TXT レコードを置いて取る。どちらも有効期間の残りが半分を切ったら取り直す
 
 // LetsEncrypt は Let's Encrypt の本番のディレクトリ
 const LetsEncrypt = "https://acme-v02.api.letsencrypt.org/directory"
 
-// ipCert は IP アドレスの証明書を取り、待ち受けに出す
-type ipCert struct {
+// pubCert は直接公開の証明書を取り、待ち受けに出す
+type pubCert struct {
 	client   *acme.Client
-	port     int    // 外から入る待ち受けのポート。443 なら TLS-ALPN-01、ほかは httpAddr で HTTP-01 を使う
+	port     int    // 外から入る待ち受けのポート。IP アドレスなら、443 は TLS-ALPN-01、ほかは httpAddr で HTTP-01 を使う
 	httpAddr string // HTTP-01 の検証のときだけ待ち受けるアドレス。ふつうは :80
+	// 自分のドメインの証明書を DNS-01 で取るときの DNS サービス。nil なら IP アドレスの証明書
+	dns DNSProvider
+	// TXT レコードを置いてから、Let's Encrypt に確かめてもらうまでに待つ時間
+	dnsWait time.Duration
 
 	mu   sync.Mutex
 	chal *tls.Certificate  // TLS-ALPN-01 の検証の接続に出す証明書。検証の間だけ持つ
@@ -65,7 +70,7 @@ func loadAccountKey(path string) (*ecdsa.PrivateKey, error) {
 	return key, os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0o600)
 }
 
-func newIPCert(ctx context.Context, dirURL, keyPath string, port int, httpAddr string, hc *http.Client) (*ipCert, error) {
+func newPubCert(ctx context.Context, dirURL, keyPath string, port int, httpAddr string, hc *http.Client) (*pubCert, error) {
 	key, err := loadAccountKey(keyPath)
 	if err != nil {
 		return nil, err
@@ -74,12 +79,12 @@ func newIPCert(ctx context.Context, dirURL, keyPath string, port int, httpAddr s
 	if _, err := c.Register(ctx, &acme.Account{}, acme.AcceptTOS); err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
 		return nil, err
 	}
-	return &ipCert{client: c, port: port, httpAddr: httpAddr, http: map[string]string{}}, nil
+	return &pubCert{client: c, port: port, httpAddr: httpAddr, http: map[string]string{}}, nil
 }
 
 // getCertificate は tls.Config.GetCertificate に渡す。
 // IP アドレスには SNI が付かないので、名前ではなく ALPN で検証の接続かどうかを見分ける
-func (m *ipCert) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (m *pubCert) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if slices.Contains(hello.SupportedProtos, acme.ALPNProto) {
 		m.mu.Lock()
 		c := m.chal
@@ -95,15 +100,17 @@ func (m *ipCert) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, e
 	return nil, errors.New("まだ証明書がありません")
 }
 
-// obtain は ip の証明書を1枚取り、待ち受けに出す証明書を差し替える
-func (m *ipCert) obtain(ctx context.Context, ip string) error {
-	o, err := m.client.AuthorizeOrder(ctx, acme.IPIDs(ip), acme.WithOrderIssuanceProfile("shortlived"))
+// obtain は証明書を1枚取り、待ち受けに出す証明書を差し替える。dns があれば id はドメイン、なければ IP アドレス
+func (m *pubCert) obtain(ctx context.Context, id string) error {
+	ids, opts, kind := acme.IPIDs(id), []acme.OrderOption{acme.WithOrderIssuanceProfile("shortlived")}, "tls-alpn-01"
+	if m.dns != nil {
+		ids, opts, kind = acme.DomainIDs(id), nil, "dns-01"
+	} else if m.port != 443 {
+		kind = "http-01"
+	}
+	o, err := m.client.AuthorizeOrder(ctx, ids, opts...)
 	if err != nil {
 		return err
-	}
-	kind := "tls-alpn-01"
-	if m.port != 443 {
-		kind = "http-01"
 	}
 	for _, u := range o.AuthzURLs {
 		a, err := m.client.GetAuthorization(ctx, u)
@@ -122,7 +129,7 @@ func (m *ipCert) obtain(ctx context.Context, ip string) error {
 		if chal == nil {
 			return fmt.Errorf("%s の検証がありません", kind)
 		}
-		stop, err := m.prepare(chal, ip)
+		stop, err := m.prepare(ctx, chal, id)
 		if err != nil {
 			return err
 		}
@@ -133,11 +140,13 @@ func (m *ipCert) obtain(ctx context.Context, ip string) error {
 		_, err = m.client.WaitAuthorization(ctx, u)
 		stop()
 		if err != nil {
-			p := "80"
-			if kind == "tls-alpn-01" {
-				p = "443"
+			switch kind {
+			case "dns-01":
+				return fmt.Errorf("Let's Encrypt が _acme-challenge.%s の TXT レコードを確かめられません: %w", id, err)
+			case "tls-alpn-01":
+				return fmt.Errorf("Let's Encrypt から %s:443 に届きません。ルーターのポート転送を確かめてください: %w", id, err)
 			}
-			return fmt.Errorf("Let's Encrypt から %s:%s に届きません。ルーターのポート転送を確かめてください: %w", ip, p, err)
+			return fmt.Errorf("Let's Encrypt から %s:80 に届きません。ルーターのポート転送を確かめてください: %w", id, err)
 		}
 	}
 	// 待ったあとの注文には URL が入らない (Location が無い) ので、最初の注文の URL を付け直す。
@@ -151,7 +160,11 @@ func (m *ipCert) obtain(ctx context.Context, ip string) error {
 	if err != nil {
 		return err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{IPAddresses: []net.IP{net.ParseIP(ip)}}, key)
+	req := &x509.CertificateRequest{IPAddresses: []net.IP{net.ParseIP(id)}}
+	if m.dns != nil {
+		req = &x509.CertificateRequest{DNSNames: []string{id}}
+	}
+	csr, err := x509.CreateCertificateRequest(rand.Reader, req, key)
 	if err != nil {
 		return err
 	}
@@ -168,8 +181,27 @@ func (m *ipCert) obtain(ctx context.Context, ip string) error {
 }
 
 // prepare は検証に応える用意をし、片付ける関数を返す。
-// TLS-ALPN-01 は待ち受けの getCertificate で応え、HTTP-01 は検証の間だけ 80 番で待ち受ける
-func (m *ipCert) prepare(chal *acme.Challenge, ip string) (func(), error) {
+// TLS-ALPN-01 は待ち受けの getCertificate で応え、HTTP-01 は検証の間だけ 80 番で待ち受ける。
+// DNS-01 は DNS サービスに TXT レコードを置き、DNS に出るまで少し待つ
+func (m *pubCert) prepare(ctx context.Context, chal *acme.Challenge, id string) (func(), error) {
+	if chal.Type == "dns-01" {
+		v, err := m.client.DNS01ChallengeRecord(chal.Token)
+		if err != nil {
+			return nil, err
+		}
+		remove, err := m.dns.SetTXT(ctx, "_acme-challenge."+id, v)
+		if err != nil {
+			return nil, err
+		}
+		select {
+		case <-time.After(m.dnsWait):
+		case <-ctx.Done():
+			remove()
+			return nil, ctx.Err()
+		}
+		return remove, nil
+	}
+	ip := id
 	if chal.Type == "tls-alpn-01" {
 		cert, err := m.client.TLSALPN01ChallengeCert(chal.Token, ip)
 		if err != nil {
@@ -205,7 +237,7 @@ func (m *ipCert) prepare(chal *acme.Challenge, ip string) (func(), error) {
 }
 
 // until は今の証明書の期限。まだ無ければ時刻のゼロ
-func (m *ipCert) until() time.Time {
+func (m *pubCert) until() time.Time {
 	if c := m.cur.Load(); c != nil && c.Leaf != nil {
 		return c.Leaf.NotAfter
 	}
@@ -213,7 +245,7 @@ func (m *ipCert) until() time.Time {
 }
 
 // needRenew は、証明書が無いか、有効期間の残りが半分を切ったか
-func (m *ipCert) needRenew(now time.Time) bool {
+func (m *pubCert) needRenew(now time.Time) bool {
 	c := m.cur.Load()
 	if c == nil || c.Leaf == nil {
 		return true

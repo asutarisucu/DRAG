@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	"rsc.io/qr"
 
 	"github.com/asutarisucu/DRAG/app/internal/phone"
+	"github.com/asutarisucu/DRAG/app/internal/secret"
 )
 
 // スマホの待ち受け。スマホの画面は PC アプリと同じものを出し、Go の呼び出しは WebSocket で受ける
@@ -44,6 +46,10 @@ type PhoneSettings struct {
 	// 直接公開。ルーターで PublicPort を PC へ転送しておく
 	Public     bool `json:"public"`
 	PublicPort int  `json:"publicPort"`
+	// 直接公開の証明書。"domain" なら Domain の証明書を Cloudflare の DNS で取る。ほか (空も) は IP アドレスの証明書。
+	// Cloudflare の API トークンは、ここではなく cloudflare.token に暗号化して置く
+	Cert   string `json:"cert"`
+	Domain string `json:"domain"`
 }
 
 func phoneSettingsPath() string { return filepath.Join(configDir(), "phone.json") }
@@ -79,6 +85,49 @@ func phoneAddr(ps PhoneSettings) string {
 	return ":" + strconv.Itoa(ps.Port)
 }
 
+func cfTokenPath() string { return filepath.Join(configDir(), "cloudflare.token") }
+
+// loadCFToken は保存した Cloudflare の API トークン。無ければ空
+func loadCFToken() string {
+	b, err := os.ReadFile(cfTokenPath())
+	if err != nil {
+		return ""
+	}
+	tok, err := secret.Unprotect(b)
+	if err != nil {
+		return ""
+	}
+	return string(tok)
+}
+
+func saveCFToken(tok string) error {
+	b, err := secret.Protect([]byte(tok))
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(configDir(), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(cfTokenPath(), b, 0o600)
+}
+
+// publicConfig は直接公開の待ち受けの設定。自分のドメインなら Cloudflare で TXT レコードを置く
+func publicConfig(ps PhoneSettings) (phone.PublicConfig, error) {
+	cfg := phone.PublicConfig{Port: ps.PublicPort}
+	if ps.Cert != "domain" {
+		return cfg, nil
+	}
+	tok := loadCFToken()
+	if tok == "" {
+		return cfg, errors.New("Cloudflare の API トークンがありません")
+	}
+	cfg.Domain, cfg.DNS = ps.Domain, &phone.Cloudflare{Token: tok}
+	return cfg, nil
+}
+
+// domainRe は証明書を取れるドメインの形。英小文字・数字・ハイフンのラベルを2つ以上、ドットでつなぐ
+var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$`)
+
 func (a *App) startPhone() {
 	dist, _ := fs.Sub(assets, "frontend/dist")
 	// 試すときは、組み込んだものではなくフォルダの画面を出す。画面だけを作り直せば、スマホの側に出る
@@ -98,7 +147,11 @@ func (a *App) startPhone() {
 		}
 	}
 	if ps.Public {
-		if err := a.phone.StartPublic(phone.PublicConfig{Port: ps.PublicPort}); err != nil {
+		cfg, err := publicConfig(ps)
+		if err == nil {
+			err = a.phone.StartPublic(cfg)
+		}
+		if err != nil {
 			runtime.LogWarningf(a.ctx, "直接公開の待ち受けを始められません: %v", err)
 		}
 	}
@@ -150,10 +203,12 @@ type PhoneState struct {
 	Settings PhoneSettings `json:"settings"`
 	Status   phone.Status  `json:"status"` // LAN 内
 	Public   phone.Status  `json:"public"` // 直接公開
+	// Cloudflare の API トークンを保存してあるか。トークンそのものは画面に渡さない
+	HasToken bool `json:"hasToken"`
 }
 
 func (a *App) PhoneState() PhoneState {
-	return PhoneState{Settings: loadPhoneSettings(), Status: a.phone.Status(phone.RouteLAN), Public: a.phone.Status(phone.RoutePublic)}
+	return PhoneState{Settings: loadPhoneSettings(), Status: a.phone.Status(phone.RouteLAN), Public: a.phone.Status(phone.RoutePublic), HasToken: loadCFToken() != ""}
 }
 
 // SetPhoneLAN は LAN での待ち受けを切り替え、設定に書く
@@ -185,9 +240,49 @@ func (a *App) SetPhonePublic(on bool, port int) (PhoneState, error) {
 	}
 	var err error
 	if on {
-		err = a.phone.StartPublic(phone.PublicConfig{Port: port})
+		var cfg phone.PublicConfig
+		if cfg, err = publicConfig(ps); err == nil {
+			err = a.phone.StartPublic(cfg)
+		}
 	} else {
 		a.phone.StopRoute(phone.RoutePublic)
+	}
+	return a.PhoneState(), err
+}
+
+// SetPhoneCert は直接公開の証明書の取り方を変える。kind は "ip" か "domain"。
+// "domain" のときは、domain の証明書を Cloudflare の DNS で取る。token が空なら前に保存したトークンを使う。
+// 公開しているなら、新しい取り方で取り直す
+func (a *App) SetPhoneCert(kind, domain, token string) (PhoneState, error) {
+	ps := loadPhoneSettings()
+	domain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(domain), "."))
+	token = strings.TrimSpace(token)
+	if kind == "domain" {
+		if len(domain) > 253 || !domainRe.MatchString(domain) {
+			return a.PhoneState(), errors.New("ドメインの形が違います")
+		}
+		if token == "" && loadCFToken() == "" {
+			return a.PhoneState(), errors.New("Cloudflare の API トークンを入れてください")
+		}
+		if token != "" {
+			if err := saveCFToken(token); err != nil {
+				return a.PhoneState(), err
+			}
+		}
+		ps.Domain = domain
+	} else {
+		kind = "ip"
+	}
+	ps.Cert = kind
+	if err := savePhoneSettings(ps); err != nil {
+		return a.PhoneState(), err
+	}
+	var err error
+	if ps.Public {
+		var cfg phone.PublicConfig
+		if cfg, err = publicConfig(ps); err == nil {
+			err = a.phone.StartPublic(cfg)
+		}
 	}
 	return a.PhoneState(), err
 }

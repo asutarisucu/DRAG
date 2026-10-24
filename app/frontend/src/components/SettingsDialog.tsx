@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { PhoneState, SetPhoneLAN, SetPhonePublic } from '../../wailsjs/go/main/App'
+import { PhoneState, SetPhoneCert, SetPhoneLAN, SetPhonePublic } from '../../wailsjs/go/main/App'
 import type { main } from '../../wailsjs/go/models'
 import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
@@ -108,9 +108,18 @@ function PhonePage() {
   const [st, setSt] = useState<main.PhoneState | null>(null)
   const [error, setError] = useState('')
   const [port, setPort] = useState('')
+  // 自分のドメインの証明書の入力。保存するまでは kind だけを変えて入力欄を出す
+  const [kind, setKind] = useState<'ip' | 'domain' | ''>('')
+  const [domain, setDomain] = useState('')
+  const [token, setToken] = useState('')
+  const [certError, setCertError] = useState('')
   // 証明書を取り終えたら、期限を出し直す
   useEffect(() => {
-    const load = () => PhoneState().then(s => { setSt(s); setPort(p => p || String(s.settings.publicPort)) })
+    const load = () => PhoneState().then(s => {
+      setSt(s)
+      setPort(p => p || String(s.settings.publicPort))
+      setDomain(d => d || s.settings.domain)
+    })
     load()
     return EventsOn('phone:changed', load)
   }, [])
@@ -120,10 +129,22 @@ function PhonePage() {
   const desc = [st.status.url || `:${st.settings.port}`, t('settings.selfSigned')].join(' · ')
   const pub = st.public
   const until = pub.certUntil ? new Date(pub.certUntil) : null
+  const saved = st.settings.cert === 'domain' ? 'domain' : 'ip'
+  const shown = kind || saved
   const certDesc = !st.settings.public ? t('settings.certOff')
     : pub.error ? pub.error
       : pub.pending || !until ? t('settings.certPending')
-        : t('settings.certIP', { url: pub.url, until: `${until.getMonth() + 1}/${until.getDate()}` })
+        : t(saved === 'domain' ? 'settings.certDomain' : 'settings.certIP', { url: pub.url, until: `${until.getMonth() + 1}/${until.getDate()}` })
+  const pickKind = (k: 'ip' | 'domain') => {
+    setKind(k)
+    setCertError('')
+    if (k === 'ip' && saved !== 'ip') SetPhoneCert('ip', st.settings.domain, '').then(done, failed)
+  }
+  const saveDomain = () => SetPhoneCert('domain', domain, token).then(s => {
+    done(s)
+    setToken('')
+    setCertError('')
+  }, e => setCertError(String(e).replace(/^Error: /, '')))
   const applyPort = () => {
     const n = Number(port)
     if (n === st.settings.publicPort) return
@@ -137,7 +158,7 @@ function PhonePage() {
       <Row label={t('settings.phonePublic')} desc={t('settings.phonePublicDesc')}>
         <Switch on={st.settings.public} onChange={on => SetPhonePublic(on, Number(port) || st.settings.publicPort).then(done, failed)} />
       </Row>
-      <Row label={t('settings.publicPort')} desc={t('settings.publicPortDesc')}>
+      <Row label={t('settings.publicPort')} desc={t(shown === 'domain' ? 'settings.publicPortDomain' : 'settings.publicPortDesc')}>
         <input
           className="field h-8 w-[100px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
           inputMode="numeric"
@@ -148,8 +169,34 @@ function PhonePage() {
         />
       </Row>
       <Row label={t('settings.cert')} desc={certDesc}>
-        <span className="text-[12px] text-muted">{t('settings.certKind')}</span>
+        <Seg value={shown} options={[['ip', t('settings.certKind')], ['domain', t('settings.certDomainKind')]]} onPick={pickKind} />
       </Row>
+      {shown === 'domain' && (
+        <div className="grid gap-2 border-b border-line pt-1 pb-[13px]" data-cert-domain>
+          <input
+            className="field h-8 rounded-lg border border-line-strong bg-field px-2.5 font-mono text-text outline-none"
+            placeholder="drag.example.com"
+            spellCheck={false}
+            value={domain}
+            onChange={e => setDomain(e.target.value)}
+          />
+          <input
+            className="field h-8 rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+            type="password"
+            placeholder={st.hasToken ? t('settings.cfTokenSaved') : t('settings.cfToken')}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveDomain() }}
+          />
+          <div className="flex items-center gap-3">
+            <span className="flex-1 text-[11.5px] text-muted">{certError || t('settings.cfTokenHint')}</span>
+            <button className="btn-primary h-8 flex-none rounded-lg px-3.5 text-[12.5px]" onClick={saveDomain}>
+              {st.settings.public ? t('settings.certSave') : t('settings.certSaveOnly')}
+            </button>
+          </div>
+          {saved === 'domain' && pub.warn && <div className="text-[11.5px] text-warn">{pub.warn}</div>}
+        </div>
+      )}
     </>
   )
 }
