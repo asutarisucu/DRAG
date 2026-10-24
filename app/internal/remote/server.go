@@ -157,8 +157,38 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 	return &Server{cfg: cfg, ssh: sc, sftp: fc}, nil
 }
 
-// Wait は接続が切れるまで待つ
-func (s *Server) Wait() error {
+// Wait は接続が切れるまで待つ。
+// 回線が黙って切れたときも気づけるように、interval ごとに keepalive を送り、timeout までに返事がなければ閉じる
+func (s *Server) Wait(interval, timeout time.Duration) error {
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, _, err := s.ssh.SendRequest("keepalive@openssh.com", true, nil)
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if err == nil {
+					continue
+				}
+			case <-time.After(timeout):
+			case <-stop:
+				return
+			}
+			s.ssh.Close()
+			return
+		}
+	}()
 	return s.ssh.Wait()
 }
 

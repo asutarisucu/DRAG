@@ -1,112 +1,210 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Connect } from '../../wailsjs/go/main/App'
-import { main } from '../../wailsjs/go/models'
+import { Connect, Disconnect, Probe, SavedServers } from '../../wailsjs/go/main/App'
+import { main, remote, store } from '../../wailsjs/go/models'
 import { Icon } from './Icon'
+import { Modal } from './Modal'
 
-export type Connected = { id: string; home: string; name: string; user: string; host: string }
+export type Connected = { id: string; home: string; name: string; user: string; host: string; info: remote.Info }
 
 const input = 'field h-8 w-full rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none'
 const label = 'mb-1.5 block text-[12px] text-muted'
+const btn = 'h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover'
 
-// サーバーに接続するダイアログ。初めてのサーバーでは、鍵の指紋を見せて確かめてもらう
-export function ConnectDialog({ onClose, onConnected }: { onClose: () => void; onConnected: (c: Connected) => void }) {
+type Step = 'wait' | 'run' | 'done' | 'fail'
+
+// プローブの結果を「Linux · x86_64 · Ubuntu 24.04 · systemd · screen」の形にする
+export function describeInfo(info: remote.Info, t: (k: string) => string) {
+  const parts = [info.os, info.arch, info.distro]
+  if (info.systemd) parts.push('systemd')
+  if (info.docker) parts.push('Docker')
+  if (info.screen) parts.push('screen')
+  if (info.tmux) parts.push('tmux')
+  if (!info.systemd && !info.docker) parts.push(t('probe.noSystemdDocker'))
+  else if (!info.systemd) parts.push(t('probe.noSystemd'))
+  else if (!info.docker) parts.push(t('probe.noDocker'))
+  return parts.filter(Boolean).join(' · ')
+}
+
+// サーバーに接続するダイアログ。入力のあと「SSH で接続」「サーバーを確認」の2つの手順を見せる。
+// 初めてのサーバーでは、鍵の指紋を見せて確かめてもらう
+export function ConnectDialog({ preset, onClose, onConnected }: {
+  preset?: store.Server
+  onClose: () => void
+  onConnected: (c: Connected) => void
+}) {
   const { t } = useTranslation()
+  const [saved, setSaved] = useState<store.Server[]>([])
   const [f, setF] = useState({ name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '' })
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [phase, setPhase] = useState<'form' | 'steps'>('form')
+  const [ssh, setSsh] = useState<[Step, string]>(['wait', ''])
+  const [probe, setProbe] = useState<[Step, string]>(['wait', ''])
   const [hostKey, setHostKey] = useState<main.HostKey | null>(null)
+  const [done, setDone] = useState<Connected | null>(null)
+  const passRef = useRef<HTMLInputElement>(null)
   const hostRef = useRef<HTMLInputElement>(null)
+  const aborted = useRef(false)
+
+  const pick = (s: store.Server) => {
+    setF({ name: s.name, user: s.user, port: String(s.port), host: s.host, auth: s.auth || 'pass', password: '', keyFile: s.keyFile })
+    setTimeout(() => passRef.current?.focus())
+  }
 
   useEffect(() => {
-    hostRef.current?.focus()
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', esc)
-    return () => document.removeEventListener('keydown', esc)
-  }, [onClose])
+    SavedServers().then(list => setSaved(list ?? []))
+    if (preset) pick(preset)
+    else hostRef.current?.focus()
+  }, [preset])
 
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value })
+  const name = f.name.trim() || f.host.trim()
 
-  const go = async (trust = '') => {
-    const host = f.host.trim(), user = f.user.trim()
-    if (!host || !user) return
-    setBusy(true)
-    setError('')
-    const r = await Connect(new main.ConnectRequest({
-      host, user, port: parseInt(f.port, 10) || 22,
-      password: f.password, keyFile: f.auth === 'key' ? f.keyFile.trim() : '', trust,
-    }))
-    setBusy(false)
+  const run = async (trust = '') => {
+    const host = f.host.trim(), user = f.user.trim(), port = parseInt(f.port, 10) || 22
+    setPhase('steps')
+    setHostKey(null)
+    setSsh(['run', ''])
+    setProbe(['wait', ''])
+    const r = await Connect(new main.ConnectRequest({ name, host, user, port, auth: f.auth, password: f.password, keyFile: f.keyFile.trim(), trust }))
     if (r.hostKey) {
+      setSsh(['fail', ''])
       setHostKey(r.hostKey)
       return
     }
     if (r.error) {
-      setError(r.error)
+      setSsh(['fail', r.error])
       return
     }
-    onConnected({ id: r.id, home: r.home, name: f.name.trim() || host, user, host })
+    if (aborted.current) {
+      Disconnect(r.id)
+      return
+    }
+    setSsh(['done', `${user}@${host}:${port}`])
+    setProbe(['run', ''])
+    try {
+      const info = await Probe(r.id)
+      setProbe(['done', describeInfo(info, t)])
+      setDone({ id: r.id, home: r.home, name, user, host, info })
+    } catch (err) {
+      setProbe(['fail', String(err)])
+      Disconnect(r.id)
+    }
+  }
+
+  const close = () => {
+    aborted.current = true
+    if (done) Disconnect(done.id)
+    onClose()
   }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    go()
+    if (f.host.trim() && f.user.trim()) run()
+  }
+
+  if (phase === 'steps') {
+    return (
+      <Modal title={t('connect.stepsTitle', { name })} width={540} onClose={close}>
+        <ol className="m-0 list-none p-0">
+          <StepRow state={ssh[0]} label={t('connect.stepSsh')} detail={ssh[1]} />
+          {hostKey && <HostKeyCheck hostKey={hostKey} host={`${f.host}:${f.port}`} />}
+          <StepRow state={probe[0]} label={t('connect.stepProbe')} detail={probe[1]} />
+        </ol>
+        <div className="mt-[18px] flex items-center gap-2">
+          <div className="flex-1" />
+          {done
+            ? <button className="btn-primary h-8 rounded-lg px-3.5" onClick={() => onConnected(done)} autoFocus>{t('connect.openServer')}</button>
+            : <>
+              {(ssh[0] === 'fail' || probe[0] === 'fail') && <button className={btn} onClick={() => setPhase('form')}>{t('connect.back')}</button>}
+              {hostKey && !hostKey.mismatch && <button className="btn-primary h-8 rounded-lg px-3.5" onClick={() => run(hostKey.fingerprint)}>{t('connect.trust')}</button>}
+              <button className={btn} onClick={close}>{t('connect.abort')}</button>
+            </>}
+        </div>
+      </Modal>
+    )
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--overlay)] p-4 backdrop-blur-sm" onPointerDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="flex max-h-[calc(100dvh-32px)] w-[min(600px,100%)] flex-col rounded-[14px] border border-line-strong bg-panel shadow-win" role="dialog">
-        <div className="flex h-[50px] flex-none items-center border-b border-line pr-2.5 pl-5">
-          <h2 className="m-0 flex-1 text-[15px] font-semibold">{t('connect.title')}</h2>
-          <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" onClick={onClose}><Icon name="x" /></button>
-        </div>
-        <form className="overflow-auto px-5 pt-[18px] pb-5" onSubmit={submit}>
-          {hostKey ? <HostKeyCheck hostKey={hostKey} host={f.host} /> : (
-            <div className="grid grid-cols-3 gap-3">
-              <label><span className={label}>{t('connect.name')}</span><input className={input} value={f.name} onChange={set('name')} /></label>
-              <label><span className={label}>{t('connect.user')}</span><input className={input} value={f.user} onChange={set('user')} spellCheck={false} /></label>
-              <label><span className={label}>{t('connect.port')}</span><input className={input} value={f.port} onChange={set('port')} inputMode="numeric" /></label>
-              <label className="col-span-3"><span className={label}>{t('connect.host')}</span><input ref={hostRef} className={input} value={f.host} onChange={set('host')} spellCheck={false} /></label>
-              <label>
-                <span className={label}>{t('connect.auth')}</span>
-                <select className={input} value={f.auth} onChange={set('auth')}>
-                  <option value="pass">{t('connect.authPassword')}</option>
-                  <option value="key">{t('connect.authKey')}</option>
-                </select>
-              </label>
-              {f.auth === 'key'
-                ? <>
-                  <label className="col-span-2"><span className={label}>{t('connect.keyFile')}</span><input className={input} value={f.keyFile} onChange={set('keyFile')} spellCheck={false} /></label>
-                  <label className="col-span-3"><span className={label}>{t('connect.passphrase')}</span><input className={input} type="password" value={f.password} onChange={set('password')} /></label>
-                </>
-                : <label className="col-span-2"><span className={label}>{t('connect.password')}</span><input className={input} type="password" value={f.password} onChange={set('password')} /></label>}
-            </div>
-          )}
-          {error && !hostKey && <p className="mt-4 mb-0 text-[12.5px] break-all text-err">{error}</p>}
-          <div className="mt-[18px] flex items-center gap-2">
-            {busy && <span className="text-[12px] text-muted">{t('connect.connecting')}</span>}
-            <div className="flex-1" />
-            <button type="button" className="h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover" onClick={onClose}>{t('connect.cancel')}</button>
-            {hostKey
-              ? !hostKey.mismatch && <button type="button" className="btn-primary h-8 rounded-lg px-3.5" disabled={busy} onClick={() => go(hostKey.fingerprint)}>{t('connect.trust')}</button>
-              : <button type="submit" className="btn-primary h-8 rounded-lg px-3.5" disabled={busy}>{t('connect.submit')}</button>}
+    <Modal title={t('connect.title')} width={600} onClose={close}>
+      <form onSubmit={submit}>
+        {saved.length > 0 && <>
+          <span className={label}>{t('connect.saved')}</span>
+          <div className="mb-[18px] grid grid-cols-3 gap-2">
+            {saved.map(s => (
+              <button
+                type="button"
+                key={s.id}
+                className={`flex min-w-0 items-center gap-2.5 rounded-[10px] border p-2.5 text-left ${f.host === s.host && f.user === s.user && f.port === String(s.port) ? 'border-accent bg-accent-soft' : 'border-line-strong bg-panel-2 hover:border-faint'}`}
+                onClick={() => pick(s)}
+              >
+                <Icon name="server" className="text-muted" />
+                <div className="min-w-0">
+                  <div className="font-semibold">{s.name}</div>
+                  <div className="truncate font-mono text-[11px] text-muted">{s.user}@{s.host}</div>
+                </div>
+              </button>
+            ))}
           </div>
-        </form>
+        </>}
+        <div className="grid grid-cols-3 gap-3">
+          <label><span className={label}>{t('connect.name')}</span><input className={input} value={f.name} onChange={set('name')} /></label>
+          <label><span className={label}>{t('connect.user')}</span><input className={input} value={f.user} onChange={set('user')} spellCheck={false} /></label>
+          <label><span className={label}>{t('connect.port')}</span><input className={input} value={f.port} onChange={set('port')} inputMode="numeric" /></label>
+          <label className="col-span-3"><span className={label}>{t('connect.host')}</span><input ref={hostRef} className={input} value={f.host} onChange={set('host')} spellCheck={false} /></label>
+          <label>
+            <span className={label}>{t('connect.auth')}</span>
+            <select className={input} value={f.auth} onChange={set('auth')}>
+              <option value="pass">{t('connect.authPassword')}</option>
+              <option value="key">{t('connect.authKey')}</option>
+            </select>
+          </label>
+          {f.auth === 'key'
+            ? <>
+              <label className="col-span-2"><span className={label}>{t('connect.keyFile')}</span><input className={input} value={f.keyFile} onChange={set('keyFile')} spellCheck={false} /></label>
+              <label className="col-span-3"><span className={label}>{t('connect.passphrase')}</span><input ref={passRef} className={input} type="password" value={f.password} onChange={set('password')} /></label>
+            </>
+            : <label className="col-span-2"><span className={label}>{t('connect.password')}</span><input ref={passRef} className={input} type="password" value={f.password} onChange={set('password')} /></label>}
+        </div>
+        <div className="mt-[18px] flex items-center gap-2">
+          <div className="flex-1" />
+          <button type="button" className={btn} onClick={close}>{t('connect.cancel')}</button>
+          <button type="submit" className="btn-primary h-8 rounded-lg px-3.5">{t('connect.submit')}</button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function StepRow({ state, label: text, detail }: { state: Step; label: string; detail: string }) {
+  const ic = {
+    wait: 'border-line-strong',
+    run: 'border-accent border-t-transparent animate-spin',
+    done: 'border-ok bg-ok',
+    fail: 'border-err bg-err',
+  }[state]
+  return (
+    <li className={`grid grid-cols-[22px_minmax(0,1fr)] gap-3 py-[9px] ${state === 'wait' ? 'text-faint' : 'text-text'}`}>
+      <span className={`relative mt-px grid h-[18px] w-[18px] place-items-center rounded-full border-2 text-[11px] font-extrabold text-[#0b1a12] ${ic}`}>
+        {state === 'done' ? '✓' : state === 'fail' ? '!' : ''}
+      </span>
+      <div className="min-w-0">
+        <div className="font-semibold">{text}</div>
+        {detail && <div className={`font-mono text-[12px] break-all ${state === 'fail' ? 'text-err' : 'text-muted'}`}>{detail}</div>}
       </div>
-    </div>
+    </li>
   )
 }
 
 function HostKeyCheck({ hostKey, host }: { hostKey: main.HostKey; host: string }) {
   const { t } = useTranslation()
   return (
-    <div className={`rounded-[10px] border p-3.5 ${hostKey.mismatch ? 'border-err' : 'border-line-strong bg-panel-2'}`}>
+    <li className={`my-1 ml-[34px] list-none rounded-[10px] border p-3.5 ${hostKey.mismatch ? 'border-err' : 'border-line-strong bg-panel-2'}`}>
       <div className={`mb-1.5 flex items-center gap-2 font-semibold ${hostKey.mismatch ? 'text-err' : ''}`}>
         <Icon name="lock" />{hostKey.mismatch ? t('connect.mismatchTitle') : t('connect.newKeyTitle')}
       </div>
       <p className="mt-0 mb-3 text-[12.5px] text-muted">{hostKey.mismatch ? t('connect.mismatchText') : t('connect.newKeyText')}</p>
       <div className="font-mono text-[12px] break-all">{host}</div>
-      <div className="font-mono text-[12px] break-all">{hostKey.keyType} {hostKey.fingerprint}</div>
-    </div>
+      <div className="font-mono text-[12px] break-all" data-fingerprint>{hostKey.keyType} {hostKey.fingerprint}</div>
+    </li>
   )
 }

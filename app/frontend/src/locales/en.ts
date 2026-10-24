@@ -3,7 +3,8 @@ import type { Messages } from './ja'
 const en: Messages = {
   brandSub: 'DRAG Runs As GUI',
   connect: {
-    open: 'Connect to a server',
+    openDialog: 'Connect to a server',
+    saved: 'Saved',
     title: 'Connect to a server',
     name: 'Name',
     user: 'User',
@@ -23,6 +24,17 @@ const en: Messages = {
     mismatchTitle: 'The server key differs from the last connection',
     mismatchText: 'Someone may be impersonating the server. Do not connect unless you know why the key changed, such as a reinstall.',
     trust: 'Trust and connect',
+    stepsTitle: 'Connecting to {{name}}',
+    stepSsh: 'Connect with SSH',
+    stepProbe: 'Check the server',
+    abort: 'Stop',
+    back: 'Back',
+    openServer: 'Open',
+  },
+  probe: {
+    noSystemdDocker: 'no systemd or Docker',
+    noSystemd: 'no systemd',
+    noDocker: 'no Docker',
   },
   files: {
     title: 'Files',
@@ -32,6 +44,7 @@ const en: Messages = {
   terminal: {
     title: 'Terminal',
     ended: 'The shell has exited',
+    reopened: 'The connection was lost and the previous shell exited. Opened a new shell',
   },
   desktop: {
     empty: 'Drag files or sessions here',
@@ -40,8 +53,24 @@ const en: Messages = {
     close: 'Disconnect',
     add: 'Add a server',
   },
-  status: {
+  conn: {
     lost: 'Lost the connection to {{name}}',
+    retryIn: 'Reconnecting in {{wait}} s (attempt {{n}})',
+    reconnecting: 'Reconnecting',
+    shellEnded: 'The terminal shell has exited',
+    now: 'Reconnect now',
+    disconnect: 'Disconnect',
+  },
+  settings: {
+    title: 'Settings',
+    look: 'Appearance',
+    term: 'Terminal',
+    lang: 'Language',
+    theme: 'Theme',
+    dark: 'Dark',
+    light: 'Light',
+    termSize: 'Font size',
+    reset: 'Restore defaults',
   },
   activity: {
     files: 'Files',

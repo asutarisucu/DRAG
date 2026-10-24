@@ -1,9 +1,11 @@
 export namespace main {
 	
 	export class ConnectRequest {
+	    name: string;
 	    host: string;
 	    port: number;
 	    user: string;
+	    auth: string;
 	    password: string;
 	    keyFile: string;
 	    trust: string;
@@ -14,9 +16,11 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
 	        this.host = source["host"];
 	        this.port = source["port"];
 	        this.user = source["user"];
+	        this.auth = source["auth"];
 	        this.password = source["password"];
 	        this.keyFile = source["keyFile"];
 	        this.trust = source["trust"];
@@ -41,6 +45,7 @@ export namespace main {
 	export class ConnectResult {
 	    id: string;
 	    home: string;
+	    info?: remote.Info;
 	    error: string;
 	    hostKey?: HostKey;
 	
@@ -52,6 +57,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.home = source["home"];
+	        this.info = this.convertValues(source["info"], remote.Info);
 	        this.error = source["error"];
 	        this.hostKey = this.convertValues(source["hostKey"], HostKey);
 	    }
@@ -99,6 +105,59 @@ export namespace remote {
 	        this.link = source["link"];
 	        this.size = source["size"];
 	        this.modTime = source["modTime"];
+	    }
+	}
+	export class Info {
+	    os: string;
+	    arch: string;
+	    distro: string;
+	    systemd: boolean;
+	    docker: boolean;
+	    screen: boolean;
+	    tmux: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.os = source["os"];
+	        this.arch = source["arch"];
+	        this.distro = source["distro"];
+	        this.systemd = source["systemd"];
+	        this.docker = source["docker"];
+	        this.screen = source["screen"];
+	        this.tmux = source["tmux"];
+	    }
+	}
+
+}
+
+export namespace store {
+	
+	export class Server {
+	    id: string;
+	    name: string;
+	    host: string;
+	    port: number;
+	    user: string;
+	    auth: string;
+	    keyFile: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Server(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.auth = source["auth"];
+	        this.keyFile = source["keyFile"];
 	    }
 	}
 

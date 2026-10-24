@@ -1,0 +1,50 @@
+import { useSyncExternalStore } from 'react'
+import i18n from './i18n'
+
+// 設定と区画の大きさ。端末ごとに持つので、この画面の localStorage に置く
+export type Settings = {
+  lang: 'ja' | 'en'
+  theme: 'dark' | 'light'
+  termSize: number
+  sidebarW: number
+  terminalH: number
+}
+
+export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', termSize: 13, sidebarW: 260, terminalH: 230 }
+const KEY = 'drag-settings'
+
+function load(): Settings {
+  try {
+    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') }
+  } catch {
+    return { ...DEFAULTS }
+  }
+}
+
+let current = load()
+const listeners = new Set<() => void>()
+
+function apply(s: Settings) {
+  document.documentElement.dataset.theme = s.theme
+  document.documentElement.lang = s.lang
+  if (i18n.language !== s.lang) i18n.changeLanguage(s.lang)
+}
+apply(current)
+
+export function setSettings(patch: Partial<Settings>) {
+  current = { ...current, ...patch }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(current))
+  } catch {
+    // 書けなくても、この起動の間は効く
+  }
+  apply(current)
+  listeners.forEach(l => l())
+}
+
+export function useSettings(): Settings {
+  return useSyncExternalStore(l => {
+    listeners.add(l)
+    return () => listeners.delete(l)
+  }, () => current)
+}

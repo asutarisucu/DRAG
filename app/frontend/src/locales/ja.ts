@@ -2,7 +2,8 @@
 const ja = {
   brandSub: 'DRAG Runs As GUI',
   connect: {
-    open: 'サーバーに接続',
+    openDialog: 'サーバーに接続',
+    saved: '保存済み',
     title: 'サーバーに接続',
     name: '名前',
     user: 'ユーザー',
@@ -22,6 +23,17 @@ const ja = {
     mismatchTitle: 'サーバーの鍵が、前に接続したときと違います',
     mismatchText: '別のサーバーになりすまされている恐れがあります。サーバーを入れ直したなど理由が分からないときは、接続しないでください。',
     trust: '信頼して接続',
+    stepsTitle: '{{name}} に接続',
+    stepSsh: 'SSH で接続',
+    stepProbe: 'サーバーを確認',
+    abort: 'やめる',
+    back: '戻る',
+    openServer: '開く',
+  },
+  probe: {
+    noSystemdDocker: 'systemd と Docker はない',
+    noSystemd: 'systemd はない',
+    noDocker: 'Docker はない',
   },
   files: {
     title: 'ファイル',
@@ -31,6 +43,7 @@ const ja = {
   terminal: {
     title: 'ターミナル',
     ended: 'シェルが終了しました',
+    reopened: '接続が切れたため、前のシェルは終了しました。新しいシェルで開き直しました',
   },
   desktop: {
     empty: 'ファイルやセッションをここへドラッグ',
@@ -39,8 +52,24 @@ const ja = {
     close: '切断',
     add: 'サーバーを追加',
   },
-  status: {
+  conn: {
     lost: '{{name}} との接続が切れました',
+    retryIn: '{{wait}} 秒後に再接続します ({{n}} 回目)',
+    reconnecting: '再接続しています',
+    shellEnded: 'ターミナルのシェルは終了しました',
+    now: '今すぐ再接続',
+    disconnect: '切断',
+  },
+  settings: {
+    title: '設定',
+    look: '外観',
+    term: 'ターミナル',
+    lang: '言語',
+    theme: 'テーマ',
+    dark: 'ダーク',
+    light: 'ライト',
+    termSize: '文字の大きさ',
+    reset: '初期設定に戻す',
   },
   activity: {
     files: 'ファイル',

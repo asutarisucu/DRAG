@@ -18,8 +18,9 @@ function kindOf(e: Entry): [IconName, string] {
   return ['file', 'f-file']
 }
 
-// 左のファイルツリー。フォルダは開いたときに中を読む
-export function FileTree({ serverId, root }: { serverId: string; root: string }) {
+// 左のファイルツリー。フォルダは開いたときに中を読む。
+// generation は再接続のたびに増える。増えたら開いているフォルダを読み直す
+export function FileTree({ serverId, root, generation }: { serverId: string; root: string; generation: number }) {
   const { t } = useTranslation()
   const [dirs, setDirs] = useState<Record<string, Dir>>({})
   const [open, setOpen] = useState<Record<string, boolean>>({ [root]: true })
@@ -34,6 +35,12 @@ export function FileTree({ serverId, root }: { serverId: string; root: string })
   }, [serverId])
 
   useEffect(() => { load(root) }, [load, root])
+
+  useEffect(() => {
+    if (generation === 0) return
+    for (const [path, isOpen] of Object.entries(open)) if (isOpen) load(path)
+    // 開いているフォルダは、再接続した時点のものだけを読み直せばよい
+  }, [generation])
 
   const toggle = (e: Entry) => {
     setSelected(e.path)

@@ -22,6 +22,22 @@ export function OpenShell(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenShell'](arg1, arg2, arg3, arg4);
 }
 
+export function Probe(arg1) {
+  return window['go']['main']['App']['Probe'](arg1);
+}
+
+export function Reconnect(arg1) {
+  return window['go']['main']['App']['Reconnect'](arg1);
+}
+
+export function RemoveSavedServer(arg1) {
+  return window['go']['main']['App']['RemoveSavedServer'](arg1);
+}
+
+export function SavedServers() {
+  return window['go']['main']['App']['SavedServers']();
+}
+
 export function ShellInput(arg1, arg2) {
   return window['go']['main']['App']['ShellInput'](arg1, arg2);
 }

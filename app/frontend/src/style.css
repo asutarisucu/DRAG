@@ -28,6 +28,31 @@
   color-scheme: dark;
 }
 
+:root[data-theme="light"] {
+  --bg: #e9edf2;
+  --chrome: #f6f7f9;
+  --panel: #fbfcfd;
+  --panel-2: #f1f3f6;
+  --raised: #ffffff;
+  --border: #dde2e9;
+  --border-strong: #c8d0da;
+  --text: #1c2330;
+  --muted: #5b6676;
+  --faint: #8a94a4;
+  --desk: #e4e9f0;
+  --btn-hover: #eef2f7;
+  --field: #ffffff;
+  --overlay: rgba(30, 40, 60, .3);
+  --scroll: #c3cbd6;
+  --shadow: 0 18px 50px rgba(20, 30, 50, .16), 0 2px 8px rgba(20, 30, 50, .1);
+  color-scheme: light;
+}
+:root[data-theme="light"] .f-dir { color: #c08a1e; }
+:root[data-theme="light"] .f-log { color: #1b86bd; }
+:root[data-theme="light"] .f-img { color: #9b51c9; }
+:root[data-theme="light"] .f-code { color: #17809f; }
+:root[data-theme="light"] .f-arc, :root[data-theme="light"] .f-file { color: #6b7585; }
+
 @theme inline {
   --color-bg: var(--bg);
   --color-chrome: var(--chrome);
