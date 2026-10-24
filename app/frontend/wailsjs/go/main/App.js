@@ -26,6 +26,10 @@ export function Connect(arg1) {
   return window['go']['main']['App']['Connect'](arg1);
 }
 
+export function DirUsage(arg1, arg2) {
+  return window['go']['main']['App']['DirUsage'](arg1, arg2);
+}
+
 export function DisableSudo(arg1) {
   return window['go']['main']['App']['DisableSudo'](arg1);
 }
@@ -48,6 +52,10 @@ export function DockerMounts(arg1, arg2) {
 
 export function DockerStats(arg1) {
   return window['go']['main']['App']['DockerStats'](arg1);
+}
+
+export function DockerVolumeSizes(arg1) {
+  return window['go']['main']['App']['DockerVolumeSizes'](arg1);
 }
 
 export function Download(arg1, arg2, arg3) {

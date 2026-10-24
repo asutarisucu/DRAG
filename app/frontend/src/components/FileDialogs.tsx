@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { DirUsage } from '../../wailsjs/go/main/App'
 import type { remote } from '../../wailsjs/go/models'
 import { fmtSize } from '../toasts'
 import { KIND_ICON, KIND_LABEL, type Kind } from '../fileKind'
@@ -33,8 +34,10 @@ export function ConflictDialog({ path, more, onAnswer }: { path: string; more: b
   )
 }
 
-// プロパティ。種類の名前はファイルツリーのアイコンと同じ分け方
-export function PropsDialog({ name, path, kind, props, onClose }: {
+// プロパティ。種類の名前はファイルツリーのアイコンと同じ分け方。
+// フォルダは中のファイルを数えるので、大きさはあとから出す
+export function PropsDialog({ serverId, name, path, kind, props, onClose }: {
+  serverId: string
   name: string
   path: string
   kind: Kind
@@ -43,10 +46,15 @@ export function PropsDialog({ name, path, kind, props, onClose }: {
 }) {
   const { t } = useTranslation()
   const dir = props.mode.startsWith('d')
+  const [usage, setUsage] = useState<remote.Usage | null>(null)
+  const [usageErr, setUsageErr] = useState('')
+  useEffect(() => {
+    if (dir) DirUsage(serverId, path).then(setUsage, e => setUsageErr(String(e).replace(/^Error: /, '')))
+  }, [serverId, path, dir])
   const rows: [string, string][] = [
     [t('props.kind'), t(KIND_LABEL[kind])],
     [t('props.where'), path.slice(0, path.lastIndexOf('/')) || '/'],
-    ...(dir ? [] : [[t('props.size'), fmtSize(props.size)] as [string, string]]),
+    [t('props.size'), !dir ? fmtSize(props.size) : usage ? `${fmtSize(usage.size)} (${t('props.files', { n: usage.files })})` : usageErr || t('props.counting')],
     [t('props.owner'), `${props.owner}:${props.group}`],
     [t('props.mode'), props.mode],
     [t('props.modified'), new Date(props.modTime * 1000).toLocaleString()],

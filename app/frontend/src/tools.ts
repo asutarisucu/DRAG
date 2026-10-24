@@ -45,6 +45,19 @@ export async function openContainerShell(serverId: string, name: string, pos?: {
   }
 }
 
+// Docker の窓を開き、コンテナ name の詳細を開いて光らせる。name は名前か ID の頭
+const dockerFocus = new Map<string, string>()
+export function openDockerAt(serverId: string, name: string) {
+  dockerFocus.set(serverId, name)
+  openTool(serverId, 'docker')
+  window.dispatchEvent(new CustomEvent('drag:docker-focus', { detail: serverId }))
+}
+export function takeDockerFocus(serverId: string) {
+  const n = dockerFocus.get(serverId) ?? ''
+  dockerFocus.delete(serverId)
+  return n
+}
+
 // ツリーで path を開いて選び、ファイルの一覧に切り替える。open ならそのフォルダも開く
 export function revealInTree(serverId: string, path: string, open = false) {
   window.dispatchEvent(new CustomEvent('drag:tree-reveal', { detail: { serverId, path, show: true, open } }))

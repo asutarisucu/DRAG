@@ -568,7 +568,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
         )}
         {menu && <Menu x={menu.x} y={menu.y} title={pathArg(root, menu.node.path)} items={menuItems(menu.node)} onClose={() => setMenu(null)} />}
         {conflict && <ConflictDialog path={conflict.path} more={conflict.more} onAnswer={conflict.resolve} />}
-        {props && <PropsDialog name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
+        {props && <PropsDialog serverId={serverId} name={props.node.name} path={props.node.path} kind={fileKind(props.node.name, props.props.mode.startsWith('d'))} props={props.props} onClose={() => setProps(null)} />}
       </div>
     </>
   )

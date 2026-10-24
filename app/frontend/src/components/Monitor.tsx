@@ -4,7 +4,7 @@ import { BigDirs, History, Mounts, Network, Processes } from '../../wailsjs/go/m
 import type { remote, store } from '../../wailsjs/go/models'
 import { fmtGB, fmtRate, pct, useMetrics, type Metrics } from '../metrics'
 import { fmtSize } from '../toasts'
-import { revealInTree } from '../tools'
+import { openDockerAt, revealInTree } from '../tools'
 import { updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
 import { Meter, Spark } from './Spark'
@@ -139,7 +139,13 @@ function ProcTable({ serverId, sort, memTotal }: { serverId: string; sort: 'cpu'
       <div className="prow phead"><span>{t('mon.proc')}</span><span>PID</span><span>{t('mon.user')}</span><span>CPU</span><span>{t('mon.mem')}</span></div>
       {top.map((p: remote.Proc) => (
         <div key={p.pid} className="prow">
-          <div className="pname"><div className="font-mono text-[12.5px]">{p.name}</div><div className="pcmd" title={p.cmd}>{p.cmd}</div></div>
+          <div className="pname">
+            <div className="font-mono text-[12.5px]">
+              {p.name}
+              {p.container && <button className="tag" title={t('mon.inDocker')} onClick={() => openDockerAt(serverId, p.container)}><Icon name="box" size={11} />{p.container}</button>}
+            </div>
+            <div className="pcmd" title={p.cmd}>{p.cmd}</div>
+          </div>
           <span className="num">{p.pid}</span>
           <span className="truncate text-muted">{p.user}</span>
           <div className="pcell"><Meter value={p.cpu} /><span className="num">{p.cpu.toFixed(1)}%</span></div>

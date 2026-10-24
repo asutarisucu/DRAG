@@ -60,6 +60,8 @@ type link struct {
 	sudo   map[string]*sudoMode // 端末ごとの sudo モード。OFF の端末は入らない
 	// 前に読んだプロセスごとの CPU 時間。使用率を出すのに使う
 	procPrev procSnap
+	// コンテナの ID から名前への表。知らない ID が出たら読み直す
+	cnames map[string]string
 }
 
 // As は、同じ接続を dev の端末から見たものを返す

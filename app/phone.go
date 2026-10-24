@@ -28,8 +28,8 @@ var phoneMethods = map[string]bool{
 	"OpenText": true, "SaveText": true, "ReadImage": true, "LogTail": true, "LogFollow": true, "LogStop": true,
 	"ArchiveOpen": true, "ArchiveRead": true, "ArchiveClose": true,
 	"History": true, "Processes": true, "Mounts": true, "BigDirs": true, "Network": true,
-	"TrashList": true, "TrashDelete": true,
-	"Services": true, "ServiceAction": true, "Docker": true, "DockerAction": true, "DockerMounts": true, "DockerStats": true, "LogStream": true,
+	"TrashList": true, "TrashDelete": true, "DirUsage": true,
+	"Services": true, "ServiceAction": true, "Docker": true, "DockerAction": true, "DockerMounts": true, "DockerVolumeSizes": true, "DockerStats": true, "LogStream": true,
 }
 
 const (

@@ -147,6 +147,12 @@ ok('ファイルの一覧に切り替える', await waitFor(async () => (await p
 ok('大きいフォルダをツリーで開いて選ぶ', await waitFor(async () => await selected(`${H}/src`) && (await at(`${H}/src/deep`).count()) === 1));
 ok('ツリーで表示した行を光らせる', (await at(`${H}/src`).getAttribute('class')).includes('flash'));
 
+// フォルダのプロパティは、中のファイルを数えて大きさを出す
+await at(`${H}/src`).click({ button: 'right' });
+await page.click('[role=menu] button:has-text("プロパティ")');
+ok('フォルダのプロパティに中のファイルの合計を出す', await waitFor(async () => (await page.textContent('[role=dialog]')).includes('29 MB (1 個のファイル)')), await page.textContent('[role=dialog]'));
+await page.keyboard.press('Escape');
+
 // Docker のバインドマウントから、ツリーで表示する。ホームの外ならツリーのいちばん上を / にする
 await page.click('[data-tool="docker"]');
 // 検証用のサーバーの asuta は docker のグループにいないので、sudo モードで使う

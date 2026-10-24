@@ -88,6 +88,9 @@ logs)
   i=1
   while [ $i -le 5 ]; do echo "$(date +%H:%M:%S) $n log line $i"; i=$((i+1)); done
   case " $* " in *" -f "*) while sleep 1; do echo "$(date +%H:%M:%S) $n log line $i"; i=$((i+1)); done;; esac;;
+system)
+  # DRAG が呼ぶ docker system df -v --format "{{range .Volumes}}{{.Name}} {{.Size}}{{println}}{{end}}" の出力の形だけを返す
+  i=1; while read -r v; do echo "$v ${i}2.5MB"; i=$((i+1)); done < $S/volumes;;
 exec)
   # docker exec -it 名前 コマンド の形なので、フラグでない最初の引数が名前
   n=""

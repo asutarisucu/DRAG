@@ -605,6 +605,15 @@ func (a *App) Stat(serverID, p string) (remote.Props, error) {
 	return s.Stat(p)
 }
 
+// DirUsage はフォルダの中のファイルの大きさの合計と数
+func (a *App) DirUsage(serverID, p string) (remote.Usage, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return remote.Usage{}, err
+	}
+	return s.DirUsage(p)
+}
+
 // Sessions は screen と tmux のセッションの一覧
 func (a *App) Sessions(serverID string) ([]remote.Session, error) {
 	s, err := a.server(serverID)

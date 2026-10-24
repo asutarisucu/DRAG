@@ -171,6 +171,7 @@ const en: Messages = {
     emptied: 'Emptied the trash',
   },
   mon: {
+    inDocker: 'Show in the Docker window',
     waiting: 'Reading values',
     cpu: 'CPU',
     mem: 'Memory',
@@ -229,6 +230,9 @@ const en: Messages = {
   },
   dk: {
     dragShell: 'Drag to the desktop to open a shell',
+    pullingRow: 'Pulling',
+    exists: '{{name}} already exists',
+    compose: 'Compose',
     containers: 'Containers',
     images: 'Images',
     volumes: 'Volumes',
@@ -334,6 +338,8 @@ const en: Messages = {
     received: 'Saved to {{path}}',
   },
   props: {
+    files: '{{n}} files',
+    counting: 'Counting',
     title: 'Properties',
     kind: 'Kind',
     where: 'Location',

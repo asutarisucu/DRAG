@@ -170,6 +170,7 @@ const ja = {
     emptied: 'ゴミ箱を空にしました',
   },
   mon: {
+    inDocker: 'Docker のウィンドウで見る',
     waiting: '値を読んでいます',
     cpu: 'CPU',
     mem: 'メモリ',
@@ -228,6 +229,9 @@ const ja = {
   },
   dk: {
     dragShell: 'デスクトップへドラッグするとシェルを開く',
+    pullingRow: '取得中',
+    exists: '{{name}} はもうあります',
+    compose: 'Compose',
     containers: 'コンテナ',
     images: 'イメージ',
     volumes: 'ボリューム',
@@ -333,6 +337,8 @@ const ja = {
     received: '{{path}} に保存しました',
   },
   props: {
+    files: '{{n}} 個のファイル',
+    counting: '数えています',
     title: 'プロパティ',
     kind: '種類',
     where: '場所',

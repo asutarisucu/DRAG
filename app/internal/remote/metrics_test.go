@@ -132,6 +132,15 @@ func TestParseNet(t *testing.T) {
 	}
 }
 
+// cgroup のパスからコンテナの ID を拾う。systemd の docker-<ID>.scope と、cgroupfs の /docker/<ID> の両方
+func TestContainerIDs(t *testing.T) {
+	a, b := strings.Repeat("a", 64), strings.Repeat("0123456789abcdef", 4)
+	ids := containerIDs("/proc/12/cgroup:docker-" + a + "\n/proc/345/cgroup:docker/" + b + "\n/proc/345/cgroup:docker/" + b + "\nbroken\n/proc/x/cgroup:docker-" + a)
+	if len(ids) != 2 || ids[12] != a || ids[345] != b {
+		t.Fatalf("%v", ids)
+	}
+}
+
 // 検証用のサーバーで、プロセス・ファイルシステム・大きいフォルダ・ネットワークを読める
 func TestDetails(t *testing.T) {
 	s := dialTrusted(t)
@@ -150,6 +159,22 @@ func TestDetails(t *testing.T) {
 	home, _ := s.Home()
 	if _, err := s.BigDirs(home, 5); err != nil {
 		t.Fatal(err)
+	}
+	// フォルダの中のファイルの大きさの合計と数。サブフォルダの中も数える
+	d := testDir(t, s)
+	write := func(p, text string) {
+		f, err := s.sftp.Create(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Write([]byte(text))
+		f.Close()
+	}
+	write(d+"/a", "12345")
+	s.Mkdir(d + "/sub")
+	write(d+"/sub/b", "123")
+	if u, err := s.DirUsage(d); err != nil || u.Size != 8 || u.Files != 2 {
+		t.Fatalf("%+v %v", u, err)
 	}
 	n, err := s.Network()
 	if err != nil || !slices.ContainsFunc(n.Listen, func(l Listen) bool { return l.Port == 22 }) || len(n.Conns) == 0 {

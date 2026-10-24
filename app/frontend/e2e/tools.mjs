@@ -84,9 +84,13 @@ ok('Compose ごとにまとめる', (await dkWin.locator('[data-project="app"]')
 ok('動いているコンテナの CPU とメモリが出る', await waitFor(async () => /CPU [\d.]+% · [\d.]+MiB/.test(await dkWin.locator('[data-container="web"] .dk-stat').textContent()), 10000));
 await dkWin.locator('[data-container="web"] .dk-row').click({ position: { x: 20, y: 20 } });
 ok('開くとマウントが出る', await waitFor(async () => (await dkWin.locator('[data-container="web"] .dk-detail').textContent()).includes('web-data → /usr/share/nginx/html')));
+const webText = await dkWin.locator('[data-container="web"]').textContent();
+ok('状態を日本語で出す', webText.includes('nginx:1.27 · 稼働 3 日') && webText.includes('稼働中 (3 日)'), webText);
+ok('詳細に Compose のファイルを出す', webText.includes('Compose~/app/compose.yaml'));
 await page.screenshot({ path: `${OUT}/tools-docker.png` });
 await dkWin.locator('[data-container="web"] button:has-text("停止")').click();
-ok('コンテナを止める', await waitFor(async () => (await dkWin.locator('[data-container="web"]').textContent()).includes('Exited')));
+ok('コンテナを止める', await waitFor(async () => (await dkWin.locator('[data-container="web"]').textContent()).includes('停止 2 時間前')));
+ok('止めたコンテナは終了コードを出す', (await dkWin.locator('[data-container="web"]').textContent()).includes('停止 (終了コード 0 · 2 時間前)'));
 await dkWin.locator('[data-container="backup"] button:has-text("削除")').click();
 await dkWin.locator('[data-container="backup"] button.danger').click();
 ok('確かめてから削除する', await waitFor(async () => (await dkWin.locator('[data-container]').count()) === 2));
@@ -102,8 +106,12 @@ ok('使っていないイメージを消す', await waitFor(async () => (await d
 await dkWin.locator('input[placeholder="イメージ名"]').fill('busybox');
 await page.keyboard.press('Enter');
 ok('イメージを取得する', await waitFor(async () => (await dkWin.locator('[data-image="busybox:latest"]').count()) === 1));
+await dkWin.locator('input[placeholder="イメージ名"]').fill('nginx:1.27');
+await page.keyboard.press('Enter');
+ok('あるイメージは取得しない', await waitFor(async () => (await dkWin.locator('[role=status]').textContent()).includes('nginx:1.27 はもうあります')));
 
 await dkWin.locator('.seg button:has-text("ボリューム")').click();
+ok('ボリュームの大きさが出る', await waitFor(async () => (await dkWin.locator('[data-volume="web-data"]').textContent()).includes('12.5MB · /var/lib/docker/volumes/web-data/_data')));
 ok('使っているボリュームは消せない', await dkWin.locator('[data-volume="redis-data"] button:has-text("削除")').isDisabled());
 await dkWin.locator('[data-volume="old-data"] button:has-text("削除")').click();
 ok('使っていないボリュームを消す', await waitFor(async () => (await dkWin.locator('[data-volume="old-data"]').count()) === 0));

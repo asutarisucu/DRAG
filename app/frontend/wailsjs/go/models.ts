@@ -731,6 +731,7 @@ export namespace remote {
 	    cmd: string;
 	    cpu: number;
 	    rss: number;
+	    container: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Proc(source);
@@ -744,6 +745,7 @@ export namespace remote {
 	        this.cmd = source["cmd"];
 	        this.cpu = source["cpu"];
 	        this.rss = source["rss"];
+	        this.container = source["container"];
 	    }
 	}
 	export class Props {
@@ -854,6 +856,20 @@ export namespace remote {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
 	        this.from = source["from"];
+	    }
+	}
+	export class Usage {
+	    size: number;
+	    files: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Usage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.size = source["size"];
+	        this.files = source["files"];
 	    }
 	}
 

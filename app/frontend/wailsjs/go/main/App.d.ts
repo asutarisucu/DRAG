@@ -17,6 +17,8 @@ export function CloseShell(arg1:string):Promise<void>;
 
 export function Connect(arg1:main.ConnectRequest):Promise<main.ConnectResult>;
 
+export function DirUsage(arg1:string,arg2:string):Promise<remote.Usage>;
+
 export function DisableSudo(arg1:string):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;
@@ -28,6 +30,8 @@ export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<void>;
 export function DockerMounts(arg1:string,arg2:string):Promise<Array<remote.DockerMount>>;
 
 export function DockerStats(arg1:string):Promise<Array<remote.DockerStat>>;
+
+export function DockerVolumeSizes(arg1:string):Promise<Record<string, string>>;
 
 export function Download(arg1:string,arg2:string,arg3:string):Promise<string>;
 

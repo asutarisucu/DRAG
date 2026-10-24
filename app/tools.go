@@ -42,6 +42,15 @@ func (a *App) DockerAction(serverID, verb, target string) error {
 	return s.DockerAction(verb, target)
 }
 
+// DockerVolumeSizes はボリュームごとの大きさ
+func (a *App) DockerVolumeSizes(serverID string) (map[string]string, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return nil, err
+	}
+	return s.DockerVolumeSizes()
+}
+
 func (a *App) DockerMounts(serverID, name string) ([]remote.DockerMount, error) {
 	s, err := a.server(serverID)
 	if err != nil {

@@ -130,6 +130,26 @@ func (s *Server) DockerAction(verb, target string) error {
 	return errors.New(strings.TrimSpace(out))
 }
 
+// DockerVolumeSizes はボリュームごとの大きさ。docker system df -v で数えるので時間がかかる。
+// 値は docker/cli@v27.5.1 cli/command/formatter/volume.go の Size (units.HumanSize の書き方)。分からなければ N/A
+func (s *Server) DockerVolumeSizes() (map[string]string, error) {
+	cmd, stdin := s.command(`exec docker system df -v --format "{{range .Volumes}}{{.Name}} {{.Size}}{{println}}{{end}}"`, "")
+	out, err := s.combined(cmd, stdin)
+	if err != nil {
+		if denied(out) {
+			return nil, ErrDenied
+		}
+		return nil, errors.New(strings.TrimSpace(out))
+	}
+	sizes := map[string]string{}
+	for _, l := range strings.Split(out, "\n") {
+		if name, size, ok := strings.Cut(strings.TrimSpace(l), " "); ok {
+			sizes[name] = size
+		}
+	}
+	return sizes, nil
+}
+
 // DockerMount はコンテナのマウント1つ。moby@v27.5.1 api/types/types.go の MountPoint と同じキー
 type DockerMount struct {
 	Type        string `json:"Type"`

@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"cmp"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"net"
 	"slices"
 	"strconv"
@@ -21,13 +23,17 @@ type Proc struct {
 	Cmd  string  `json:"cmd"`
 	CPU  float64 `json:"cpu"`
 	RSS  int64   `json:"rss"`
+	// Container は、このプロセスが動いている Docker のコンテナの名前。名前を読めなければ ID の頭 12 文字
+	Container string `json:"container"`
 }
 
 const procScript = `ps -eo pid=,user:32=,rss=,args= 2>/dev/null
 echo __TICKS__
 for d in /proc/[0-9]*; do read -r l < $d/stat 2>/dev/null && echo "$l"; done
 echo __HZ__
-getconf CLK_TCK 2>/dev/null || echo 100`
+getconf CLK_TCK 2>/dev/null || echo 100
+echo __CG__
+grep -o -H "docker[-/][0-9a-f]\{64\}" /proc/[0-9]*/cgroup 2>/dev/null || true`
 
 type procSnap struct {
 	at    time.Time
@@ -42,7 +48,8 @@ func (s *Server) Processes() ([]Proc, error) {
 	}
 	now := time.Now()
 	head, rest, _ := strings.Cut(out, "__TICKS__\n")
-	stats, hzs, _ := strings.Cut(rest, "__HZ__\n")
+	stats, rest, _ := strings.Cut(rest, "__HZ__\n")
+	hzs, cgs, _ := strings.Cut(rest, "__CG__\n")
 	hz, _ := strconv.ParseFloat(strings.TrimSpace(hzs), 64)
 	if hz <= 0 {
 		hz = 100
@@ -95,7 +102,67 @@ func (s *Server) Processes() ([]Proc, error) {
 		}
 		list = append(list, p)
 	}
+	if ids := containerIDs(cgs); len(ids) > 0 {
+		names := s.containerNames(ids)
+		for i := range list {
+			if id := ids[list[i].PID]; id != "" {
+				list[i].Container = cmp.Or(names[id], id[:12])
+			}
+		}
+	}
 	return list, nil
+}
+
+// containerIDs は、grep で拾った cgroup のパス (/proc/<番号>/cgroup:docker-<ID>) から、
+// プロセスの番号とコンテナの ID の表を作る。cgroup v2 の systemd では docker-<ID>.scope、
+// cgroupfs や v1 では /docker/<ID> の形でパスに入る
+func containerIDs(out string) map[int]string {
+	ids := map[int]string{}
+	for _, l := range strings.Split(out, "\n") {
+		file, m, ok := strings.Cut(strings.TrimSpace(l), ":")
+		if !ok || len(m) < 64 {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(file, "/proc/"), "/cgroup"))
+		if err != nil {
+			continue
+		}
+		ids[pid] = m[len(m)-64:]
+	}
+	return ids
+}
+
+// containerNames は、コンテナの ID から名前を引く表。知らない ID があれば docker ps で読み直す。
+// docker を使えなければ空
+func (s *Server) containerNames(ids map[int]string) map[string]string {
+	s.mu.Lock()
+	names := s.cnames
+	s.mu.Unlock()
+	fresh := true
+	for _, id := range ids {
+		if _, ok := names[id]; !ok {
+			fresh = false
+			break
+		}
+	}
+	if fresh {
+		return names
+	}
+	cmd, stdin := s.command(`exec docker ps --no-trunc --format "{{.ID}} {{.Names}}"`, "")
+	out, err := s.combined(cmd, stdin)
+	if err != nil {
+		return names
+	}
+	names = map[string]string{}
+	for _, l := range strings.Split(out, "\n") {
+		if id, name, ok := strings.Cut(strings.TrimSpace(l), " "); ok {
+			names[id] = name
+		}
+	}
+	s.mu.Lock()
+	s.cnames = names
+	s.mu.Unlock()
+	return names
 }
 
 // Mount はファイルシステム1つ
@@ -130,6 +197,26 @@ func (s *Server) Mounts() ([]Mount, error) {
 		list = append(list, Mount{Path: mp, Dev: dev, Size: size * 1024, Used: used * 1024})
 	}
 	return list, nil
+}
+
+// Usage はフォルダの中のファイルの大きさの合計と数
+type Usage struct {
+	Size  int64 `json:"size"`
+	Files int   `json:"files"`
+}
+
+// DirUsage はフォルダの中のファイルを数える。読めないところは数えない
+func (s *Server) DirUsage(dir string) (Usage, error) {
+	cmd, stdin := s.command(`IFS= read -r d; find "$d" -type f -printf "%s\n" 2>/dev/null | awk "{s+=\$1; n++} END {print s+0, n+0}"`, dir+"\n")
+	out, err := s.combined(cmd, stdin)
+	if err != nil {
+		return Usage{}, errors.New(strings.TrimSpace(out))
+	}
+	var u Usage
+	if _, err := fmt.Sscan(strings.TrimSpace(out), &u.Size, &u.Files); err != nil {
+		return Usage{}, fmt.Errorf("find を読めない: %q", out)
+	}
+	return u, nil
 }
 
 // DirSize はフォルダ1つの大きさ
