@@ -142,6 +142,10 @@ export function Sessions(arg1) {
   return window['go']['main']['App']['Sessions'](arg1);
 }
 
+export function SetLanguage(arg1) {
+  return window['go']['main']['App']['SetLanguage'](arg1);
+}
+
 export function SetPhoneLAN(arg1) {
   return window['go']['main']['App']['SetPhoneLAN'](arg1);
 }

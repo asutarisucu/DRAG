@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Disconnect, PhoneState, Reconnect, SavedServers, Servers } from '../wailsjs/go/main/App'
+import { Disconnect, PhoneState, Reconnect, SavedServers, Servers, SetLanguage } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
 import { EventsOn, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime'
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
@@ -61,6 +61,10 @@ export default function App() {
       return rest
     })
   }), [])
+  // 通知領域のメニューを画面の言語に合わせる
+  const lang = useSettings().lang
+  useEffect(() => { if (!isRemote) SetLanguage(lang) }, [lang])
+
   // スマホの画面は、開いたときに PC アプリがつないでいるサーバーを並べる
   const [linkLost, setLinkLost] = useState(false)
   useEffect(() => {

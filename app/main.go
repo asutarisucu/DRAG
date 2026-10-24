@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -26,8 +27,17 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 12, G: 15, B: 19, A: 1},
 		// PC のファイルをファイルツリーへドロップしてアップロードする
 		DragAndDrop: &options.DragAndDrop{EnableFileDrop: true},
-		OnStartup:   app.startup,
-		OnShutdown:  app.shutdown,
+		// 窓を閉じても通知領域に残り、SSH の接続とスマホの待ち受けを続ける。終了は通知領域のメニューから
+		HideWindowOnClose: true,
+		// 画面をブラウザから試すときに、作り直すたびに窓が前に出ないようにする
+		StartHidden: os.Getenv("DRAG_START_HIDDEN") != "",
+		// 通知領域に残っている間にもう一度起動したら、新しく起動せずに今の窓を出す
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "io.github.asutarisucu.drag",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) { app.showWindow() },
+		},
+		OnStartup:  app.startup,
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

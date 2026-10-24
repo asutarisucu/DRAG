@@ -33,6 +33,7 @@ type core struct {
 	ctx   context.Context
 	saved *store.Servers
 	phone *phone.Server
+	tray  *tray // 通知領域に置かないときは nil
 
 	mu      sync.Mutex
 	next    int
@@ -68,9 +69,11 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.startPhone()
+	a.startTray()
 }
 
 func (a *App) shutdown(ctx context.Context) {
+	a.stopTray()
 	a.phone.Stop()
 	a.closeFiles()
 	a.mu.Lock()

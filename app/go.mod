@@ -3,6 +3,7 @@ module github.com/asutarisucu/DRAG/app
 go 1.26.0
 
 require (
+	fyne.io/systray v1.12.2
 	github.com/coder/websocket v1.8.15
 	github.com/pkg/sftp v1.13.12
 	github.com/wailsapp/wails/v2 v2.17.0

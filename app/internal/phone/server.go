@@ -49,12 +49,12 @@ type Server struct {
 	opts Options
 	devs *devices
 
-	mu      sync.Mutex
-	srv     *http.Server
-	status  Status
+	mu     sync.Mutex
+	srv    *http.Server
+	status Status
 	// 使えるペアリング用のトークンと期限。1回使うか期限が切れたら消す。
 	// 作り直しが続けて来ても、出ている QR コードがどれも使えるよう、いくつか持つ
-	pairs map[string]time.Time
+	pairs   map[string]time.Time
 	clients map[*client]struct{}
 }
 

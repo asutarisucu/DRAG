@@ -75,6 +75,8 @@ export function Servers():Promise<Array<main.ServerInfo>>;
 
 export function Sessions(arg1:string):Promise<Array<remote.Session>>;
 
+export function SetLanguage(arg1:string):Promise<void>;
+
 export function SetPhoneLAN(arg1:boolean):Promise<main.PhoneState>;
 
 export function ShellCwd(arg1:string):Promise<string>;
