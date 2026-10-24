@@ -21,6 +21,14 @@ export function DisableSudo(arg1:string):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;
 
+export function Docker(arg1:string):Promise<remote.DockerInfo>;
+
+export function DockerAction(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function DockerMounts(arg1:string,arg2:string):Promise<Array<remote.DockerMount>>;
+
+export function DockerStats(arg1:string):Promise<Array<remote.DockerStat>>;
+
 export function Download(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function EnableSudo(arg1:string,arg2:string):Promise<void>;
@@ -34,6 +42,8 @@ export function LocalEntries(arg1:Array<string>):Promise<Array<main.LocalEntry>>
 export function LogFollow(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function LogStop(arg1:string):Promise<void>;
+
+export function LogStream(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function LogTail(arg1:string,arg2:string,arg3:number,arg4:number):Promise<remote.LogChunk>;
 
@@ -82,6 +92,10 @@ export function SaveText(arg1:string,arg2:string,arg3:string,arg4:number,arg5:bo
 export function SavedServers():Promise<Array<store.Server>>;
 
 export function Servers():Promise<Array<main.ServerInfo>>;
+
+export function ServiceAction(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function Services(arg1:string):Promise<Array<remote.Service>>;
 
 export function Sessions(arg1:string):Promise<Array<remote.Session>>;
 

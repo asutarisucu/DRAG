@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"math"
 	"slices"
@@ -154,4 +155,102 @@ func TestDetails(t *testing.T) {
 	if err != nil || !slices.ContainsFunc(n.Listen, func(l Listen) bool { return l.Port == 22 }) || len(n.Conns) == 0 {
 		t.Fatalf("%+v %v", n, err)
 	}
+}
+
+// サービスと Docker は、ログインしたユーザーの権限で足りなければ ErrDenied を返し、sudo モードなら扱える。
+// Docker は検証用のサーバーに置いた偽の docker (dev/testserver/fakedocker.sh) を使う
+func TestServicesAndDocker(t *testing.T) {
+	s := dialTrusted(t)
+	svcs, err := s.Services()
+	if err != nil || !slices.ContainsFunc(svcs, func(x Service) bool { return x.Name == "ssh.service" && x.Active == "active" }) {
+		t.Fatalf("%v %+v", err, svcs)
+	}
+	if _, err := s.Docker(); !errors.Is(err, ErrDenied) {
+		t.Fatalf("docker のグループでないのに読めた: %v", err)
+	}
+	if _, err := s.JournalStream("ssh.service", func([]byte) {}, func(error) {}); !errors.Is(err, ErrDenied) {
+		t.Fatalf("adm のグループでないのに journal を読めた: %v", err)
+	}
+
+	if err := s.EnableSudo("drag"); err != nil {
+		t.Fatal(err)
+	}
+	unit := "/etc/systemd/system/drag-test.service"
+	t.Cleanup(func() {
+		s.EnableSudo("drag")
+		s.ServiceAction("drag-test.service", "stop")
+		s.fs().Remove(unit)
+		cmd, in := s.command("systemctl daemon-reload; rm -rf /var/lib/fakedocker/*", "")
+		s.combined(cmd, in)
+	})
+	if _, err := s.WriteText(unit, "[Service]\nExecStart=/bin/sleep infinity\n", 0, true); err != nil {
+		t.Fatal(err)
+	}
+	cmd, in := s.command("systemctl daemon-reload", "")
+	s.combined(cmd, in)
+	s.DisableSudo()
+	if err := s.ServiceAction("drag-test.service", "start"); !errors.Is(err, ErrDenied) {
+		t.Fatalf("sudo なしで起動できた: %v", err)
+	}
+	s.EnableSudo("drag")
+	if err := s.ServiceAction("drag-test.service", "start"); err != nil {
+		t.Fatal(err)
+	}
+	svcs, _ = s.Services()
+	if !slices.ContainsFunc(svcs, func(x Service) bool {
+		return x.Name == "drag-test.service" && x.Active == "active" && x.Sub == "running"
+	}) {
+		t.Fatalf("起動していない %+v", svcs)
+	}
+
+	got := make(chan string, 8)
+	stop, err := s.JournalStream("drag-test.service", func(b []byte) { got <- string(b) }, func(error) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case l := <-got:
+		if !strings.Contains(l, "drag-test") && !strings.Contains(l, "sleep") && !strings.Contains(l, "Started") {
+			t.Logf("journal: %q", l)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("journal の行が届かない")
+	}
+	stop()
+
+	info, err := s.Docker()
+	if err != nil || len(info.Containers) != 3 || len(info.Images) != 4 || len(info.Volumes) != 3 {
+		t.Fatalf("%v %+v", err, info)
+	}
+	if c := info.Containers[0]; c.Names != "web" || c.State != "running" || c.Project != "app" || c.Compose != "/home/asuta/app/compose.yaml" {
+		t.Fatalf("%+v", c)
+	}
+	if err := s.DockerAction("rm", "web"); err == nil || !strings.Contains(err.Error(), "running") {
+		t.Fatalf("動いているコンテナを消せた: %v", err)
+	}
+	if err := s.DockerAction("stop", "web"); err != nil {
+		t.Fatal(err)
+	}
+	ms, err := s.DockerMounts("web")
+	if err != nil || len(ms) != 1 || ms[0].Type != "volume" || ms[0].Name != "web-data" || ms[0].Destination != "/usr/share/nginx/html" {
+		t.Fatalf("%v %+v", err, ms)
+	}
+	st, err := s.DockerStats()
+	if err != nil || len(st) != 1 || st[0].Name != "redis" {
+		t.Fatalf("%v %+v", err, st)
+	}
+	logs := make(chan string, 8)
+	stop, err = s.DockerLogStream("redis", func(b []byte) { logs <- string(b) }, func(error) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case l := <-logs:
+		if !strings.Contains(l, "redis log line") {
+			t.Fatalf("%q", l)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("docker logs の行が届かない")
+	}
+	stop()
 }

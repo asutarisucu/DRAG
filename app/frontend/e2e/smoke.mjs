@@ -41,7 +41,7 @@ await page.click('[role=dialog] button:has-text("接続")');
 if (await page.waitForSelector('text=信頼して接続', { timeout: 3000 }).then(() => true, () => false)) await page.click('text=信頼して接続');
 await page.waitForSelector('[role=dialog] button:has-text("開く")', { timeout: 10000 });
 const steps = (await page.textContent('[role=dialog] ol')).replace(/\s+/g, ' ');
-ok('手順の表示', steps.includes('asuta@127.0.0.1:2222') && steps.includes('Ubuntu 24.04') && steps.includes('Docker はない'), steps);
+ok('手順の表示', steps.includes('asuta@127.0.0.1:2222') && steps.includes('Ubuntu 24.04') && steps.includes('Docker'), steps);
 await page.screenshot({ path: `${OUT}/app2-steps.png` });
 await page.click('[role=dialog] button:has-text("開く")');
 await page.waitForSelector('.tree-row');

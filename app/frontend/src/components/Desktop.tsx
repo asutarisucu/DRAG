@@ -4,7 +4,9 @@ import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
 import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
 import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
+import { DockerView } from './DockerView'
 import { MonitorView } from './Monitor'
+import { ServicesView } from './Services'
 import { openTool, TOOLS } from '../tools'
 import { onForeground } from '../shellBus'
 import { useMobile } from '../mobile'
@@ -119,6 +121,8 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
                 : w.kind === 'image' ? <ImageView win={w} serverId={serverId} />
                   : w.kind === 'archive' ? <ArchiveView win={w} serverId={serverId} home={home} />
                     : w.kind === 'monitor' ? <MonitorView win={w} serverId={serverId} home={home} />
+                    : w.kind === 'services' ? <ServicesView serverId={serverId} />
+                    : w.kind === 'docker' ? <DockerView serverId={serverId} home={home} />
                     : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} shared={w.shared} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
           </Window>
         ))}

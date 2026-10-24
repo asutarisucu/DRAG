@@ -34,6 +34,22 @@ export function Disconnect(arg1) {
   return window['go']['main']['App']['Disconnect'](arg1);
 }
 
+export function Docker(arg1) {
+  return window['go']['main']['App']['Docker'](arg1);
+}
+
+export function DockerAction(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DockerAction'](arg1, arg2, arg3);
+}
+
+export function DockerMounts(arg1, arg2) {
+  return window['go']['main']['App']['DockerMounts'](arg1, arg2);
+}
+
+export function DockerStats(arg1) {
+  return window['go']['main']['App']['DockerStats'](arg1);
+}
+
 export function Download(arg1, arg2, arg3) {
   return window['go']['main']['App']['Download'](arg1, arg2, arg3);
 }
@@ -60,6 +76,10 @@ export function LogFollow(arg1, arg2, arg3) {
 
 export function LogStop(arg1) {
   return window['go']['main']['App']['LogStop'](arg1);
+}
+
+export function LogStream(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LogStream'](arg1, arg2, arg3);
 }
 
 export function LogTail(arg1, arg2, arg3, arg4) {
@@ -156,6 +176,14 @@ export function SavedServers() {
 
 export function Servers() {
   return window['go']['main']['App']['Servers']();
+}
+
+export function ServiceAction(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ServiceAction'](arg1, arg2, arg3);
+}
+
+export function Services(arg1) {
+  return window['go']['main']['App']['Services'](arg1);
 }
 
 export function Sessions(arg1) {

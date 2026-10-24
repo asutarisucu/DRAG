@@ -17,6 +17,9 @@ RUN useradd -m -s /usr/bin/zsh zuser && echo "zuser:$PASS" | chpasswd && touch /
  && useradd -m -s /usr/bin/fish fuser && echo "fuser:$PASS" | chpasswd
 # root でログインしたときの動きを確かめるため、root もパスワードで入れるようにする
 RUN echo "root:$PASS" | chpasswd && echo "PermitRootLogin yes" > /etc/ssh/sshd_config.d/drag-test.conf
+# Docker のウィンドウを試すための偽の docker。asuta は docker のグループに入れず、sudo モードの流れも試す
+COPY fakedocker.sh /usr/local/bin/docker
+RUN chmod 755 /usr/local/bin/docker && groupadd -f docker && install -d -g docker -m 2775 /var/lib/fakedocker
 EXPOSE 22
 STOPSIGNAL SIGRTMIN+3
 CMD ["/sbin/init"]

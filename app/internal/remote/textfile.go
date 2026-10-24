@@ -149,12 +149,18 @@ func (s *Server) ReadTail(p string, end, size int64) (LogChunk, error) {
 // Follow は from バイト目から後ろを、追記されるたびに onData へ渡す。サーバーの tail -F を使う。
 // 返した関数で止める
 func (s *Server) Follow(p string, from int64, onData func([]byte), onEnd func(error)) (func(), error) {
+	// tail -c +N は N バイト目 (1 から数える) から出す
+	return s.stream(fmt.Sprintf(`IFS= read -r p; exec tail -c +%s -F -- "$p"`, strconv.FormatInt(from+1, 10)), p+"\n", onData, onEnd)
+}
+
+// stream は script を sudo モードに合わせて動かし、標準出力を onData に渡し続ける。
+// 終わったら標準エラーの文を付けて onEnd を呼ぶ。返した関数で止める
+func (s *Server) stream(script, input string, onData func([]byte), onEnd func(error)) (func(), error) {
 	sess, err := s.ssh.NewSession()
 	if err != nil {
 		return nil, err
 	}
-	// tail -c +N は N バイト目 (1 から数える) から出す
-	cmd, stdin := s.command(fmt.Sprintf(`IFS= read -r p; exec tail -c +%s -F -- "$p"`, strconv.FormatInt(from+1, 10)), p+"\n")
+	cmd, stdin := s.command(script, input)
 	sess.Stdin = strings.NewReader(stdin)
 	out, _ := sess.StdoutPipe()
 	var stderr bytes.Buffer

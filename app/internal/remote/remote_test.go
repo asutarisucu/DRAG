@@ -121,8 +121,8 @@ func TestProbeFindsTestServerFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 検証用のサーバーは Ubuntu 24.04 で、systemd・screen・tmux があり、docker は無い
-	want := Info{OS: "Linux", Arch: info.Arch, Distro: "Ubuntu 24.04", Systemd: true, Screen: true, Tmux: true}
+	// 検証用のサーバーは Ubuntu 24.04 で、systemd・screen・tmux と、偽の docker (dev/testserver/fakedocker.sh) がある
+	want := Info{OS: "Linux", Arch: info.Arch, Distro: "Ubuntu 24.04", Systemd: true, Docker: true, Screen: true, Tmux: true}
 	if info != want || info.Arch == "" {
 		t.Fatalf("%+v", info)
 	}

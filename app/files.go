@@ -86,11 +86,17 @@ func (a *App) LogFollow(serverID, p string, from int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return a.follow(func(onData func([]byte), onEnd func(error)) (func(), error) { return s.Follow(p, from, onData, onEnd) })
+}
+
+// follow は start で読み始めたものを "log:out" (番号, 文字列) で送り、番号を返す。
+// 止まったら "log:end" (番号, エラーの文) を送る
+func (a *App) follow(start func(onData func([]byte), onEnd func(error)) (func(), error)) (string, error) {
 	a.mu.Lock()
 	id := a.newID("l")
 	a.mu.Unlock()
 	fs := a.files()
-	stop, err := s.Follow(p, from,
+	stop, err := start(
 		func(b []byte) { a.emit("log:out", id, string(b)) },
 		func(err error) {
 			fs.mu.Lock()

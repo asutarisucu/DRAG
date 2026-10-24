@@ -9,6 +9,22 @@ export type ToolKind = 'monitor' | 'services' | 'docker'
 export const TOOLS: [ToolKind, IconName][] = [['monitor', 'chart'], ['services', 'server'], ['docker', 'box']]
 const SIZE: Record<ToolKind, [number, number]> = { monitor: [600, 230], services: [600, 340], docker: [700, 420] }
 
+// サービスかコンテナのログをログのウィンドウで開く。path は "journal:名前" か "docker:名前" にする
+export function openStreamLog(serverId: string, kind: 'journal' | 'docker', name: string) {
+  setMTab('desktop')
+  const path = `${kind}:${name}`
+  const open = winsOf(serverId).find(w => w.path === path)
+  if (open) {
+    focusWin(open.id)
+    return
+  }
+  const desk = document.querySelector<HTMLElement>(`[data-desktop="${serverId}"]`)?.getBoundingClientRect()
+  openWin({
+    serverId, kind: 'log', title: i18n.t('svc.logOf', { name }), icon: 'log', shellId: '', detachable: false, replayFromIdle: false, path,
+    rect: { w: 560, h: 320 },
+  }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
+}
+
 export function openTool(serverId: string, kind: ToolKind, view = '') {
   setMTab('desktop')
   const open = winsOf(serverId).find(w => w.kind === kind)

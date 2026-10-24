@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArchiveClose, ArchiveOpen, ArchiveRead, LogFollow, LogStop, LogTail, OpenText, ReadImage, SaveText } from '../../wailsjs/go/main/App'
+import { ArchiveClose, ArchiveOpen, ArchiveRead, LogFollow, LogStop, LogStream, LogTail, OpenText, ReadImage, SaveText } from '../../wailsjs/go/main/App'
 import type { archive } from '../../wailsjs/go/models'
 import { KIND_ICON, fileKind, logParts } from '../fileKind'
 import { attachLog } from '../logBus'
 import { useSettings } from '../settings'
-import { requireSudo, useSudo, withSudo } from '../sudo'
+import { isDenied, requireSudo, sudoOn, useSudo, withSudo } from '../sudo'
 import { fmtSize } from '../toasts'
 import { setCloseGuard, updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
@@ -174,11 +174,13 @@ function LogLines({ lines, filter }: { lines: string[]; filter: string }) {
   })
 }
 
-// ログの追従。末尾から読み、追記を足していく。上の端までスクロールしたら前を読み足す
+// ログの追従。末尾から読み、追記を足していく。上の端までスクロールしたら前を読み足す。
+// path が "journal:名前" か "docker:名前" なら、サービスかコンテナのログをコマンドで追う。そのときは前を読み足さない
 export function LogView({ win, serverId, home }: { win: Win; serverId: string; home: string }) {
   const { t } = useTranslation()
   const settings = useSettings()
   const path = win.path!
+  const stream = /^(journal|docker):(.+)$/.exec(path)
   const [lines, setLines] = useState<string[]>([])
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('')
@@ -188,19 +190,24 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
   const rest = useRef('') // 改行で終わっていない最後の行
   const loading = useRef(false)
   const keepBottom = useRef<number | null>(null)
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let id = ''
     let detach = () => {}
     let disposed = false
-    withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => LogTail(serverId, path, -1, LOG_CHUNK)).then(async c => {
-      if (disposed) return
-      start.current = c.start
-      const parts = c.text.split('\n')
-      rest.current = parts.pop() ?? ''
-      setLines(parts)
-      id = await LogFollow(serverId, path, c.end)
-      if (disposed) { LogStop(id); return }
+    const begin = stream
+      ? () => withSudo(serverId, t('sudo.logs'), () => LogStream(serverId, stream[1], stream[2]))
+      : () => withSudo(serverId, t('sudo.read', { name: baseName(path) }), () => LogTail(serverId, path, -1, LOG_CHUNK)).then(c => {
+        start.current = c.start
+        const parts = c.text.split('\n')
+        rest.current = parts.pop() ?? ''
+        setLines(parts)
+        return LogFollow(serverId, path, c.end)
+      })
+    begin().then(async got => {
+      if (disposed) { LogStop(got); return }
+      id = got
       detach = attachLog(id, {
         out: text => {
           const parts = (rest.current + text).split('\n')
@@ -214,7 +221,12 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
             return next.slice(next.length - LOG_MAX_LINES)
           })
         },
-        end: e => { if (e) setError(t('log.ended', { error: e })) },
+        end: e => {
+          if (!e) return
+          // 動いている途中で権限が足りないと分かったら、sudo モードを聞いて読み直す
+          if (isDenied(e) && !sudoOn(serverId)) requireSudo(serverId, t('sudo.logs')).then(ok => { if (ok && !disposed) setRetry(r => r + 1) })
+          setError(t('log.ended', { error: e }))
+        },
       })
     }, e => setError(errText(e)))
     return () => {
@@ -222,7 +234,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
       detach()
       if (id) LogStop(id)
     }
-  }, [serverId, path, t])
+  }, [serverId, path, t, retry])
 
   // 追従している間は、行が増えたら末尾を見せる。前を読み足したら、見ていた行の位置を保つ
   useLayoutEffect(() => {
@@ -253,7 +265,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
   return (
     <>
       <div className={toolbar}>
-        <span className={pathCls}>{path.startsWith(home + '/') ? '~' + path.slice(home.length) : path}</span>
+        <span className={pathCls}>{stream ? (stream[1] === 'journal' ? `journalctl -u ${stream[2]} -f` : `docker logs -f ${stream[2]}`) : path.startsWith(home + '/') ? '~' + path.slice(home.length) : path}</span>
         <div className="flex-1" />
         <input className="field h-6 w-[130px] rounded-md border border-line-strong bg-field px-2 text-[12px] text-text outline-none" placeholder={t('log.filter')} spellCheck={false} value={filter} onChange={e => setFilter(e.target.value)} />
         <label className="inline-flex cursor-pointer items-center gap-1.5 text-muted select-none">
