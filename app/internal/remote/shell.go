@@ -7,6 +7,7 @@ import (
 	"io"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +85,31 @@ func (s *Server) OpenShell(cols, rows int, cwd string, onOutput func([]byte), on
 		sess.Close()
 		return nil, fmt.Errorf("シェルが起動しません")
 	}
+}
+
+// Busy は、シェルの端末で別のコマンドが前面にいるかを /proc から調べる。
+// /proc/<PID>/stat の8番目の項目が、端末の前面にいるプロセスグループの番号。シェル自身なら空いている
+func (s *Server) Busy(sh *Shell) (bool, error) {
+	sess, err := s.ssh.NewSession()
+	if err != nil {
+		return false, err
+	}
+	defer sess.Close()
+	out, err := sess.Output(fmt.Sprintf(`exec /bin/sh -c 'read -r l < /proc/%d/stat && echo "$l"'`, sh.PID))
+	if err != nil {
+		return false, err
+	}
+	// 2つ目の項目 (comm) は括弧の中に空白を含みうるので、最後の ')' の後ろから数える
+	st := string(out)
+	f := strings.Fields(st[strings.LastIndexByte(st, ')')+1:])
+	if len(f) < 6 {
+		return false, fmt.Errorf("stat を読めない: %q", st)
+	}
+	tpgid, err := strconv.Atoi(f[5])
+	if err != nil {
+		return false, err
+	}
+	return tpgid > 0 && tpgid != sh.PID, nil
 }
 
 func (sh *Shell) Write(p []byte) (int, error) {

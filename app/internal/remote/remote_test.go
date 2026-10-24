@@ -123,6 +123,92 @@ func TestProbeFindsTestServerFeatures(t *testing.T) {
 	}
 }
 
+// testDir は検証用のサーバーの /tmp に、テストごとの空のフォルダを作る
+func testDir(t *testing.T, s *Server) string {
+	d := "/tmp/drag-test-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	if err := s.sftp.Mkdir(d); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.sftp.RemoveAll(d) })
+	return d
+}
+
+func TestFileOps(t *testing.T) {
+	s := dialTrusted(t)
+	d := testDir(t, s)
+
+	// 引用符と空白を含む名前でも、作る・複製する・名前を変えるができる
+	odd := `it's a "file".txt`
+	if err := s.CreateFile(d + "/" + odd); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateFile(d + "/" + odd); !errors.Is(err, ErrExists) {
+		t.Fatalf("同じ名前で作れた: %v", err)
+	}
+	if n := s.UniqueName(d, odd, false); n != `it's a "file" (2).txt` {
+		t.Fatalf("番号を足した名前 %q", n)
+	}
+	if n := s.UniqueName(d, odd, true); n != `it's a "file" - コピー.txt` {
+		t.Fatalf("複製の名前 %q", n)
+	}
+	if err := s.Mkdir(d + "/sub dir"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Copy(d+"/"+odd, d+"/sub dir/"+odd); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Copy(d+"/sub dir", d+"/sub dir 2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.sftp.Stat(d + "/sub dir 2/" + odd); err != nil {
+		t.Fatalf("フォルダの中まで複製されない: %v", err)
+	}
+	if err := s.Rename(d+"/sub dir 2", d+"/sub dir"); !errors.Is(err, ErrExists) {
+		t.Fatalf("同じ名前へ変えられた: %v", err)
+	}
+
+	// ゴミ箱へ移して戻す
+	item, err := s.Trash(d + "/" + odd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.exists(d + "/" + odd) {
+		t.Fatal("元の場所に残っている")
+	}
+	f, _ := s.sftp.Open("/home/asuta/.local/share/Trash/info/" + item.Name + ".trashinfo")
+	b := make([]byte, 512)
+	n, _ := f.Read(b)
+	f.Close()
+	if !strings.Contains(string(b[:n]), "Path="+d+"/it%27s%20a%20%22file%22.txt") {
+		t.Fatalf("trashinfo %q", b[:n])
+	}
+	to, err := s.Restore(item)
+	if err != nil || to != d+"/"+odd {
+		t.Fatalf("戻した先 %q %v", to, err)
+	}
+	if s.exists("/home/asuta/.local/share/Trash/info/" + item.Name + ".trashinfo") {
+		t.Fatal("trashinfo が残っている")
+	}
+}
+
+func TestBusyWhileCommandRuns(t *testing.T) {
+	s := dialTrusted(t)
+	sh, err := s.OpenShell(80, 24, "", func([]byte) {}, func() {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+	time.Sleep(300 * time.Millisecond)
+	if busy, err := s.Busy(sh); busy || err != nil {
+		t.Fatalf("何も動いていないのに busy %v %v", busy, err)
+	}
+	sh.Write([]byte("sleep 5\r"))
+	time.Sleep(500 * time.Millisecond)
+	if busy, err := s.Busy(sh); !busy || err != nil {
+		t.Fatalf("sleep が動いているのに空き %v %v", busy, err)
+	}
+}
+
 func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	s := dialTrusted(t)
 	var mu sync.Mutex

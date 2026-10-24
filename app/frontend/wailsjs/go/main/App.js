@@ -18,8 +18,16 @@ export function ListDir(arg1, arg2) {
   return window['go']['main']['App']['ListDir'](arg1, arg2);
 }
 
+export function NewEntry(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['NewEntry'](arg1, arg2, arg3, arg4);
+}
+
 export function OpenShell(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenShell'](arg1, arg2, arg3, arg4);
+}
+
+export function PasteEntry(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PasteEntry'](arg1, arg2, arg3, arg4);
 }
 
 export function Probe(arg1) {
@@ -34,8 +42,20 @@ export function RemoveSavedServer(arg1) {
   return window['go']['main']['App']['RemoveSavedServer'](arg1);
 }
 
+export function RenameEntry(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RenameEntry'](arg1, arg2, arg3);
+}
+
+export function RestoreEntry(arg1, arg2) {
+  return window['go']['main']['App']['RestoreEntry'](arg1, arg2);
+}
+
 export function SavedServers() {
   return window['go']['main']['App']['SavedServers']();
+}
+
+export function ShellBusy(arg1, arg2) {
+  return window['go']['main']['App']['ShellBusy'](arg1, arg2);
 }
 
 export function ShellInput(arg1, arg2) {
@@ -44,4 +64,8 @@ export function ShellInput(arg1, arg2) {
 
 export function ShellResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['ShellResize'](arg1, arg2, arg3);
+}
+
+export function TrashEntry(arg1, arg2) {
+  return window['go']['main']['App']['TrashEntry'](arg1, arg2);
 }

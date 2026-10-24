@@ -12,7 +12,11 @@ export function Disconnect(arg1:string):Promise<void>;
 
 export function ListDir(arg1:string,arg2:string):Promise<Array<remote.Entry>>;
 
+export function NewEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
+
 export function OpenShell(arg1:string,arg2:number,arg3:number,arg4:string):Promise<string>;
+
+export function PasteEntry(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<string>;
 
 export function Probe(arg1:string):Promise<remote.Info>;
 
@@ -20,8 +24,16 @@ export function Reconnect(arg1:string):Promise<main.ConnectResult>;
 
 export function RemoveSavedServer(arg1:string):Promise<void>;
 
+export function RenameEntry(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function RestoreEntry(arg1:string,arg2:remote.TrashItem):Promise<string>;
+
 export function SavedServers():Promise<Array<store.Server>>;
+
+export function ShellBusy(arg1:string,arg2:string):Promise<boolean>;
 
 export function ShellInput(arg1:string,arg2:string):Promise<void>;
 
 export function ShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
+
+export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;

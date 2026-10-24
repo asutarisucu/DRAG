@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { CloseShell, OpenShell, ShellInput, ShellResize } from '../../wailsjs/go/main/App'
+import { CloseShell, OpenShell, ShellBusy, ShellInput, ShellResize } from '../../wailsjs/go/main/App'
 import { attachShell } from '../shellBus'
+import { registerTerminal } from '../terminals'
+import { toast } from '../toasts'
 
 // 右下のターミナル。サーバーごとに1つシェルを開く。
 // generation は再接続のたびに増える。増えたら同じ画面のまま新しいシェルを開き直す
@@ -81,6 +83,24 @@ export function TerminalPanel({ serverId, generation, visible, fontSize }: {
       shellRef.current = ''
     }
   }, [serverId, generation])
+
+  // ファイルツリーから cd やパスを送る窓口。前面で別のコマンドが動いているときは送らない
+  useEffect(() => {
+    const send = async (text: string) => {
+      const id = shellRef.current
+      if (!id) return
+      if (await ShellBusy(serverId, id)) {
+        toast(tRef.current('toast.busy'), 'warn')
+        return
+      }
+      ShellInput(id, text)
+      termRef.current?.focus()
+    }
+    return registerTerminal(serverId, {
+      cd: path => send(`cd ${path}\r`),
+      insert: text => send(text),
+    })
+  }, [serverId])
 
   useEffect(() => {
     const term = termRef.current

@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -244,6 +246,78 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 	a.shells[id] = sh
 	a.mu.Unlock()
 	return id, nil
+}
+
+// NewEntry は dir の中に空のファイルかフォルダを作る。name が使われていれば番号を足し、作ったパスを返す
+func (a *App) NewEntry(serverID, dir, name string, isDir bool) (string, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	p := path.Join(dir, s.UniqueName(dir, name, false))
+	if isDir {
+		return p, s.Mkdir(p)
+	}
+	return p, s.CreateFile(p)
+}
+
+// RenameEntry は名前を変え、新しいパスを返す
+func (a *App) RenameEntry(serverID, from, name string) (string, error) {
+	if name == "" || strings.Contains(name, "/") {
+		return "", errors.New("名前に / は使えません")
+	}
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	to := path.Join(path.Dir(from), name)
+	return to, s.Rename(from, to)
+}
+
+// PasteEntry は from を dir の中へ複製するか移す。同じ名前があれば名前を変えて置き、置いたパスを返す
+func (a *App) PasteEntry(serverID, from, dir string, move bool) (string, error) {
+	if dir == from || strings.HasPrefix(dir, from+"/") {
+		return "", errors.New("フォルダをその中へは移せません")
+	}
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	if move && path.Dir(from) == dir {
+		return from, nil
+	}
+	to := path.Join(dir, s.UniqueName(dir, path.Base(from), !move))
+	if move {
+		return to, s.Rename(from, to)
+	}
+	return to, s.Copy(from, to)
+}
+
+func (a *App) TrashEntry(serverID, p string) (remote.TrashItem, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return remote.TrashItem{}, err
+	}
+	return s.Trash(p)
+}
+
+func (a *App) RestoreEntry(serverID string, item remote.TrashItem) (string, error) {
+	s, err := a.server(serverID)
+	if err != nil {
+		return "", err
+	}
+	return s.Restore(item)
+}
+
+// ShellBusy は、ターミナルで別のコマンドが前面にいるかを返す。調べられないときは false
+func (a *App) ShellBusy(serverID, shellID string) bool {
+	s, err := a.server(serverID)
+	sh := a.shell(shellID)
+	if err != nil || sh == nil {
+		return false
+	}
+	busy, _ := s.Busy(sh)
+	return busy
 }
 
 func (a *App) shell(id string) *remote.Shell {

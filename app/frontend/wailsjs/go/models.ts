@@ -131,6 +131,20 @@ export namespace remote {
 	        this.tmux = source["tmux"];
 	    }
 	}
+	export class TrashItem {
+	    name: string;
+	    from: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TrashItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.from = source["from"];
+	    }
+	}
 
 }
 

@@ -9,6 +9,7 @@ import { Icon, type IconName } from './components/Icon'
 import { Resizer } from './components/Resizer'
 import { SettingsDialog } from './components/SettingsDialog'
 import { TerminalPanel } from './components/TerminalPanel'
+import { Toasts } from './components/Toasts'
 import { setSettings, useSettings } from './settings'
 
 // conn は接続の様子。切れたら retry 回目の再接続まで wait 秒待つ。
@@ -117,6 +118,7 @@ export default function App() {
 
       {connecting && <ConnectDialog preset={connecting.preset} onClose={() => setConnecting(null)} onConnected={added} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      <Toasts />
     </div>
   )
 }
