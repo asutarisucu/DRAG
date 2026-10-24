@@ -3572,7 +3572,6 @@ function openSettings() {
       ...(S().cert === 'domain' ? [el('div', { class: 'set-sub' },
         el('input', { class: 'input', value: PC.domain, spellcheck: 'false' }),
         el('input', { class: 'input', type: 'password', placeholder: 'DNS サービスの API キー' }))] : []),
-      row('窓を閉じたとき', '通知領域に残り、サーバーとの接続とスマホの待ち受けを続ける。終了は通知領域のメニューから', null),
     ]],
   };
   const nav = el('div', { class: 'set-nav' });
@@ -3587,7 +3586,7 @@ function openSettings() {
     el('div', { class: 'grow' }),
     el('button', { class: 'btn small', onclick: () => { state.settings = structuredClone(DEFAULT_SETTINGS); saveSettings(); applySettings(); show(page); } }, '初期設定に戻す'));
   show('look');
-  modal({ title: '設定', body: el('div', { class: 'settings' }, nav, pane), width: 780 });
+  modal({ title: '設定', body: el('div', { class: 'settings' }, nav, pane), width: 780 }).card.classList.add('settings-modal');
 }
 
 /* ---------- スマホの画面 ---------- */
