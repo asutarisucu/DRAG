@@ -52,8 +52,9 @@ type Server struct {
 	mu      sync.Mutex
 	srv     *http.Server
 	status  Status
-	pair    string // 使えるペアリング用のトークン。1回使うか期限が切れたら空にする
-	pairExp time.Time
+	// 使えるペアリング用のトークンと期限。1回使うか期限が切れたら消す。
+	// 作り直しが続けて来ても、出ている QR コードがどれも使えるよう、いくつか持つ
+	pairs map[string]time.Time
 	clients map[*client]struct{}
 }
 
@@ -84,7 +85,7 @@ func (c *client) close() {
 }
 
 func New(opts Options) *Server {
-	return &Server{opts: opts, devs: openDevices(opts.Dir), clients: map[*client]struct{}{}}
+	return &Server{opts: opts, devs: openDevices(opts.Dir), clients: map[*client]struct{}{}, pairs: map[string]time.Time{}}
 }
 
 // Start は addr (":8443" など) で待ち受ける。動いていれば止めてから始める
@@ -142,6 +143,7 @@ func (s *Server) Stop() {
 	srv := s.srv
 	s.srv = nil
 	s.status = Status{}
+	clear(s.pairs)
 	clients := s.clients
 	s.clients = map[*client]struct{}{}
 	s.mu.Unlock()
@@ -159,27 +161,47 @@ func (s *Server) Status() Status {
 	return s.status
 }
 
-// NewPairURL は、新しいペアリング用のトークンを入れた URL を返す。前のトークンは使えなくなる
+// pairLimit は同時に使えるペアリング用のトークンの数。超えたら古いものから消す
+const pairLimit = 5
+
+// NewPairURL は、新しいペアリング用のトークンを入れた URL を返す
 func (s *Server) NewPairURL() (string, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.status.Running {
 		return "", time.Time{}, errors.New("スマホの待ち受けが止まっています")
 	}
-	s.pair = rand.Text()
-	s.pairExp = time.Now().Add(PairTTL)
-	return s.status.URL + "/pair?t=" + s.pair, s.pairExp, nil
+	now := time.Now()
+	for t, exp := range s.pairs {
+		if now.After(exp) {
+			delete(s.pairs, t)
+		}
+	}
+	for len(s.pairs) >= pairLimit {
+		var oldest string
+		for t, exp := range s.pairs {
+			if oldest == "" || exp.Before(s.pairs[oldest]) {
+				oldest = t
+			}
+		}
+		delete(s.pairs, oldest)
+	}
+	t := rand.Text()
+	s.pairs[t] = now.Add(PairTTL)
+	return s.status.URL + "/pair?t=" + t, s.pairs[t], nil
 }
 
 // takePair は、トークンが合っていて期限内なら使用済みにして true を返す
 func (s *Server) takePair(t string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.pair == "" || time.Now().After(s.pairExp) || subtle.ConstantTimeCompare([]byte(t), []byte(s.pair)) != 1 {
-		return false
+	for p, exp := range s.pairs {
+		if subtle.ConstantTimeCompare([]byte(t), []byte(p)) == 1 {
+			delete(s.pairs, p)
+			return time.Now().Before(exp)
+		}
 	}
-	s.pair = ""
-	return true
+	return false
 }
 
 // Devices は登録した端末。資格情報のハッシュは外す

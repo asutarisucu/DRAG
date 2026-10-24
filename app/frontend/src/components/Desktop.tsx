@@ -5,6 +5,7 @@ import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
 import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
 import { onForeground } from '../shellBus'
+import { useMobile } from '../mobile'
 import { useSettings } from '../settings'
 import { terminalOf } from '../terminals'
 import { toast } from '../toasts'
@@ -17,6 +18,7 @@ import { Window, type SnapMode } from './Window'
 export function Desktop({ serverId, home }: { serverId: string; home: string }) {
   const { t } = useTranslation()
   const settings = useSettings()
+  const mobile = useMobile()
   const wins = useWins(serverId)
   const layer = useRef<HTMLDivElement>(null)
   const [snap, setSnap] = useState<SnapMode>(null)
@@ -77,7 +79,7 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
   })()
 
   return (
-    <section className="relative flex min-h-0 min-w-0 flex-col">
+    <section className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={layer}
         data-desktop={serverId}
@@ -107,7 +109,7 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
           }
         }}
       >
-        {wins.length === 0 && <div className="pointer-events-none absolute inset-0 grid place-items-center text-faint select-none">{t('desktop.empty')}</div>}
+        {wins.length === 0 && <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-faint select-none">{mobile ? t('desktop.emptyMobile') : t('desktop.empty')}</div>}
         {wins.map(w => (
           <Window key={w.id} win={w} focused={w.id === focused} host={host} onSnapPreview={setSnap} onMinimize={() => minimize(w)} onClose={() => close(w)}>
             {w.kind === 'editor' ? <EditorView win={w} serverId={serverId} home={home} />
@@ -139,19 +141,21 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
   onMinimize: (w: Win) => void
 }) {
   const { t } = useTranslation()
+  const mobile = useMobile()
   const box = useRef<HTMLDivElement>(null)
   const dragged = useRef(false)
 
+  // スマホではウィンドウを1つずつ出すので、押したものを前に出すだけにする
   const click = (w: Win) => {
     if (dragged.current) return
-    if (w.min) focusWin(w.id)
+    if (w.min || mobile) focusWin(w.id)
     else if (w.id === focused) onMinimize(w)
     else focusWin(w.id)
   }
 
   // 下のタブはドラッグで並べ替える (mock/ と同じ動き)
   const onDown = (e: React.PointerEvent, idx: number) => {
-    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+    if (mobile || e.button !== 0 || (e.target as HTMLElement).closest('button')) return
     const item = e.currentTarget as HTMLElement
     const items = [...box.current!.children] as HTMLElement[]
     const rects = items.map(i => i.getBoundingClientRect())
@@ -196,7 +200,7 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
   }
 
   return (
-    <footer className="flex h-[42px] flex-none items-center gap-1 border-t border-line bg-[color-mix(in_srgb,var(--chrome)_90%,transparent)] px-2 backdrop-blur-md">
+    <footer className={`flex flex-none items-center gap-1 border-line bg-[color-mix(in_srgb,var(--chrome)_90%,transparent)] px-2 backdrop-blur-md ${mobile ? 'order-first h-[46px] border-b' : 'h-[42px] border-t'}`}>
       <button className="grid h-8 w-[34px] place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t('desktop.newTerminal')} onClick={onNewTerminal}>
         <Icon name="terminal" size={18} />
       </button>
@@ -223,7 +227,7 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
           )
         })}
       </div>
-      <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('desktop.tile')} onClick={onTile}><Icon name="grid" /></button>
+      {!mobile && <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('desktop.tile')} onClick={onTile}><Icon name="grid" /></button>}
     </footer>
   )
 }

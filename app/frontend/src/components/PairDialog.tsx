@@ -33,7 +33,7 @@ function when(iso: string) {
   return d.toDateString() === now.toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`
 }
 
-// スマホを登録する窓。QR コードは5分で使えなくなり、1回読まれると次のものに替える
+// スマホを登録する窓。QR コードは5分か1回読まれると使えなくなるので、読まれたら次のものに替える
 export function PairDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const { devices, history } = usePhoneDevices()
@@ -42,9 +42,12 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
   const [now, setNow] = useState(Date.now())
 
   const created = useRef(0)
+  const seq = useRef(0)
   const regen = useCallback(() => {
     created.current = Date.now()
-    NewPairing().then(p => { setPair(p); setError('') }, e => setError(errText(e)))
+    // 続けて作り直したときは、最後に頼んだものだけを出す
+    const n = ++seq.current
+    NewPairing().then(p => { if (n === seq.current) { setPair(p); setError('') } }, e => setError(errText(e)))
   }, [])
   useEffect(regen, [regen])
   useEffect(() => {

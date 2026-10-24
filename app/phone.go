@@ -61,6 +61,10 @@ func phoneAddr(ps PhoneSettings) string {
 
 func (a *App) startPhone() {
 	dist, _ := fs.Sub(assets, "frontend/dist")
+	// 試すときは、組み込んだものではなくフォルダの画面を出す。画面だけを作り直せば、スマホの側に出る
+	if dir := os.Getenv("DRAG_PHONE_ASSETS"); dir != "" {
+		dist = os.DirFS(dir)
+	}
 	a.phone = phone.New(phone.Options{
 		Dir:     filepath.Join(configDir(), "phone"),
 		Assets:  dist,
@@ -145,7 +149,7 @@ type Pairing struct {
 	Size    int    `json:"size"`
 }
 
-// NewPairing は使い捨てのトークンを作り、その URL の QR コードを返す。前のトークンは使えなくなる
+// NewPairing は使い捨てのトークンを作り、その URL の QR コードを返す
 func (a *App) NewPairing() (Pairing, error) {
 	u, exp, err := a.phone.NewPairURL()
 	if err != nil {

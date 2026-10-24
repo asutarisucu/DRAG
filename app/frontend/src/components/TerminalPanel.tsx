@@ -4,6 +4,7 @@ import { CloseShell, OpenShell, ShellCwd, ShellReplay, ShellResize } from '../..
 import type { remote } from '../../wailsjs/go/models'
 import { attachCommand, sessionKeyOf } from '../sessions'
 import { attachShell, decode, foregroundOf, onForeground } from '../shellBus'
+import { setMTab, useMobile } from '../mobile'
 import { sendInput } from '../shellInput'
 import { useSettings } from '../settings'
 import { pathArg, registerTerminal, terminalOf } from '../terminals'
@@ -44,12 +45,20 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
 }) {
   const { t } = useTranslation()
   const settings = useSettings()
+  const mobile = useMobile()
   const host = useRef<HTMLDivElement>(null)
   const { termRef, fitRef } = useXterm(host, fontSize)
   const shellRef = useRef('')
   const detachRef = useRef(() => {})
   const [fg, setFgState] = useState('')
   const [dropLabel, setDropLabel] = useState('')
+  // スマホの Ctrl。押したあとに打った1文字を Ctrl 付きにする
+  const [ctrl, setCtrlState] = useState(false)
+  const ctrlRef = useRef(false)
+  const setCtrl = (v: boolean) => {
+    ctrlRef.current = v
+    setCtrlState(v)
+  }
   // ターミナルで開くセッションは、自動でウィンドウへ移さない
   const noAutoRef = useRef(false)
   const fgChangeRef = useRef(onForegroundChange)
@@ -92,7 +101,13 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
     const term = termRef.current!
     if (generation > 0) dim(tRef.current('terminal.reopened'))
     open('')
-    const onData = term.onData(d => { if (shellRef.current) sendInput(shellRef.current, d) })
+    const onData = term.onData(d => {
+      if (ctrlRef.current && d.length === 1 && /[@-~a-z]/i.test(d)) {
+        d = String.fromCharCode(d.toUpperCase().charCodeAt(0) & 0x1f)
+        setCtrl(false)
+      }
+      if (shellRef.current) sendInput(shellRef.current, d)
+    })
     const onResize = term.onResize(({ cols, rows }) => { if (shellRef.current) ShellResize(shellRef.current, cols, rows) })
     return () => {
       onData.dispose()
@@ -208,7 +223,7 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
   return (
     <section
       data-terminal={serverId}
-      className="relative flex min-h-0 flex-col border-t border-line bg-term"
+      className={`relative flex min-h-0 flex-col bg-term ${mobile ? 'flex-1' : 'border-t border-line'}`}
       onDragOver={e => {
         const types = e.dataTransfer.types
         if (types.includes('application/x-drag-session')) setDropLabel(t('desktop.openHere'))
@@ -245,21 +260,47 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
               e.dataTransfer.setData('application/x-drag-fg', serverId)
               e.dataTransfer.effectAllowed = 'move'
             }}
-            onClick={() => popOut()}
+            onClick={() => {
+              popOut()
+              setMTab('desktop')
+            }}
             title={fg}
           >
             <Icon name="grip" className="text-accent" />
             <span className="max-w-[260px] truncate font-mono text-[12px]">{fg}</span>
-            <span className="text-[11px] whitespace-nowrap text-muted">{t('desktop.chipHint')}</span>
+            <span className="text-[11px] whitespace-nowrap text-muted">{mobile ? t('desktop.chipHintMobile') : t('desktop.chipHint')}</span>
           </div>
         )}
       </div>
       <div ref={host} className="min-h-0 flex-1" />
+      {mobile && <ExtraKeys ctrl={ctrl} onCtrl={() => setCtrl(!ctrl)} onKey={seq => termRef.current?.input(seq, false)} arrow={k => (termRef.current?.modes.applicationCursorKeysMode ? '\x1bO' : '\x1b[') + k} />}
       {dropLabel && (
         <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold text-text">
           <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{dropLabel}</span>
         </div>
       )}
     </section>
+  )
+}
+
+// スマホのキーボードにないキーの列。押してもキーボードを閉じないよう、フォーカスを動かさない
+function ExtraKeys({ ctrl, onCtrl, onKey, arrow }: { ctrl: boolean; onCtrl: () => void; onKey: (seq: string) => void; arrow: (k: string) => string }) {
+  const keys: [string, () => void][] = [
+    ['Esc', () => onKey('\x1b')], ['Tab', () => onKey('\t')], ['Ctrl', onCtrl],
+    ['↑', () => onKey(arrow('A'))], ['↓', () => onKey(arrow('B'))], ['←', () => onKey(arrow('D'))], ['→', () => onKey(arrow('C'))],
+    ['|', () => onKey('|')], ['/', () => onKey('/')], ['~', () => onKey('~')], ['-', () => onKey('-')],
+  ]
+  return (
+    <div className="flex flex-none gap-1.5 overflow-x-auto border-t border-line bg-panel px-2 py-1.5 [scrollbar-width:none]">
+      {keys.map(([label, fn]) => (
+        <button
+          key={label}
+          data-key={label}
+          className={`h-9 min-w-[42px] flex-none rounded-lg border px-2.5 font-mono text-[13px] ${label === 'Ctrl' && ctrl ? 'border-accent bg-accent text-white' : 'border-line-strong bg-raised'}`}
+          onPointerDown={e => e.preventDefault()}
+          onClick={fn}
+        >{label}</button>
+      ))}
+    </div>
   )
 }

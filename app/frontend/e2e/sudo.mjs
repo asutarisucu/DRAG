@@ -25,6 +25,8 @@ page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 page.on('pageerror', e => { if (!e.stack.includes('/wails/ipc.js')) errors.push('pageerror ' + e.stack); });
 page.on('console', m => { if (m.type() === 'error' && !m.text().includes('404')) errors.push('console ' + m.text()); });
 await page.goto('http://localhost:34115');
+// 前のテストで開いたままの接続を閉じる。wails dev では画面を読み込み直しても Go の側の接続は残る
+await page.evaluate(async () => { for (const s of await window.go.main.App.Servers()) await window.go.main.App.Disconnect(s.id); });
 await page.evaluate(() => localStorage.removeItem('drag-settings'));
 await page.reload();
 await page.waitForSelector('text=サーバーに接続');

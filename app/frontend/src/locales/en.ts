@@ -52,6 +52,9 @@ const en: Messages = {
     reopened: 'The connection was lost and the previous shell exited. Opened a new shell',
   },
   desktop: {
+    emptyMobile: 'Open files from the … button in Files',
+    chipHintMobile: 'Move to a window',
+    toTerminal: 'Move back to the terminal',
     empty: 'Drag files or sessions here',
     newTerminal: 'New terminal',
     terminalN: 'Terminal {{n}}',
@@ -133,6 +136,11 @@ const en: Messages = {
     routes: { lan: 'LAN', public: 'Internet' },
     kinds: { pair: 'Registered', login: 'Login', 'pair-failed': 'Unusable QR code', denied: 'Unregistered device' },
   },
+  mobile: {
+    files: 'Files',
+    desktop: 'Desktop',
+    terminal: 'Terminal',
+  },
   sudo: {
     title: 'Turn on sudo mode',
     password: 'sudo password for {{who}}',
@@ -161,6 +169,7 @@ const en: Messages = {
     disconnect: 'Disconnect',
   },
   menu: {
+    more: 'Actions',
     cd: 'cd in the terminal',
     insertPath: 'Type the path in the terminal',
     newFile: 'New file',

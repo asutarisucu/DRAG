@@ -22,6 +22,8 @@ const browser = await chromium.launch({ channel: 'chrome' });
 pc = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 pc.on('pageerror', e => { if (!e.stack.includes('/wails/ipc.js')) errors.push('pc pageerror ' + e.stack); });
 await pc.goto('http://localhost:34115');
+// 前のテストで開いたままの接続を閉じる。wails dev では画面を読み込み直しても Go の側の接続は残る
+await pc.evaluate(async () => { for (const s of await window.go.main.App.Servers()) await window.go.main.App.Disconnect(s.id); });
 await pc.evaluate(() => localStorage.removeItem('drag-settings'));
 await pc.reload();
 await pc.waitForSelector('text=サーバーに接続');
@@ -47,7 +49,9 @@ ok('登録していない端末には画面を出さない', res.status() === 40
 const before = await pc.$$eval('[data-device]', l => l.length).catch(() => 0);
 await pc.click('header button:has-text("スマホを登録")');
 await pc.waitForSelector('svg[data-qr^="https://"]');
-const url = await pc.$eval('svg[data-qr]', e => e.dataset.qr);
+// 開発中の React は effect を2回動かすので、QR コードが作り直されて落ち着くのを待つ
+let url = '';
+for (let prev = null; url !== prev; await pc.waitForTimeout(600)) { prev = url; url = await pc.$eval('svg[data-qr]', e => e.dataset.qr); }
 ok('QR コードに登録の URL が入る', url.startsWith(PHONE + '/pair?t='), url.replace(/t=.*/, 't=…'));
 ok('残り時間が出る', /で無効になります/.test(await pc.textContent('[role=dialog]')));
 await pc.screenshot({ path: `${OUT}/phone-pair.png` });

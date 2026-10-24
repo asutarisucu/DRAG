@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sessions } from '../../wailsjs/go/main/App'
 import type { remote } from '../../wailsjs/go/models'
+import { setMTab, useMobile } from '../mobile'
 import { sameSession } from '../sessions'
 import { focusWin, useWins } from '../windows'
 import { Icon } from './Icon'
@@ -17,6 +18,8 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
   const { t } = useTranslation()
   const [list, setList] = useState<remote.Session[] | null>(null)
   const wins = useWins(serverId)
+  const mobile = useMobile()
+  const pad = mobile ? 'py-2.5 px-4' : 'py-1.5 px-3.5'
 
   useEffect(() => {
     if (!visible) return
@@ -35,9 +38,9 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
     return (
       <div
         key={s.kind + s.name}
-        draggable
+        draggable={!mobile}
         data-session={`${s.kind}:${s.name}`}
-        className="flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)]"
+        className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`}
         onClick={() => onOpen(s)}
         onDragStart={e => e.dataTransfer.setData('application/x-drag-session', JSON.stringify({ kind: s.kind, name: s.name }))}
       >
@@ -58,7 +61,7 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
         ...group('screen', list.filter(s => s.kind === 'screen').map(item)),
         ...group('tmux', list.filter(s => s.kind === 'tmux').map(item)),
         ...group(t('sessions.windows'), own.map(w => (
-          <div key={w.id} className="flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)]" onClick={() => focusWin(w.id)}>
+          <div key={w.id} className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`} onClick={() => { focusWin(w.id); setMTab('desktop') }}>
             <Icon name={w.icon} className="text-accent-2" />
             <div className="min-w-0">
               <div className="truncate font-mono text-[12.5px]">{w.title}</div>

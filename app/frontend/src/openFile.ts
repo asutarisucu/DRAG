@@ -1,5 +1,6 @@
 import i18n from './i18n'
 import { fileKind } from './fileKind'
+import { setMTab } from './mobile'
 import { toast } from './toasts'
 import { focusWin, openWin, winsOf, type Win } from './windows'
 
@@ -17,6 +18,7 @@ export function openFile(serverId: string, e: { path: string; name: string; dir:
     toast(i18n.t('open.binary', { name: e.name }), 'warn')
     return
   }
+  setMTab('desktop')
   const open = winsOf(serverId).find(w => w.path === e.path)
   if (open) {
     focusWin(open.id)

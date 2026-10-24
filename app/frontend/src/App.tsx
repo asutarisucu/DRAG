@@ -17,6 +17,7 @@ import { SudoDialog } from './components/SudoDialog'
 import { TerminalPanel } from './components/TerminalPanel'
 import { Toasts } from './components/Toasts'
 import { setSettings, useSettings } from './settings'
+import { setMTab, useMobile, useMTab, type MTab } from './mobile'
 import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
@@ -124,37 +125,43 @@ export default function App() {
   }
   const cur = servers.find(s => s.id === active)
   const sudo = useSudo(active)
+  // スマホの幅では、上はいま見ているサーバーの名前だけにし、下の欄の代わりに区画を切り替えるタブを置く
+  const mobile = useMobile()
+  const mtab = useMTab()
+  const rows = mobile ? (cur ? 'grid-rows-[48px_minmax(0,1fr)_60px]' : 'grid-rows-[48px_minmax(0,1fr)]') : 'grid-rows-[42px_minmax(0,1fr)_24px]'
 
   return (
-    <div className="grid h-dvh grid-rows-[42px_minmax(0,1fr)_24px]">
-      <header className={`flex min-w-0 items-center gap-2 border-b border-line bg-chrome px-2 ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}>
+    <div className={`grid h-dvh ${rows}`}>
+      <header className={`flex min-w-0 items-center gap-2 border-b border-line bg-chrome ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}>
         <span className="brand pr-2 pl-1.5 text-[13px]">DRAG</span>
         <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
-          {servers.map(s => (
+          {servers.filter(s => !mobile || s.id === active).map(s => (
             <div
               key={s.id}
-              className={`group flex h-[30px] flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
+              className={`group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
               onClick={() => setActive(s.id)}
             >
               <span className={`h-2 w-2 flex-none rounded-full ${s.conn === 'ok' ? 'bg-ok shadow-[0_0_0_3px_rgba(63,207,142,.16)]' : s.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
-              <span className="text-[12.5px] font-semibold">{s.name}</span>
-              <span className="font-mono text-[11px] text-faint">{s.host}</span>
-              <button
-                className="grid h-[22px] w-[22px] place-items-center rounded-[5px] text-muted opacity-0 group-hover:opacity-80 hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]"
-                title={t('tabs.close')}
-                onClick={e => { e.stopPropagation(); close(s.id) }}
-              ><Icon name="x" size={13} /></button>
+              <span className="truncate text-[12.5px] font-semibold">{s.name}</span>
+              {!mobile && <span className="font-mono text-[11px] text-faint">{s.host}</span>}
+              {!mobile && (
+                <button
+                  className="grid h-[22px] w-[22px] place-items-center rounded-[5px] text-muted opacity-0 group-hover:opacity-80 hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)]"
+                  title={t('tabs.close')}
+                  onClick={e => { e.stopPropagation(); close(s.id) }}
+                ><Icon name="x" size={13} /></button>
+              )}
             </div>
           ))}
         </div>
-        {servers.length > 0 && (
+        {servers.length > 0 && !mobile && (
           <button className="mr-auto grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('tabs.add')} onClick={() => setConnecting({})}>
             <Icon name="plus" />
           </button>
         )}
         {cur && (
           <button
-            className={`inline-flex h-7 flex-none items-center gap-1.5 rounded-lg border pr-2 pl-[9px] text-[12px] ${sudo ? 'border-warn bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn' : 'border-line-strong text-muted hover:text-text'}`}
+            className={`inline-flex h-7 flex-none items-center gap-1.5 rounded-lg border pr-2 pl-[9px] text-[12px] ${mobile ? 'ml-auto h-[30px]' : ''} ${sudo ? 'border-warn bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn' : 'border-line-strong text-muted hover:text-text'}`}
             title={sudo ? t('sudo.on') : t('sudo.off')}
             data-sudo={sudo ? 'on' : 'off'}
             onClick={() => sudo ? turnOffSudo(cur.id) : requireSudo(cur.id)}
@@ -166,9 +173,14 @@ export default function App() {
             </span>
           </button>
         )}
-        {cur && !isRemote && (
+        {cur && !isRemote && !mobile && (
           <button className="inline-flex h-7 flex-none items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" onClick={openPair}>
             <Icon name="qr" size={15} />{t('pair.open')}
+          </button>
+        )}
+        {mobile && cur && (
+          <button className="grid h-[30px] w-[30px] flex-none place-items-center rounded-md text-muted hover:text-text" title={t('activity.settings')} onClick={() => setSettingsOpen(true)}>
+            <Icon name="gear" />
           </button>
         )}
       </header>
@@ -180,15 +192,19 @@ export default function App() {
         ))}
       </div>
 
-      <footer className="flex min-w-0 items-center gap-1 border-t border-line bg-chrome px-2 text-[11.5px] text-muted">
-        {cur && (
-          <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap">
-            <Icon name="server" size={13} />
-            <span className="font-mono">{cur.user}@{cur.host}</span>
-          </span>
+      {mobile
+        ? cur && <MobileNav tab={mtab} />
+        : (
+          <footer className="flex min-w-0 items-center gap-1 border-t border-line bg-chrome px-2 text-[11.5px] text-muted">
+            {cur && (
+              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap">
+                <Icon name="server" size={13} />
+                <span className="font-mono">{cur.user}@{cur.host}</span>
+              </span>
+            )}
+            {cur && !isRemote && <PhoneCount onClick={openPair} />}
+          </footer>
         )}
-        {cur && !isRemote && <PhoneCount onClick={openPair} />}
-      </footer>
 
       {linkLost && (
         <div className="fixed inset-x-0 top-0 z-[60] bg-err px-3 py-2 text-center text-[12.5px] text-white" role="alert">{t('pair.linkLost')}</div>
@@ -199,6 +215,21 @@ export default function App() {
       <SudoDialog who={id => { const s = servers.find(x => x.id === id); return s ? `${s.user}@${s.name}` : '' }} />
       <Toasts />
     </div>
+  )
+}
+
+// スマホの下のタブ。ファイル・デスクトップ・ターミナルの区画を1つずつ出す
+function MobileNav({ tab }: { tab: MTab }) {
+  const { t } = useTranslation()
+  const items: [MTab, IconName, string][] = [['files', 'files', t('mobile.files')], ['desktop', 'window', t('mobile.desktop')], ['terminal', 'terminal', t('mobile.terminal')]]
+  return (
+    <nav className="grid grid-cols-3 border-t border-line bg-chrome pb-[env(safe-area-inset-bottom)]">
+      {items.map(([k, icon, label]) => (
+        <button key={k} data-mtab={k} className={`grid content-center justify-items-center gap-[3px] text-[11px] ${tab === k ? 'text-accent' : 'text-faint'}`} onClick={() => setMTab(k)}>
+          <Icon name={icon} size={21} />{label}
+        </button>
+      ))}
+    </nav>
   )
 }
 
@@ -224,16 +255,35 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   const st = useSettings()
   const [view, setView] = useState<'files' | 'sessions'>('files')
   const [termFg, setTermFg] = useState('')
+  // スマホの幅でも同じ部品を同じ並びで置き、区画を隠すだけにする。
+  // 向きを変えて幅が変わっても、ターミナルのシェルやツリーの開き具合が作り直されないように
+  const mobile = useMobile()
+  const mtab = useMTab()
+  const pane = (k: MTab) => mobile ? (mtab === k ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden') : 'contents'
   return (
-    <div className={`absolute inset-0 grid ${visible ? '' : 'invisible'}`} style={{ gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }} data-server={s.id}>
-      <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
-        <ActButton icon="files" title={t('activity.files')} active={view === 'files'} onClick={() => setView('files')} />
-        <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions'} onClick={() => setView('sessions')} />
-        <div className="flex-1" />
-        <ActButton icon="gear" title={t('activity.settings')} onClick={onSettings} />
-      </nav>
-      <aside className="flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel">
-        <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{view === 'files' ? t('files.title') : t('sessions.title')}</div>
+    <div
+      className={`absolute inset-0 ${mobile ? 'flex flex-col' : 'grid'} ${visible ? '' : 'invisible'}`}
+      style={mobile ? undefined : { gridTemplateColumns: `48px ${st.sidebarW}px 4px minmax(0,1fr)` }}
+      data-server={s.id}
+    >
+      {!mobile && (
+        <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
+          <ActButton icon="files" title={t('activity.files')} active={view === 'files'} onClick={() => setView('files')} />
+          <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions'} onClick={() => setView('sessions')} />
+          <div className="flex-1" />
+          <ActButton icon="gear" title={t('activity.settings')} onClick={onSettings} />
+        </nav>
+      )}
+      <aside className={mobile ? (mtab === 'files' ? 'flex min-h-0 flex-1 flex-col bg-panel' : 'hidden') : 'flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel'}>
+        {mobile
+          ? (
+            <div className="mx-3 mt-2.5 mb-0.5 flex gap-1 rounded-[10px] border border-line bg-field p-[3px]">
+              {(['files', 'sessions'] as const).map(v => (
+                <button key={v} className={`h-8 flex-1 rounded-lg ${view === v ? 'bg-raised text-text' : 'text-muted'}`} onClick={() => setView(v)}>{t(`activity.${v}`)}</button>
+              ))}
+            </div>
+          )
+          : <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{view === 'files' ? t('files.title') : t('sessions.title')}</div>}
         {/* ツリーの開き具合を残すため、隠すだけにする */}
         <div className={`flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
           <FileTree serverId={s.id} root={s.home} generation={s.gen} />
@@ -242,11 +292,16 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
           <SessionsView serverId={s.id} visible={visible} terminalKey={sessionKeyOf(termFg)} onOpen={x => openSessionWindow(s.id, x)} />
         )}
       </aside>
-      <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />
-      <main className="grid min-h-0 min-w-0" style={{ gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}>
-        <Desktop serverId={s.id} home={s.home} />
-        <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />
-        <TerminalPanel serverId={s.id} home={s.home} generation={s.gen} visible={visible} fontSize={st.termSize} onForegroundChange={setTermFg} />
+      {!mobile && <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />}
+      <main
+        className={mobile ? (mtab === 'files' ? 'hidden' : 'flex min-h-0 flex-1 flex-col') : 'grid min-h-0 min-w-0'}
+        style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}
+      >
+        <div className={pane('desktop')}><Desktop serverId={s.id} home={s.home} /></div>
+        {!mobile && <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />}
+        <div className={pane('terminal')}>
+          <TerminalPanel serverId={s.id} home={s.home} generation={s.gen} visible={visible && (!mobile || mtab === 'terminal')} fontSize={st.termSize} onForegroundChange={setTermFg} />
+        </div>
       </main>
       {s.conn !== 'ok' && <ConnBanner server={s} onReconnect={onReconnect} onClose={onClose} />}
     </div>

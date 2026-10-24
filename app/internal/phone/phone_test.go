@@ -150,3 +150,26 @@ func TestDeviceName(t *testing.T) {
 		}
 	}
 }
+
+// QR コードを続けて作り直しても、出したものはどれも1回ずつ使える
+func TestPairTokensStayValidUntilUsed(t *testing.T) {
+	s, _, hc := start(t, func(Device, string, []json.RawMessage) (any, error) { return nil, nil })
+	u1, _, _ := s.NewPairURL()
+	u2, _, _ := s.NewPairURL()
+	for _, u := range []string{u2, u1} {
+		jar, _ := cookiejar.New(nil)
+		c := &http.Client{Jar: jar, Transport: hc.Transport}
+		if code, _ := get(t, c, u); code != http.StatusOK {
+			t.Fatalf("%d", code)
+		}
+	}
+	if len(s.Devices()) != 2 {
+		t.Fatalf("%+v", s.Devices())
+	}
+	for i := 0; i < pairLimit+2; i++ {
+		s.NewPairURL()
+	}
+	if len(s.pairs) != pairLimit {
+		t.Fatalf("トークンが %d 個残った", len(s.pairs))
+	}
+}

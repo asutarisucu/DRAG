@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { setMTab, useMobile } from '../mobile'
 import { useSettings } from '../settings'
 import { terminalOf } from '../terminals'
 import { focusWin, updateWin, type Rect, type Win } from '../windows'
@@ -11,7 +12,8 @@ type DragMode = SnapMode | 'return'
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 // デスクトップのウィンドウの枠。バーをドラッグして動かし、右と下の縁で大きさを変える。
-// 画面の左右の端へ寄せると半分、上の端で最大化 (mock/ と同じ)
+// 画面の左右の端へ寄せると半分、上の端で最大化 (mock/ と同じ)。
+// スマホの幅では、いちばん上のウィンドウだけを区画いっぱいに出し、動かしたり大きさを変えたりはしない
 export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose, children }: {
   win: Win
   focused: boolean
@@ -23,6 +25,7 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
 }) {
   const { t } = useTranslation()
   const settings = useSettings()
+  const mobile = useMobile()
   const el = useRef<HTMLDivElement>(null)
 
   const toggleMax = () => win.max
@@ -97,6 +100,25 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
     }
     target.addEventListener('pointermove', move)
     target.addEventListener('pointerup', up)
+  }
+
+  if (mobile) {
+    const mbtn = 'grid h-[34px] w-10 place-items-center rounded-md text-muted hover:bg-raised hover:text-text'
+    return (
+      <div data-win={win.id} className={`absolute inset-0 flex-col bg-[var(--win-bg)] ${focused && !win.min ? 'flex' : 'hidden'}`} style={{ zIndex: win.z }}>
+        <div className="flex h-[42px] flex-none items-center gap-2 border-b border-line bg-gradient-to-b from-[var(--bar-f1)] to-[var(--bar-f2)] pr-1 pl-3 select-none">
+          <Icon name={win.icon} className="text-accent" />
+          <span className={`min-w-0 flex-1 truncate text-[13px] ${win.ended ? 'text-faint' : ''}`}>{win.title}</span>
+          {win.kind === 'session' && !win.ended && (
+            <button className={mbtn} title={t('desktop.toTerminal')} onClick={() => { terminalOf(win.serverId)?.takeBack(win.id); setMTab('terminal') }}>
+              <Icon name="download" size={16} />
+            </button>
+          )}
+          <button className={`${mbtn} hover:!bg-[#c42b1c] hover:!text-white`} title={t('desktop.close')} onClick={onClose}><Icon name="x" size={16} /></button>
+        </div>
+        <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
+      </div>
+    )
   }
 
   const r = win.max ? { x: 0, y: 0, w: undefined, h: undefined } : win.rect

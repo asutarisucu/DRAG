@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PhoneState, SetPhoneLAN } from '../../wailsjs/go/main/App'
 import type { main } from '../../wailsjs/go/models'
+import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
 import { DEFAULTS, setSettings, useSettings } from '../settings'
 import { Icon, type IconName } from './Icon'
@@ -99,21 +100,22 @@ function PhonePage() {
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
   const s = useSettings()
+  const mobile = useMobile()
   const [page, setPage] = useState<Page>('look')
   // スマホの待ち受けは PC アプリの設定なので、スマホの画面には出さない
   const pages: [Page, IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear'], ...(isRemote ? [] : [['phone', 'phone'] as [Page, IconName]])]
 
   return (
-    <Modal title={t('settings.title')} width={780} onClose={onClose}>
-      <div className="grid h-[440px] flex-none grid-cols-[160px_minmax(0,1fr)] gap-6">
-        <div className="flex flex-col gap-0.5">
+    <Modal title={t('settings.title')} width={780} height={mobile ? 'calc(100dvh - 56px)' : undefined} onClose={onClose}>
+      <div className={mobile ? 'grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3' : 'grid h-[440px] flex-none grid-cols-[160px_minmax(0,1fr)] gap-6'}>
+        <div className={`flex gap-0.5 ${mobile ? 'flex-row flex-wrap' : 'flex-col'}`}>
           {pages.map(([k, icon]) => (
             <button key={k} className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-left ${page === k ? 'bg-accent-soft text-text' : 'text-muted hover:text-text'}`} onClick={() => setPage(k)}>
               <Icon name={icon} />{t(`settings.${k}`)}
             </button>
           ))}
-          <div className="flex-1" />
-          <button className="h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog })}>
+          {!mobile && <div className="flex-1" />}
+          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog })}>
             {t('settings.reset')}
           </button>
         </div>

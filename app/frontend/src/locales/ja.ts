@@ -51,6 +51,9 @@ const ja = {
     reopened: '接続が切れたため、前のシェルは終了しました。新しいシェルで開き直しました',
   },
   desktop: {
+    emptyMobile: 'ファイルの … から開けます',
+    chipHintMobile: 'ウィンドウに移す',
+    toTerminal: 'ターミナルに戻す',
     empty: 'ファイルやセッションをここへドラッグ',
     newTerminal: '新しいターミナル',
     terminalN: 'ターミナル {{n}}',
@@ -132,6 +135,11 @@ const ja = {
     routes: { lan: 'LAN 内', public: '外から' },
     kinds: { pair: '登録', login: 'ログイン', 'pair-failed': '使えない QR コード', denied: '登録していない端末' },
   },
+  mobile: {
+    files: 'ファイル',
+    desktop: 'デスクトップ',
+    terminal: 'ターミナル',
+  },
   sudo: {
     title: 'sudo モードを ON にする',
     password: '{{who}} の sudo のパスワード',
@@ -160,6 +168,7 @@ const ja = {
     disconnect: '切断',
   },
   menu: {
+    more: '操作',
     cd: 'ターミナルで cd',
     insertPath: 'ターミナルにパスを入力',
     newFile: '新しいファイル',
