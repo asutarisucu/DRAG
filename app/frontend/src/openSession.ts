@@ -11,7 +11,7 @@ import { focusWin, openWin, winsOf } from './windows'
 export async function openSessionWindow(serverId: string, s: { kind: string; name: string }, pos?: { x: number; y: number }) {
   const key = `${s.kind}:${s.name.replace(/^\d+\./, '')}`
   setMTab('desktop')
-  const open = winsOf(serverId).find(w => sameSession({ ...s, attached: false, desc: '' }, w.sessionKey))
+  const open = winsOf(serverId).find(w => sameSession({ ...s, attached: false, desc: '', lastUsed: 0 }, w.sessionKey))
   if (open) {
     focusWin(open.id)
     return

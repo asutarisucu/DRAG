@@ -7,6 +7,15 @@ import { sameSession } from '../sessions'
 import { focusWin, openWin, useWins } from '../windows'
 import { Icon } from './Icon'
 
+const pad2 = (n: number) => String(n).padStart(2, '0')
+// 最後に使った時刻。今日なら時刻だけ、今年なら月日と時刻
+function when(sec: number) {
+  const d = new Date(sec * 1000), now = new Date()
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  if (d.toDateString() === now.toDateString()) return time
+  return d.getFullYear() === now.getFullYear() ? `${d.getMonth() + 1}/${d.getDate()} ${time}` : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+}
+
 // 左の欄の「セッション」。screen と tmux のセッションと、DRAG のウィンドウを並べる。
 // 見えている間は数秒おきに読み直す
 export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
@@ -51,7 +60,9 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
         <Icon name="layers" className="text-accent-2" />
         <div className="min-w-0">
           <div className="truncate font-mono text-[12.5px]">{s.name}</div>
-          <div className="text-[11.5px] text-muted">{s.kind === 'tmux' ? t('sessions.windowsCount', { n: s.desc }) : s.desc}</div>
+          <div className="text-[11.5px] text-muted">
+            {[s.kind === 'tmux' ? t('sessions.windowsCount', { n: s.desc }) : '', s.lastUsed ? t('sessions.lastUsed', { when: when(s.lastUsed) }) : s.kind === 'screen' ? s.desc : ''].filter(Boolean).join(' · ')}
+          </div>
         </div>
         {where && <span className="ml-auto flex-none rounded-full bg-accent-soft px-2 py-px text-[10.5px] text-accent">{where}</span>}
       </div>

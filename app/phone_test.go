@@ -49,3 +49,35 @@ func TestPhoneCall(t *testing.T) {
 		}
 	}
 }
+
+// スマホで打ったキーを行に組み立てる。消すキーとエスケープの並びは文字に入れない
+func TestTypedLines(t *testing.T) {
+	key := "d1/t9"
+	if got := typedLines(key, "ls -l"); len(got) != 0 {
+		t.Fatalf("%v", got)
+	}
+	// 1文字消して打ち直し、矢印 (ESC [ A と ESC O B) を挟んで Enter
+	if got := typedLines(key, "\x7fa\x1b[A\x1bOB /tmp\r"); strings.Join(got, "|") != "入力 ls -a /tmp" {
+		t.Fatalf("%q", got)
+	}
+	// Ctrl+C で打っていた行は捨てる。複数行をまとめて送っても1行ずつ残す
+	if got := typedLines(key, "rm -rf x\x03echo 1\recho 2\r"); strings.Join(got, "|") != "入力 echo 1|入力 echo 2" {
+		t.Fatalf("%q", got)
+	}
+}
+
+// 記録にはパスワードを残さない
+func TestAuditHidesPasswords(t *testing.T) {
+	dev := phone.Device{ID: "d1"}
+	got := audit(dev, "Connect", []json.RawMessage{json.RawMessage(`{"user":"asuta","host":"example","password":"secret"}`)})
+	if len(got) != 1 || strings.Contains(got[0], "secret") || got[0] != "接続 asuta@example" {
+		t.Fatalf("%q", got)
+	}
+	got = audit(dev, "EnableSudo", []json.RawMessage{json.RawMessage(`"s1"`), json.RawMessage(`"secret"`)})
+	if len(got) != 1 || strings.Contains(got[0], "secret") {
+		t.Fatalf("%q", got)
+	}
+	if got := audit(dev, "ListDir", []json.RawMessage{json.RawMessage(`"s1"`), json.RawMessage(`"/"`)}); got != nil {
+		t.Fatalf("読むだけの呼び出しを残した %q", got)
+	}
+}

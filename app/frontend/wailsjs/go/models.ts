@@ -354,6 +354,7 @@ export namespace phone {
 	    device: string;
 	    ip: string;
 	    route: string;
+	    what?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Login(source);
@@ -366,6 +367,7 @@ export namespace phone {
 	        this.device = source["device"];
 	        this.ip = source["ip"];
 	        this.route = source["route"];
+	        this.what = source["what"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -791,6 +793,7 @@ export namespace remote {
 	    name: string;
 	    attached: boolean;
 	    desc: string;
+	    lastUsed: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Session(source);
@@ -802,6 +805,7 @@ export namespace remote {
 	        this.name = source["name"];
 	        this.attached = source["attached"];
 	        this.desc = source["desc"];
+	        this.lastUsed = source["lastUsed"];
 	    }
 	}
 	export class TextFile {

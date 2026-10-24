@@ -44,6 +44,7 @@ await waitFor(async () => (await panelText()).includes('$'));
 await page.click('button[title="セッション"]');
 await page.waitForSelector('[data-session^="tmux:e2e-t"]', { timeout: 8000 }).catch(() => {});
 const screenItem = page.locator('[data-session*=".e2e-s"]');
+ok('最後に使った時刻が出る', (await screenItem.textContent()).includes('最後に使った') && (await page.locator('[data-session="tmux:e2e-t"]').textContent()).includes('最後に使った'));
 ok('screen と tmux が並ぶ', await screenItem.count() === 1 && await page.locator('[data-session="tmux:e2e-t"]').count() === 1,
   (await page.locator('aside').textContent()).replace(/\s+/g, ' ').slice(0, 160));
 

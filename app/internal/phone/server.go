@@ -360,6 +360,12 @@ func (s *Server) Devices() []Device {
 
 func (s *Server) History() []Login { return s.devs.history() }
 
+// Record は、スマホからの操作を履歴に残す
+func (s *Server) Record(dev Device, what string) {
+	s.devs.log(Login{Time: time.Now(), Kind: "op", Device: dev.Name, IP: dev.LastIP, Route: dev.Route, What: what})
+	s.changed()
+}
+
 // Revoke は端末を無効にし、その端末の画面を切る
 func (s *Server) Revoke(id string) error {
 	if err := s.devs.remove(id); err != nil {
@@ -515,6 +521,7 @@ func (s *Server) serveWS(route string, dev Device, ws *websocket.Conn, ip string
 	s.clients[c] = struct{}{}
 	s.mu.Unlock()
 	s.devs.seen(dev.ID, ip)
+	dev.LastIP = ip
 	s.devs.log(Login{Time: time.Now(), Kind: "login", Device: dev.Name, IP: ip, Route: dev.Route})
 	s.changed()
 	defer func() {

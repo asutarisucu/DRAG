@@ -121,6 +121,8 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 		}
 		in[i] = v.Elem()
 	}
+	// 打っている途中の行は、呼び出しの前に組み立てておく
+	lines := audit(dev, method, raw)
 	out := m.Call(in)
 	// 戻り値は Wails と同じく、なし・値・error・値と error のどれか
 	var res any
@@ -132,6 +134,12 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 			continue
 		}
 		res = o.Interface()
+	}
+	if r, ok := res.(ConnectResult); ok && r.Error != "" {
+		return res, nil
+	}
+	for _, l := range lines {
+		a.phone.Record(dev, l)
 	}
 	return res, nil
 }

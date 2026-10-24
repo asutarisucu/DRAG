@@ -104,6 +104,7 @@ const ja = {
     extracted: '解凍して表示 · 読み取り専用',
   },
   sessions: {
+    lastUsed: '最後に使った {{when}}',
     shellOf: '{{owner}} のシェル',
     openOn: '{{owner}} で開いている',
     title: 'セッション',
@@ -132,10 +133,10 @@ const ja = {
     none: 'まだありません',
     lastLogin: '最終ログイン {{when}} · {{ip}} · {{route}}',
     revoke: '無効にする',
-    history: 'ログインの履歴',
+    history: 'ログインと操作の履歴',
     off: 'スマホの待ち受けが OFF です。設定の「スマホ」で ON にしてください',
     routes: { lan: 'LAN 内', public: '外から' },
-    kinds: { pair: '登録', login: 'ログイン', 'pair-failed': '使えない QR コード', denied: '登録していない端末' },
+    kinds: { pair: '登録', login: 'ログイン', 'pair-failed': '使えない QR コード', denied: '登録していない端末', op: '操作' },
   },
   tools: {
     monitor: 'リソース監視',

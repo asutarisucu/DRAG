@@ -410,6 +410,13 @@ func TestSessionsListsScreenAndTmux(t *testing.T) {
 	if scr == nil || tm == nil || scr.Attached || tm.Attached || tm.Desc != "1" || scr.Desc == "" {
 		t.Fatalf("%+v", list)
 	}
+	// 最後に使った時刻は、作ったばかりなので今に近い
+	now := time.Now().Unix()
+	for _, x := range []*Session{scr, tm} {
+		if d := now - x.LastUsed; d < -120 || d > 120 {
+			t.Fatalf("最後に使った時刻 %+v", x)
+		}
+	}
 }
 
 func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {

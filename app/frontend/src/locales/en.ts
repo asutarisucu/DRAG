@@ -105,6 +105,7 @@ const en: Messages = {
     extracted: 'Extracted for viewing · read only',
   },
   sessions: {
+    lastUsed: 'Last used {{when}}',
     shellOf: 'Shell on {{owner}}',
     openOn: 'Open on {{owner}}',
     title: 'Sessions',
@@ -133,10 +134,10 @@ const en: Messages = {
     none: 'None yet',
     lastLogin: 'Last login {{when}} · {{ip}} · {{route}}',
     revoke: 'Revoke',
-    history: 'Login history',
+    history: 'Logins and actions',
     off: 'Phone access is off. Turn it on in Settings > Phone',
     routes: { lan: 'LAN', public: 'Internet' },
-    kinds: { pair: 'Registered', login: 'Login', 'pair-failed': 'Unusable QR code', denied: 'Unregistered device' },
+    kinds: { pair: 'Registered', login: 'Login', 'pair-failed': 'Unusable QR code', denied: 'Unregistered device', op: 'Action' },
   },
   tools: {
     monitor: 'Resource monitor',

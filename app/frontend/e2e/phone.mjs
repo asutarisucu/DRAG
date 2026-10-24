@@ -88,6 +88,12 @@ await other.close();
 // スマホの画面に、PC でつないだサーバーが出て、PC アプリを通して操作できる
 ok('PC でつないだサーバーのタブが出る', await waitFor(async () => (await phone.locator('header:has-text("testserver")').count()) > 0));
 ok('ファイルツリーが出る', await waitFor(async () => (await phone.locator('.tree-row').count()) > 0));
+
+// スマホで打ったコマンドは、PC の履歴に操作として残る
+await phone.tap('nav [data-mtab="terminal"]');
+await phone.locator('[data-terminal] .xterm-screen').tap();
+await phone.keyboard.type('echo OP-$((40+2))\n');
+ok('スマホで打ったコマンドが履歴に残る', await waitFor(async () => (await pc.$$eval('[role=dialog] [data-kind="op"]', l => l.map(r => r.textContent).join(' / '))).includes('入力 echo OP-$((40+2))')));
 await phone.screenshot({ path: `${OUT}/phone-desktop-layout.png` });
 
 // 端末を無効にすると、スマホの画面は切れる

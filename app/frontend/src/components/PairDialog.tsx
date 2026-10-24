@@ -122,10 +122,12 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
             <div className="mt-2 grid max-h-[180px] gap-1 overflow-y-auto text-[12px]">
               {history.length === 0 && <div className="text-muted">{t('pair.none')}</div>}
               {history.map((h, i) => (
-                <div key={i} className="grid grid-cols-[90px_1fr_auto_auto] gap-2.5">
+                <div key={i} className="grid grid-cols-[90px_minmax(0,1fr)_minmax(0,auto)_auto] gap-2.5" data-kind={h.kind}>
                   <span className="font-mono">{when(h.time)}</span>
                   <span className="truncate">{h.device || '—'}</span>
-                  <span className="font-mono text-muted">{h.ip}</span>
+                  {h.kind === 'op'
+                    ? <span className="truncate font-mono" title={h.what}>{h.what}</span>
+                    : <span className="font-mono text-muted">{h.ip}</span>}
                   <span className={h.kind === 'denied' || h.kind === 'pair-failed' ? 'text-warn' : 'text-muted'}>{kindLabel(h.kind)}</span>
                 </div>
               ))}

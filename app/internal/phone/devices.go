@@ -29,13 +29,15 @@ type Device struct {
 // Login はログインと端末の登録の履歴1件
 type Login struct {
 	Time   time.Time `json:"time"`
-	Kind   string    `json:"kind"` // "pair" 登録 / "login" ログイン / "pair-failed" 期限切れか使用済みの QR / "denied" 登録していない端末
+	Kind   string    `json:"kind"` // "pair" 登録 / "login" ログイン / "pair-failed" 期限切れか使用済みの QR / "denied" 登録していない端末 / "op" スマホからの操作
 	Device string    `json:"device"`
 	IP     string    `json:"ip"`
 	Route  string    `json:"route"`
+	What   string    `json:"what,omitempty"` // 操作の中身
 }
 
-const loginLimit = 200
+// loginLimit は残す履歴の数。スマホで打ったコマンドも入るので多めにする
+const loginLimit = 1000
 
 // devices は登録したスマホとログインの履歴。dir の devices.json と logins.json に置く
 type devices struct {
