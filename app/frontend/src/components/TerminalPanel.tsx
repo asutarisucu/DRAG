@@ -4,13 +4,13 @@ import { CloseShell, OpenShell, ShellCwd, ShellReplay, ShellResize } from '../..
 import type { remote } from '../../wailsjs/go/models'
 import { attachCommand, sessionKeyOf } from '../sessions'
 import { attachShell, decode, foregroundOf, onForeground } from '../shellBus'
-import { setMTab, useMobile } from '../mobile'
+import { getMTab, isMobile, setMTab, useMobile } from '../mobile'
 import { sendInput } from '../shellInput'
 import { useSettings } from '../settings'
 import { pathArg, registerTerminal, terminalOf } from '../terminals'
 import { toast } from '../toasts'
-import { closeWin, openWin, winById } from '../windows'
-import { Icon } from './Icon'
+import { closeWin, focusWin, openWin, winById } from '../windows'
+import { Icon, type IconName } from './Icon'
 import { useXterm } from './useXterm'
 
 // コマンドの行を、先頭の sudo を飛ばした語の並びにする
@@ -31,6 +31,14 @@ export function matchesAuto(cmdline: string, list: string[]) {
 }
 
 const isDetachable = (cmdline: string) => ['screen', 'tmux'].includes(words(cmdline)[0])
+
+// ウィンドウに移したセッションのアイコン。コマンドの種類で分ける
+function iconOf(cmdline: string): IconName {
+  const cmd = words(cmdline)[0]
+  return cmd === 'ssh' ? 'link' : cmd === 'docker' ? 'box' : cmd === 'mysql' || cmd === 'psql' ? 'db'
+    : cmd === 'top' || cmd === 'htop' ? 'chart' : cmd === 'tail' || cmd === 'journalctl' ? 'log'
+      : cmd === 'screen' || cmd === 'tmux' ? 'layers' : 'terminal'
+}
 
 // 右下のターミナル。サーバーごとに1つシェルを開く。
 // generation は再接続のたびに増える。増えたら同じ画面のまま新しいシェルを開き直す。
@@ -129,10 +137,14 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
     setFg('')
     dim(tRef.current('desktop.moved', { cmd }))
     const desk = document.querySelector<HTMLElement>(`[data-desktop="${serverId}"]`)?.getBoundingClientRect()
-    openWin({
-      serverId, kind: 'session', title: cmd, icon: 'terminal', shellId: id,
+    const winId = openWin({
+      serverId, kind: 'session', title: cmd, icon: iconOf(cmd), shellId: id,
       detachable: isDetachable(cmd), replayFromIdle: true, rect: pos, sessionKey: sessionKeyOf(cmd) || undefined,
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
+    // スマホでターミナルを見ているときは、移したことを知らせ、デスクトップへ行けるようにする
+    if (isMobile() && getMTab() !== 'desktop') {
+      toast(tRef.current('desktop.moved', { cmd }), 'info', { label: tRef.current('desktop.open'), fn: () => { setMTab('desktop'); focusWin(winId) } })
+    }
     open(await ShellCwd(id).catch(() => ''))
   }
   const popOutRef = useRef(popOut)

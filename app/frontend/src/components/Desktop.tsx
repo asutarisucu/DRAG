@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
 import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
+import { attachCommand } from '../sessions'
+import { sendInput } from '../shellInput'
 import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
 import { DockerView } from './DockerView'
 import { MonitorView } from './Monitor'
@@ -20,7 +22,8 @@ import { ShellView } from './ShellView'
 import { Window, type SnapMode } from './Window'
 
 // 右上のデスクトップ。ウィンドウを重ねて置き、下のタスクバーで切り替える
-export function Desktop({ serverId, home }: { serverId: string; home: string }) {
+// generation は再接続のたびに増える。増えたら、接続が切れて終わったウィンドウのシェルを開き直す
+export function Desktop({ serverId, home, generation }: { serverId: string; home: string; generation: number }) {
   const { t } = useTranslation()
   const settings = useSettings()
   const mobile = useMobile()
@@ -47,6 +50,30 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
       updateWin(w.id, { ended: true, title: t('desktop.ended', { title: w.title }) })
     }
   }), [serverId, t])
+
+  // シェルが終わったら、ふつうはウィンドウを閉じる。接続が切れて終わったときは、
+  // ターミナルと screen・tmux のウィンドウは残して再接続を待ち、ほかのセッションは「終了」と出して残す
+  const exited = (id: string, lost: boolean) => {
+    const w = winById(id)
+    if (!w || w.ended) return
+    if (!lost) closeWin(id)
+    else if (w.kind === 'terminal' || (w.detachable && w.sessionKey)) updateWin(id, { lost: true })
+    else updateWin(id, { ended: true, title: t('desktop.ended', { title: w.title }) })
+  }
+  useEffect(() => {
+    if (generation === 0) return
+    for (const w of winsOf(serverId)) {
+      if (!w.lost) continue
+      OpenShell(serverId, 100, 30, '').then(id => {
+        if (!winById(w.id)) return CloseShell(id)
+        updateWin(w.id, { shellId: id, lost: false, replayFromIdle: false })
+        if (w.kind === 'session' && w.sessionKey) {
+          const i = w.sessionKey.indexOf(':')
+          sendInput(id, attachCommand({ kind: w.sessionKey.slice(0, i), name: w.sessionKey.slice(i + 1) }) + '\r')
+        }
+      }, e => toast(String(e), 'warn'))
+    }
+  }, [generation])
 
   const close = async (w: Win) => {
     if (!(await canClose(w.id))) return
@@ -125,7 +152,12 @@ export function Desktop({ serverId, home }: { serverId: string; home: string }) 
                     : w.kind === 'services' ? <ServicesView serverId={serverId} />
                     : w.kind === 'docker' ? <DockerView serverId={serverId} home={home} />
                     : w.kind === 'trash' ? <TrashView serverId={serverId} home={home} />
-                    : <ShellView shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} shared={w.shared} onExit={() => { if (!winById(w.id)?.ended) closeWin(w.id) }} />}
+                    : <ShellView
+                      shellId={w.shellId} fromIdle={w.replayFromIdle} fontSize={settings.termSize} focused={w.id === focused} shared={w.shared}
+                      lostText={w.kind === 'terminal' ? t('desktop.lostTerminal') : w.detachable && w.sessionKey ? t('desktop.lostSession') : t('desktop.lostEnded')}
+                      reopenText={w.kind === 'terminal' ? t('terminal.reopened') : t('desktop.reattached')}
+                      onExit={lost => exited(w.id, lost)}
+                    />}
           </Window>
         ))}
         {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}

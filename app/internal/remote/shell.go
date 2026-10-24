@@ -3,6 +3,7 @@ package remote
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -22,7 +23,9 @@ type ShellEvents struct {
 	Output func(p []byte, end int64)
 	// Foreground は前面のコマンドが変わったとき。シェル自身に戻ったら空
 	Foreground func(cmdline string)
-	Exit       func()
+	// Exit は終わったとき。lost は、終わった知らせ (exit-status か exit-signal) が来ないまま
+	// チャネルが閉じたとき。接続が切れたときと、こちらから閉じたときにそうなる
+	Exit func(lost bool)
 }
 
 // Shell は PTY 付きのチャネルで動くログインシェル。
@@ -78,11 +81,12 @@ func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, 
 	found := make(chan struct{})
 	go func() {
 		defer func() {
-			sess.Wait()
+			err := sess.Wait()
 			if s.mon != nil {
 				s.mon.remove(sh)
 			}
-			ev.Exit()
+			var missing *ssh.ExitMissingError
+			ev.Exit(errors.As(err, &missing))
 		}()
 		var pre []byte
 		b := make([]byte, 32*1024)

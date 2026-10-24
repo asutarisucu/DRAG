@@ -19,6 +19,8 @@ export function setMTab(t: MTab) {
   listeners.forEach(l => l())
 }
 
+export const getMTab = () => tab
+
 export const useMTab = () => useSyncExternalStore(l => {
   listeners.add(l)
   return () => { listeners.delete(l) }

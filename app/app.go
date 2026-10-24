@@ -347,7 +347,7 @@ func (a *App) ListDir(serverID, dir string) ([]remote.Entry, error) {
 
 // OpenShell はシェルを開き、その番号を返す。
 // 出力は "shell:out" (番号, base64, 通算の位置)、前面のコマンドが変わったら "shell:fg" (番号, コマンド)、
-// 終わったら "shell:exit" (番号) のイベントで送る
+// 終わったら "shell:exit" (番号, 接続が切れたか) のイベントで送る
 func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, error) {
 	s, err := a.server(serverID)
 	if err != nil {
@@ -362,11 +362,11 @@ func (a *App) OpenShell(serverID string, cols, rows int, cwd string) (string, er
 			a.emit("shell:out", id, base64.StdEncoding.EncodeToString(p), end)
 		},
 		Foreground: func(cmdline string) { a.emit("shell:fg", id, cmdline) },
-		Exit: func() {
+		Exit: func(lost bool) {
 			a.mu.Lock()
 			delete(a.shells, id)
 			a.mu.Unlock()
-			a.emit("shell:exit", id)
+			a.emit("shell:exit", id, lost)
 		},
 	})
 	if err != nil {

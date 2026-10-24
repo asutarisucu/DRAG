@@ -24,6 +24,7 @@ export type Win = {
   // ほかの端末で開いているシェルを見ているときの、そのシェルの大きさ。閉じてもシェルは閉じない
   shared?: { cols: number; rows: number }
   view?: string // リソース監視で出している詳細 (cpu・mem・disk・net)。概要なら空
+  lost?: boolean // 接続が切れてシェルが終わった。再接続したら開き直す
 }
 
 let wins: Win[] = []

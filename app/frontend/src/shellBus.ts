@@ -3,8 +3,9 @@ import { EventsOn } from '../wailsjs/runtime/runtime'
 // シェルの出力は、OpenShell が番号を返すより先に届くことがある。
 // 受け手が決まるまでの分は番号ごとにためておき、受け手が決まったら渡す。
 // end はシェルの最初からの通算の位置で、その出力の末尾を指す
-type Chunk = { data: Uint8Array; end: number } | null
-type Handler = { out: (data: Uint8Array) => void; exit: () => void }
+// 終わった印は { lost } で表す。lost は接続が切れて終わったとき
+type Chunk = { data: Uint8Array; end: number } | { lost: boolean }
+type Handler = { out: (data: Uint8Array) => void; exit: (lost: boolean) => void }
 
 const handlers = new Map<string, { h: Handler; skipUntil: number }>()
 const pending = new Map<string, Chunk[]>()
@@ -20,7 +21,7 @@ function decode(b64: string): Uint8Array {
 
 // 渡し直した分と重なる出力は、重なっていない後ろだけを渡す
 function give(e: { h: Handler; skipUntil: number }, c: Chunk) {
-  if (!c) return e.h.exit()
+  if ('lost' in c) return e.h.exit(c.lost)
   const start = c.end - c.data.length
   if (c.end <= e.skipUntil) return
   e.h.out(start < e.skipUntil ? c.data.subarray(e.skipUntil - start) : c.data)
@@ -33,10 +34,9 @@ function deliver(id: string, c: Chunk) {
 }
 
 EventsOn('shell:out', (id: string, b64: string, end: number) => deliver(id, { data: decode(b64), end }))
-// 終わった印は null で表す
-EventsOn('shell:exit', (id: string) => {
+EventsOn('shell:exit', (id: string, lost?: boolean) => {
   foreground.delete(id)
-  deliver(id, null)
+  deliver(id, { lost: !!lost })
 })
 EventsOn('shell:fg', (id: string, cmdline: string) => {
   foreground.set(id, cmdline)

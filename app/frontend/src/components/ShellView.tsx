@@ -7,14 +7,17 @@ import { useXterm, type TermSize } from './useXterm'
 
 // ウィンドウの中のシェル。開くときに、残っている出力で画面を描き直してから続きを受け取る。
 // shared はほかの端末で開いているシェル。1つのシェルは大きさを1つしか持てないので、
-// その端末の大きさのまま描き、はみ出す分はスクロールで見る
-export function ShellView({ shellId, fromIdle, fontSize, focused, shared, onExit }: {
+// その端末の大きさのまま描き、はみ出す分はスクロールで見る。
+// 接続が切れて終わったら lostText を出し、再接続して shellId が変わったら reopenText を出して続ける
+export function ShellView({ shellId, fromIdle, fontSize, focused, shared, lostText, reopenText, onExit }: {
   shellId: string
   fromIdle: boolean
   fontSize: number
   focused: boolean
   shared?: TermSize
-  onExit: () => void
+  lostText?: string
+  reopenText?: string
+  onExit: (lost: boolean) => void
 }) {
   const host = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState(shared)
@@ -26,18 +29,31 @@ export function ShellView({ shellId, fromIdle, fontSize, focused, shared, onExit
   }, [shellId, !!shared])
   const exitRef = useRef(onExit)
   exitRef.current = onExit
+  const texts = useRef({ lostText, reopenText })
+  texts.current = { lostText, reopenText }
+  const prevShell = useRef('')
 
   useEffect(() => {
     const term = termRef.current!
     let detach = () => {}
     let disposed = false
+    const dim = (text?: string) => { if (text) term.write(`\r\n\x1b[2m${text}\x1b[0m\r\n`) }
+    const reopened = prevShell.current !== '' && prevShell.current !== shellId
+    prevShell.current = shellId
     ShellReplay(shellId, fromIdle).then(r => {
       if (disposed) return
+      if (reopened) dim(texts.current.reopenText)
       term.write(decode(r.data))
-      detach = attachShell(shellId, { out: d => term.write(d), exit: () => exitRef.current() }, r.end)
+      detach = attachShell(shellId, {
+        out: d => term.write(d),
+        exit: lost => {
+          if (lost) dim(texts.current.lostText)
+          exitRef.current(lost)
+        },
+      }, r.end)
       // 移した先の大きさに合わせる。全画面のアプリはここで描き直す
       if (!sharedRef.current) ShellResize(shellId, term.cols, term.rows)
-    }, () => exitRef.current())
+    }, () => exitRef.current(false))
     const onData = term.onData(d => sendInput(shellId, d))
     const onResize = term.onResize(({ cols, rows }) => { if (!sharedRef.current) ShellResize(shellId, cols, rows) })
     return () => {

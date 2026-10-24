@@ -268,7 +268,7 @@ func TestForegroundAndReplay(t *testing.T) {
 	sh, err := s.OpenShell(80, 24, "", ShellEvents{
 		Output:     func(_ []byte, end int64) { last = end },
 		Foreground: func(c string) { fg <- c },
-		Exit:       func() {},
+		Exit:       func(bool) {},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -431,7 +431,12 @@ func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 			mu.Unlock()
 		},
 		Foreground: func(string) {},
-		Exit:       func() { close(exited) },
+		Exit: func(lost bool) {
+			if lost {
+				t.Error("exit で終えたのに、切れたことになっている")
+			}
+			close(exited)
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -452,6 +457,28 @@ func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	}
 }
 
+// 接続が切れてシェルが終わったら、lost を立てる
+func TestShellExitLostOnClose(t *testing.T) {
+	s := dialTrusted(t)
+	lost := make(chan bool, 1)
+	if _, err := s.OpenShell(80, 24, "", ShellEvents{
+		Output:     func([]byte, int64) {},
+		Foreground: func(string) {},
+		Exit:       func(l bool) { lost <- l },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	select {
+	case l := <-lost:
+		if !l {
+			t.Fatal("切れたのに、exit で終えたことになっている")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("シェルが終わらない")
+	}
+}
+
 // 画面からの入力は並行して届く。重なって書いても接続が切れず、どの入力も届くこと
 func TestShellWriteFromManyGoroutines(t *testing.T) {
 	s := dialTrusted(t)
@@ -465,7 +492,12 @@ func TestShellWriteFromManyGoroutines(t *testing.T) {
 			mu.Unlock()
 		},
 		Foreground: func(string) {},
-		Exit:       func() { close(exited) },
+		Exit: func(lost bool) {
+			if lost {
+				t.Error("exit で終えたのに、切れたことになっている")
+			}
+			close(exited)
+		},
 	})
 	if err != nil {
 		t.Fatal(err)

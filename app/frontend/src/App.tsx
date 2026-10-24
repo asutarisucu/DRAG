@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Disconnect, PhoneState, Reconnect, SavedServers, Servers, SetLanguage } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
@@ -45,6 +45,8 @@ export default function App() {
   const [pairOpen, setPairOpen] = useState(false)
   // スマホの待ち受けが止まっていれば、登録の窓の代わりに設定を案内する
   const openPair = () => PhoneState().then(s => s.status.running || s.public.running ? setPairOpen(true) : toast(t('pair.off'), 'warn'))
+  const serversRef = useRef(servers)
+  serversRef.current = servers
   const update = (id: string, f: (s: Server) => Partial<Server>) => setServers(list => list.map(s => s.id === id ? { ...s, ...f(s) } : s))
 
   useEffect(() => EventsOn('server:closed', (id: string) => {
@@ -106,6 +108,7 @@ export default function App() {
       else if (r.error) update(id, s => ({ conn: 'lost', retry: s.retry + 1, wait: 5 }))
       else {
         update(id, s => ({ conn: 'ok', retry: 0, gen: s.gen + 1, home: r.home }))
+        toast(t('conn.reconnected', { name: serversRef.current.find(s => s.id === id)?.name ?? '' }), 'ok')
         if (sudoOn(id) && !r.sudo) toast(t('sudo.lost'), 'warn')
         setSudo(id, r.sudo)
       }
@@ -122,7 +125,10 @@ export default function App() {
   }
   // スマホではタブを閉じるだけにする。接続は PC アプリのもので、PC の画面でも使っている
   const close = (id: string) => {
-    if (!isRemote) Disconnect(id)
+    if (!isRemote) {
+      Disconnect(id)
+      toast(t('conn.disconnected', { name: servers.find(s => s.id === id)?.name ?? '' }))
+    }
     setSudo(id, false)
     setServers(list => {
       const rest = list.filter(s => s.id !== id)
@@ -147,6 +153,7 @@ export default function App() {
               key={s.id}
               className={`group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
               onClick={() => setActive(s.id)}
+              title={`${s.user}@${s.host}`}
             >
               <span className={`h-2 w-2 flex-none rounded-full ${s.conn === 'ok' ? 'bg-ok shadow-[0_0_0_3px_rgba(63,207,142,.16)]' : s.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
               <span className="truncate text-[12.5px] font-semibold">{s.name}</span>
@@ -204,9 +211,10 @@ export default function App() {
         : (
           <footer className="flex min-w-0 items-center gap-1 border-t border-line bg-chrome px-2 text-[11.5px] text-muted">
             {cur && (
-              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap">
-                <Icon name="server" size={13} />
+              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap" data-sb="conn">
+                <span className={`h-2 w-2 flex-none rounded-full ${cur.conn === 'ok' ? 'bg-ok' : cur.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
                 <span className="font-mono">{cur.user}@{cur.host}</span>
+                {cur.conn !== 'ok' && <span className="text-err">· {t('conn.lostShort')}</span>}
               </span>
             )}
             {cur && !isRemote && <PhoneCount onClick={openPair} />}
@@ -242,6 +250,12 @@ function MobileNav({ tab }: { tab: MTab }) {
   )
 }
 
+// 起動した日時。M/D HH:MM
+function bootedAt(uptime: number) {
+  const d = new Date(Date.now() - uptime * 1000)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 // 下の欄の稼働時間・CPU・メモリ・ネットワーク。押すとリソース監視の詳細を開く
 function StatusMetrics({ serverId }: { serverId: string }) {
   const { t } = useTranslation()
@@ -256,7 +270,7 @@ function StatusMetrics({ serverId }: { serverId: string }) {
     </button>
   )
   return <>
-    {sb.uptime && <span className={item.replace(/hover:\S+/g, '')} data-sb="uptime" title={t('mon.uptimeHint')}><Icon name="clock" size={13} />{fmtUptime(m.uptime, t)}</span>}
+    {sb.uptime && <span className={item.replace(/hover:\S+/g, '')} data-sb="uptime" title={t('mon.uptimeHint', { when: bootedAt(m.uptime) })}><Icon name="clock" size={13} />{fmtUptime(m.uptime, t)}</span>}
     {sb.cpu && gauge('cpu', 'CPU', ms.map(x => x.cpu))}
     {sb.mem && gauge('mem', t('mon.mem'), ms.map(x => pct(x.memUsed, x.memTotal)), 'sb-mem')}
     {sb.net && (
@@ -350,7 +364,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
         className={mobile ? (mtab === 'files' ? 'hidden' : 'flex min-h-0 flex-1 flex-col') : 'grid min-h-0 min-w-0'}
         style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}
       >
-        <div className={pane('desktop')}><Desktop serverId={s.id} home={s.home} /></div>
+        <div className={pane('desktop')}><Desktop serverId={s.id} home={s.home} generation={s.gen} /></div>
         {!mobile && <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />}
         <div className={pane('terminal')}>
           <TerminalPanel serverId={s.id} home={s.home} generation={s.gen} visible={visible && (!mobile || mtab === 'terminal')} fontSize={st.termSize} onForegroundChange={setTermFg} />
