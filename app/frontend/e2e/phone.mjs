@@ -1,7 +1,6 @@
 // スマホの登録と、スマホの画面から PC アプリを通してサーバーを操作できることを確かめる。
 // wails dev を DRAG_PHONE_LISTEN=127.0.0.1:18443 で動かしておく。PC の画面は smoke.mjs と同じく wails dev の画面を使う
 import { chromium } from 'playwright-core';
-import fs from 'node:fs';
 import path from 'node:path';
 
 const OUT = path.join(import.meta.dirname, 'out');
@@ -45,26 +44,6 @@ ok('公開するポートは 443 から始まる', await portInput.inputValue() 
 await portInput.fill('70000');
 await portInput.press('Enter');
 ok('範囲の外のポートは受け付けない', await waitFor(async () => (await setText()).includes('ポートは 1 から 65535 までです') && await portInput.inputValue() === '443'));
-
-// 自分のドメインの証明書。公開は OFF のまま、入力と保存だけを見る (トークンは開発用の設定フォルダに入る)
-const certForm = pc.locator('[role=dialog] [data-cert-domain]');
-await pc.click('[role=dialog] button:has-text("自分のドメイン")');
-ok('自分のドメインを選ぶと入力欄が出る', await certForm.isVisible() && (await setText()).includes('どのポートでも取れる'));
-await certForm.locator('input:not([type=password])').fill('bad_domain');
-await certForm.locator('button:has-text("保存")').click();
-ok('形の違うドメインは受け付けない', await waitFor(async () => (await certForm.textContent()).includes('ドメインの形が違います')));
-await certForm.locator('input:not([type=password])').fill('drag.example.com');
-await certForm.locator('button:has-text("保存")').click();
-const hadToken = await certForm.locator('input[type=password]').getAttribute('placeholder') === '保存済み。変えるときだけ入れる';
-ok('トークンが無ければ入れるよう出す', hadToken || await waitFor(async () => (await certForm.textContent()).includes('Cloudflare の API トークンを入れてください')));
-await certForm.locator('input[type=password]').fill('dummy-token-for-e2e');
-await certForm.locator('button:has-text("保存")').click();
-ok('保存するとトークンは保存済みと出す', await waitFor(async () => await certForm.locator('input[type=password]').getAttribute('placeholder') === '保存済み。変えるときだけ入れる'
-  && await certForm.locator('input[type=password]').inputValue() === ''));
-await pc.click('[role=dialog] button:has-text("IP アドレス")');
-ok('IP アドレスに戻す', await waitFor(async () => (await certForm.count()) === 0 && (await pc.evaluate(() => window.go.main.App.PhoneState())).settings.cert === 'ip'));
-// 開発用の設定フォルダに入れた試しのトークンを消す
-fs.rmSync(path.join(process.env.APPDATA, 'DRAG-dev', 'cloudflare.token'), { force: true });
 await pc.keyboard.press('Escape');
 
 // 登録していない端末には画面を出さない

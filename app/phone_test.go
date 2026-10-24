@@ -81,15 +81,3 @@ func TestAuditHidesPasswords(t *testing.T) {
 		t.Fatalf("読むだけの呼び出しを残した %q", got)
 	}
 }
-
-// 証明書を取れるドメインの形
-func TestDomainRe(t *testing.T) {
-	for d, want := range map[string]bool{
-		"drag.example.com": true, "example.jp": true, "a-b.example.co.jp": true, "xn--eckwd4c7c.xn--zckzah": true,
-		"example": false, "-a.example.com": false, "a..example.com": false, "a_b.example.com": false, "example.c": false, "192.0.2.1": false,
-	} {
-		if domainRe.MatchString(d) != want {
-			t.Errorf("%s: %v", d, !want)
-		}
-	}
-}

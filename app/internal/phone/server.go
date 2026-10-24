@@ -4,7 +4,6 @@
 package phone
 
 import (
-	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -18,7 +17,6 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,8 +50,6 @@ type Status struct {
 	// 直接公開だけ。証明書の期限 (Unix ミリ秒。まだ無ければ 0) と、証明書を取っている途中か
 	CertUntil int64 `json:"certUntil"`
 	Pending   bool  `json:"pending"`
-	// 自分のドメインのときの注意。ドメインがこの PC のグローバル IP を指していないなど
-	Warn string `json:"warn"`
 }
 
 const (
@@ -156,11 +152,6 @@ type PublicConfig struct {
 	Port int    // 待ち受けるポート。ルーターでこのポートを PC へ転送しておく
 	IP   string // グローバル IP。空なら調べ、変わったら取り直す
 	ACME string // ACME のディレクトリ。空なら Let's Encrypt
-	// 自分のドメインの証明書を取るときのドメインと、TXT レコードを置く DNS サービス。空なら IP アドレスの証明書
-	Domain string
-	DNS    DNSProvider
-	// TXT レコードを置いてから確かめてもらうまでに待つ時間。0 なら 15 秒
-	DNSWait time.Duration
 	// 試すときに使う。ACME のサーバーと話す HTTP のクライアントと、HTTP-01 の検証を待ち受けるポート (空なら 80)、
 	// 待ち受けるホスト (空なら全部のアドレス)
 	Client   *http.Client
@@ -168,8 +159,8 @@ type PublicConfig struct {
 	Host     string
 }
 
-// StartPublic は直接公開の経路を待ち受け、証明書を取る。
-// 証明書は残りが半分を切るか、IP アドレスの証明書ならグローバル IP が変わったら取り直す。動いていれば止めてから始める
+// StartPublic は直接公開の経路を待ち受け、IP アドレスの証明書を取る。
+// 証明書は残りが半分を切るか、グローバル IP が変わったら取り直す。動いていれば止めてから始める
 func (s *Server) StartPublic(cfg PublicConfig) error {
 	s.StopRoute(RoutePublic)
 	if cfg.ACME == "" {
@@ -179,13 +170,10 @@ func (s *Server) StartPublic(cfg PublicConfig) error {
 	if cfg.HTTPPort == 0 {
 		cfg.HTTPPort = 80
 	}
-	m, err := newPubCert(ctx, cfg.ACME, filepath.Join(s.opts.Dir, "acme-account.pem"), cfg.Port, net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.HTTPPort)), cfg.Client)
+	m, err := newIPCert(ctx, cfg.ACME, filepath.Join(s.opts.Dir, "acme-account.pem"), cfg.Port, net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.HTTPPort)), cfg.Client)
 	if err != nil {
 		cancel()
 		return s.fail(RoutePublic, fmt.Errorf("Let's Encrypt に登録できません: %w", err))
-	}
-	if cfg.Domain != "" {
-		m.dns, m.dnsWait = cfg.DNS, cmp.Or(cfg.DNSWait, 15*time.Second)
 	}
 	tc := &tls.Config{GetCertificate: m.getCertificate, NextProtos: []string{"http/1.1", acme.ALPNProto}}
 	if err := s.listen(RoutePublic, net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)), tc, Status{Running: true, Pending: true}); err != nil {
@@ -200,15 +188,11 @@ func (s *Server) StartPublic(cfg PublicConfig) error {
 }
 
 // keepCert は証明書を取り、そのあとは1時間おきに取り直すかを見る
-func (s *Server) keepCert(ctx context.Context, m *pubCert, cfg PublicConfig) {
+func (s *Server) keepCert(ctx context.Context, m *ipCert, cfg PublicConfig) {
 	ip := ""
 	for {
 		cur := cfg.IP
-		if cfg.Domain != "" {
-			cur = cfg.Domain
-			warn := domainWarn(ctx, cfg)
-			s.setPublic(func(st *Status) { st.Warn = warn })
-		} else if cur == "" {
+		if cur == "" {
 			if got, err := GlobalIP(ctx); err == nil {
 				cur = got
 			} else if ip == "" {
@@ -238,22 +222,6 @@ func (s *Server) keepCert(ctx context.Context, m *pubCert, cfg PublicConfig) {
 		case <-time.After(time.Hour):
 		}
 	}
-}
-
-// domainWarn は、ドメインがこの PC のグローバル IP を指していなければ、そう書いた文を返す
-func domainWarn(ctx context.Context, cfg PublicConfig) string {
-	gip := cfg.IP
-	if gip == "" {
-		gip, _ = GlobalIP(ctx)
-	}
-	if gip == "" {
-		return ""
-	}
-	addrs, _ := net.DefaultResolver.LookupHost(ctx, cfg.Domain)
-	if slices.Contains(addrs, gip) {
-		return ""
-	}
-	return fmt.Sprintf("%s がこの PC のグローバル IP (%s) を指していません。DNS の A レコードを %s にしてください。Cloudflare ではプロキシを外します", cfg.Domain, gip, gip)
 }
 
 func (s *Server) setPublic(f func(*Status)) {

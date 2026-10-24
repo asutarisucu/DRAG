@@ -105,8 +105,6 @@ export function Sessions(arg1:string):Promise<Array<remote.Session>>;
 
 export function SetLanguage(arg1:string):Promise<void>;
 
-export function SetPhoneCert(arg1:string,arg2:string,arg3:string):Promise<main.PhoneState>;
-
 export function SetPhoneLAN(arg1:boolean):Promise<main.PhoneState>;
 
 export function SetPhonePublic(arg1:boolean,arg2:number):Promise<main.PhoneState>;

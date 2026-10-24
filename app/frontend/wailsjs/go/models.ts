@@ -177,8 +177,6 @@ export namespace main {
 	    port: number;
 	    public: boolean;
 	    publicPort: number;
-	    cert: string;
-	    domain: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PhoneSettings(source);
@@ -190,15 +188,12 @@ export namespace main {
 	        this.port = source["port"];
 	        this.public = source["public"];
 	        this.publicPort = source["publicPort"];
-	        this.cert = source["cert"];
-	        this.domain = source["domain"];
 	    }
 	}
 	export class PhoneState {
 	    settings: PhoneSettings;
 	    status: phone.Status;
 	    public: phone.Status;
-	    hasToken: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PhoneState(source);
@@ -209,7 +204,6 @@ export namespace main {
 	        this.settings = this.convertValues(source["settings"], PhoneSettings);
 	        this.status = this.convertValues(source["status"], phone.Status);
 	        this.public = this.convertValues(source["public"], phone.Status);
-	        this.hasToken = source["hasToken"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -400,7 +394,6 @@ export namespace phone {
 	    error: string;
 	    certUntil: number;
 	    pending: boolean;
-	    warn: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Status(source);
@@ -413,7 +406,6 @@ export namespace phone {
 	        this.error = source["error"];
 	        this.certUntil = source["certUntil"];
 	        this.pending = source["pending"];
-	        this.warn = source["warn"];
 	    }
 	}
 

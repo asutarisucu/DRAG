@@ -3567,11 +3567,8 @@ function openSettings() {
       row('LAN 内で待ち受ける', `${PC.lanUrl} · 自己署名の証明書`, toggle('phoneLan')),
       row('インターネットに公開する', 'ルーターで、下のポートをこの PC へ転送しておく', toggle('phonePublic')),
       row('公開するポート', 'IP アドレスの証明書は 80 番か 443 番で取る', port()),
-      row('証明書', S().cert === 'ip' ? `Let's Encrypt · ${PC.ip} · 10/30 まで。数日おきに自動で更新する` : "Let's Encrypt · DNS-01 で取る",
-        seg(() => S().cert, [['ip', 'IP アドレス'], ['domain', '自分のドメイン']], v => { setSetting('cert', v); show('phone'); })),
-      ...(S().cert === 'domain' ? [el('div', { class: 'set-sub' },
-        el('input', { class: 'input', value: PC.domain, spellcheck: 'false' }),
-        el('input', { class: 'input', type: 'password', placeholder: 'DNS サービスの API キー' }))] : []),
+      // 自分のドメインの証明書は作らないことにした (2026-10-25)。IP アドレスの証明書だけ
+      row('証明書', `Let's Encrypt · ${PC.ip} · 10/30 まで。数日おきに自動で更新する`, el('span', { class: 'muted small' }, 'IP アドレス')),
     ]],
   };
   const nav = el('div', { class: 'set-nav' });
