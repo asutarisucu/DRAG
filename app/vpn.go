@@ -38,6 +38,7 @@ type VPNInput struct {
 	Config   string `json:"config"` // WireGuard の .conf か OpenVPN の .ovpn の中身
 	Server   string `json:"server"` // IKEv2 などのつなぎ先
 	CA       string `json:"ca"`     // サーバーの証明書を確かめる CA (PEM)
+	Group    string `json:"group"`  // AnyConnect 互換のグループ
 	User     string `json:"user"`
 	Password string `json:"password"`
 }
@@ -53,7 +54,7 @@ type VPNInfo struct {
 }
 
 func (in VPNInput) store() store.VPN {
-	return store.VPN{Name: strings.TrimSpace(in.Name), Type: in.Type, Config: in.Config, Server: strings.TrimSpace(in.Server), CA: in.CA, User: strings.TrimSpace(in.User), Password: in.Password}
+	return store.VPN{Name: strings.TrimSpace(in.Name), Type: in.Type, Config: in.Config, Server: strings.TrimSpace(in.Server), CA: in.CA, Group: strings.TrimSpace(in.Group), User: strings.TrimSpace(in.User), Password: in.Password}
 }
 
 // VPNs は保存した VPN を返す

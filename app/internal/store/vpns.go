@@ -16,10 +16,11 @@ import (
 type VPN struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Type     string `json:"type"`             // "wg" WireGuard、"ovpn" OpenVPN、"ikev2" IKEv2
+	Type     string `json:"type"`             // "wg" WireGuard、"ovpn" OpenVPN、"ikev2" IKEv2、"sstp" SSTP、"ac" AnyConnect 互換
 	Config   string `json:"config,omitempty"` // WireGuard の .conf、OpenVPN の .ovpn の中身
 	Server   string `json:"server,omitempty"` // 設定ファイルを使わない種類のつなぎ先
 	CA       string `json:"ca,omitempty"`     // サーバーの証明書を確かめる CA (PEM)。空なら Windows が信頼する CA
+	Group    string `json:"group,omitempty"`  // AnyConnect 互換でログインするときに選ぶグループ。空ならサーバーの既定
 	User     string `json:"user,omitempty"`
 	Password string `json:"password,omitempty"`
 }

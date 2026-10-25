@@ -40,7 +40,7 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   const [f, setF] = useState({ name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '', vpn: '' })
   const [vpns, setVpns] = useState<main.VPNInfo[]>([])
   // 新しい VPN の入力と、それを読めたか
-  const [newVpn, setNewVpn] = useState(new main.VPNInput({ name: '', type: 'wg', config: '', server: '', ca: '', user: '', password: '' }))
+  const [newVpn, setNewVpn] = useState(new main.VPNInput({ name: '', type: 'wg', config: '', server: '', ca: '', group: '', user: '', password: '' }))
   const [vpnCheck, setVpnCheck] = useState<VpnCheck>({ sum: null, error: '' })
   const [via, setVia] = useState<main.VPNInfo | null>(null)
   const [phase, setPhase] = useState<'form' | 'steps'>('form')

@@ -53,6 +53,8 @@ const en: Messages = {
     auth: 'Authentication',
     authPassword: 'Username and password',
     authCert: 'Certificate',
+    group: 'Group',
+    groupPh: "Empty for the server's default",
     loadCA: 'Load CA certificate',
     caLoaded: 'Verified with {{name}}',
     caClear: 'Remove',

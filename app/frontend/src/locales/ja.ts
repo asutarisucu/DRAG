@@ -53,6 +53,8 @@ const ja = {
     auth: '認証',
     authPassword: 'ユーザー名とパスワード',
     authCert: '証明書',
+    group: 'グループ',
+    groupPh: '空ならサーバーの既定',
     loadCA: 'CA の証明書を読み込む',
     caLoaded: '{{name}} で確かめます',
     caClear: '外す',

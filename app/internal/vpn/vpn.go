@@ -41,7 +41,7 @@ func Check(v store.VPN) (Summary, error) {
 		return c.summary(), nil
 	case "ovpn":
 		return checkOpenVPN(v)
-	case "ikev2", "sstp":
+	case "ikev2", "sstp", "ac":
 		return checkServerLogin(v)
 	}
 	return Summary{}, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
@@ -58,6 +58,8 @@ func Open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
 		return openIKEv2(ctx, v)
 	case "sstp":
 		return openSSTP(ctx, v)
+	case "ac":
+		return openAnyConnect(ctx, v)
 	}
 	return nil, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }

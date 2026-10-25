@@ -162,3 +162,42 @@ func TestSSTPCarriesSSH(t *testing.T) {
 		tun.Close()
 	}
 }
+
+// 試験用の ocserv (dev/ocserv) を通して、VPN の中の 192.168.50.1:22 から検証用の SSH サーバーへつなぐ。
+// DRAG_TEST_OCSERV に dev/ocserv のフォルダを渡したときだけ動く
+func TestAnyConnectCarriesSSH(t *testing.T) {
+	dir := os.Getenv("DRAG_TEST_OCSERV")
+	if dir == "" {
+		t.Skip("DRAG_TEST_OCSERV が無い")
+	}
+	ca, err := os.ReadFile(filepath.Join(dir, "out", "ca.crt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := store.VPN{Type: "ac", Server: "127.0.0.1:16443", CA: string(ca), Group: "ops", User: "asuta", Password: "drag"}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	tun, err := Open(ctx, v, "192.168.50.1")
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tun.Close()
+	if s := tun.Summary(); s.Routes != "192.168.50.0/24" {
+		t.Fatalf("%+v", s)
+	}
+	cfg := remote.Config{Host: "192.168.50.1", Port: 22, User: "asuta", Password: "drag", Dial: tun.DialContext}
+	kh := filepath.Join(t.TempDir(), "known_hosts")
+	_, err = remote.Dial(cfg, kh, "")
+	var he *remote.HostKeyError
+	if !errors.As(err, &he) {
+		t.Fatal(err)
+	}
+	sc, err := remote.Dial(cfg, kh, he.Fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sc.Close()
+	if home, err := sc.Home(); err != nil || home != "/home/asuta" {
+		t.Fatalf("%q %v", home, err)
+	}
+}

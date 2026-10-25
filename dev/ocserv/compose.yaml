@@ -1,0 +1,14 @@
+services:
+  ocserv:
+    build: .
+    # tun を作るのに要る
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "127.0.0.1:16443:443/tcp"
+    volumes:
+      - ./out:/out
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -364,6 +364,7 @@ export namespace main {
 	    config: string;
 	    server: string;
 	    ca: string;
+	    group: string;
 	    user: string;
 	    password: string;
 	
@@ -378,6 +379,7 @@ export namespace main {
 	        this.config = source["config"];
 	        this.server = source["server"];
 	        this.ca = source["ca"];
+	        this.group = source["group"];
 	        this.user = source["user"];
 	        this.password = source["password"];
 	    }
