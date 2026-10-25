@@ -35,7 +35,7 @@ type tunnel struct {
 type VPNInput struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
-	Config   string `json:"config"`
+	Config   string `json:"config"` // WireGuard の .conf か OpenVPN の .ovpn の中身
 	User     string `json:"user"`
 	Password string `json:"password"`
 }
@@ -154,12 +154,21 @@ func (a *App) ConnectVPN(id, host string) (vpn.Summary, error) {
 // useTunnel は張っている VPN を返す。無ければ張る。どのサーバーも使っていなければ、閉じるまでの時間を延ばす
 func (a *App) useTunnel(id, host string) (vpn.Tunnel, error) {
 	a.tunnels.mu.Lock()
+	refs := 0
 	if t := a.tunnels.m[id]; t != nil {
-		if t.refs == 0 {
-			t.idle.Reset(tunnelIdle)
+		select {
+		case <-t.Done():
+			// VPN が切れていたら張り直す。使っているサーバーの数は引き継ぐ
+			refs = t.refs
+			t.idle.Stop()
+			delete(a.tunnels.m, id)
+		default:
+			if t.refs == 0 {
+				t.idle.Reset(tunnelIdle)
+			}
+			a.tunnels.mu.Unlock()
+			return t, nil
 		}
-		a.tunnels.mu.Unlock()
-		return t, nil
 	}
 	a.tunnels.mu.Unlock()
 
@@ -180,8 +189,11 @@ func (a *App) useTunnel(id, host string) (vpn.Tunnel, error) {
 		opened.Close()
 		return t, nil
 	}
-	t := &tunnel{Tunnel: opened}
+	t := &tunnel{Tunnel: opened, refs: refs}
 	t.idle = time.AfterFunc(tunnelIdle, func() { a.closeIdleTunnel(id, t) })
+	if refs > 0 {
+		t.idle.Stop()
+	}
 	a.tunnels.m[id] = t
 	return t, nil
 }

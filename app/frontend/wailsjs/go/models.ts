@@ -1068,6 +1068,7 @@ export namespace vpn {
 	    target: string;
 	    address: string;
 	    routes: string;
+	    login: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Summary(source);
@@ -1078,6 +1079,7 @@ export namespace vpn {
 	        this.target = source["target"];
 	        this.address = source["address"];
 	        this.routes = source["routes"];
+	        this.login = source["login"];
 	    }
 	}
 

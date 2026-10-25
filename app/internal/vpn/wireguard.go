@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.zx2c4.com/wireguard/device"
@@ -195,9 +196,11 @@ func (c *wgConfig) uapi(ctx context.Context) (string, error) {
 }
 
 type wgTunnel struct {
-	cfg *wgConfig
-	dev *device.Device
-	net *netstack.Net
+	cfg  *wgConfig
+	dev  *device.Device
+	net  *netstack.Net
+	done chan struct{}
+	once sync.Once
 }
 
 func openWireGuard(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
@@ -222,7 +225,7 @@ func openWireGuard(ctx context.Context, v store.VPN, target string) (Tunnel, err
 		dev.Close()
 		return nil, err
 	}
-	t := &wgTunnel{cfg: c, dev: dev, net: tnet}
+	t := &wgTunnel{cfg: c, dev: dev, net: tnet, done: make(chan struct{})}
 	if err := t.handshake(ctx, target); err != nil {
 		dev.Close()
 		return nil, err
@@ -311,7 +314,13 @@ func (t *wgTunnel) DialContext(ctx context.Context, network, addr string) (net.C
 
 func (t *wgTunnel) Summary() Summary { return t.cfg.summary() }
 
+// Done は Close まで閉じない。WireGuard は相手が黙っても、送るものがあれば鍵の交換をやり直す
+func (t *wgTunnel) Done() <-chan struct{} { return t.done }
+
 func (t *wgTunnel) Close() error {
-	t.dev.Close()
+	t.once.Do(func() {
+		t.dev.Close()
+		close(t.done)
+	})
 	return nil
 }

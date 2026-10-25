@@ -52,6 +52,7 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   const passRef = useRef<HTMLInputElement>(null)
   const hostRef = useRef<HTMLInputElement>(null)
   const configRef = useRef<HTMLTextAreaElement>(null)
+  const vpnUserRef = useRef<HTMLInputElement>(null)
   const aborted = useRef(false)
 
   const pick = (s: store.Server) => {
@@ -133,6 +134,11 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
         configRef.current?.focus()
         return
       }
+      if (vpnCheck.sum.login && (!newVpn.user.trim() || !newVpn.password)) {
+        setVpnCheck({ ...vpnCheck, error: t('vpn.needLogin') })
+        vpnUserRef.current?.focus()
+        return
+      }
       try {
         v = await AddVPN(newVpn)
       } catch (err) {
@@ -208,7 +214,7 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
               <option value="new">{t('vpn.add')}</option>
             </select>
           </label>
-          {f.vpn === 'new' && <VpnForm value={newVpn} onChange={setNewVpn} check={vpnCheck} onCheck={setVpnCheck} configRef={configRef} />}
+          {f.vpn === 'new' && <VpnForm value={newVpn} onChange={setNewVpn} check={vpnCheck} onCheck={setVpnCheck} configRef={configRef} userRef={vpnUserRef} />}
           <label>
             <span className={label}>{t('connect.auth')}</span>
             <select className={input} value={f.auth} onChange={set('auth')}>

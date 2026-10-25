@@ -1,0 +1,18 @@
+services:
+  ovpnserver:
+    build: .
+    # tun を作るのに要る
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "127.0.0.1:1194:1194/udp"
+      - "127.0.0.1:1195:1195/tcp"
+      - "127.0.0.1:1196:1196/udp"
+      - "127.0.0.1:1197:1197/udp"
+    # クライアントの .ovpn をここに書く
+    volumes:
+      - ./out:/out
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

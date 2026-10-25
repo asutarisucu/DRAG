@@ -16,8 +16,8 @@ import (
 type VPN struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Type     string `json:"type"`             // "wg" WireGuard
-	Config   string `json:"config,omitempty"` // WireGuard の .conf の中身
+	Type     string `json:"type"`             // "wg" WireGuard、"ovpn" OpenVPN
+	Config   string `json:"config,omitempty"` // WireGuard の .conf、OpenVPN の .ovpn の中身
 	User     string `json:"user,omitempty"`
 	Password string `json:"password,omitempty"`
 }

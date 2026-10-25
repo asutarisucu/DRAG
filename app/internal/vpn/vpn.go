@@ -17,6 +17,8 @@ type Tunnel interface {
 	// DialContext は VPN を通して TCP でつなぐ。host が名前なら、VPN の DNS か PC の DNS で引く
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 	Summary() Summary
+	// Done は VPN が切れると閉じる
+	Done() <-chan struct{}
 	Close() error
 }
 
@@ -24,7 +26,8 @@ type Tunnel interface {
 type Summary struct {
 	Target  string `json:"target"`  // つなぎ先
 	Address string `json:"address"` // VPN の中でのこの PC のアドレス。張るまでわからない種類では空
-	Routes  string `json:"routes"`  // VPN に通す範囲
+	Routes  string `json:"routes"`  // VPN に通す範囲。張るまでわからない種類では空
+	Login   bool   `json:"login"`   // ユーザー名とパスワードが要る
 }
 
 // Check は、保存する前に設定を読めるか確かめ、要点を返す
@@ -36,6 +39,8 @@ func Check(v store.VPN) (Summary, error) {
 			return Summary{}, err
 		}
 		return c.summary(), nil
+	case "ovpn":
+		return checkOpenVPN(v)
 	}
 	return Summary{}, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }
@@ -45,6 +50,8 @@ func Open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
 	switch v.Type {
 	case "wg":
 		return openWireGuard(ctx, v, target)
+	case "ovpn":
+		return openOpenVPN(ctx, v)
 	}
 	return nil, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }
