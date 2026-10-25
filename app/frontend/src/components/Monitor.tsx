@@ -5,6 +5,7 @@ import type { remote, store } from '../../wailsjs/go/models'
 import { fmtGB, fmtRate, pct, useMetrics, type Metrics } from '../metrics'
 import { fmtSize } from '../toasts'
 import { openDockerAt, revealInTree } from '../tools'
+import { requireSudo, useSudo } from '../sudo'
 import { updateWin, type Win } from '../windows'
 import { Icon } from './Icon'
 import { Meter, Spark } from './Spark'
@@ -185,9 +186,11 @@ function MemDetail({ serverId, m }: { serverId: string; m: Metrics }) {
 
 function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: Metrics }) {
   const { t } = useTranslation()
+  const sudo = useSudo(serverId)
   const [mounts] = usePoll(() => Mounts(serverId), 10000, [serverId])
-  // 大きいフォルダは du で数えるので時間がかかる。開いたときに1回だけ数える
-  const [dirs, dirsErr] = usePoll(() => BigDirs(serverId), 0, [serverId])
+  // 大きいフォルダは du でディスク全体を数えるので時間がかかる。開いたときと、sudo モードを替えたときに1回だけ数える
+  const [big, dirsErr] = usePoll(() => BigDirs(serverId), 0, [serverId, sudo])
+  const dirs = big?.dirs ?? null
   const tilde = (p: string) => p === home ? '~' : p.startsWith(home + '/') ? '~' + p.slice(home.length) : p
   const maxDir = dirs?.[0]?.size || 1
   return <>
@@ -197,9 +200,15 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
       ))}
       <div className="mon-sub">{t('mon.io', { read: fmtRate(m.diskRead), write: fmtRate(m.diskWrite) })}</div>
     </Section>
-    <Section title={t('mon.bigDirs')}>
+    <Section>
       {dirs === null && !dirsErr && <div className="mon-sub">{t('mon.counting')}</div>}
       {dirsErr && <div className="mon-sub">{dirsErr}</div>}
+      {big?.denied && (
+        <div className="mon-sub flex items-center gap-2" data-dirs-denied>
+          <span className="min-w-0 flex-1">{t('mon.dirsDenied')}</span>
+          <button className="sbtn" onClick={() => requireSudo(serverId, t('mon.dirsNeedSudo'))}>{t('sudo.turnOn')}</button>
+        </div>
+      )}
       {dirs?.length === 0 && <div className="mon-sub">{t('mon.noDirs')}</div>}
       {dirs?.map(d => (
         <button key={d.path} className="dir-row" title={t('files.reveal')} onClick={() => revealInTree(serverId, d.path, true)}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>

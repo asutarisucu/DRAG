@@ -2,18 +2,23 @@
 // smoke.mjs と同じく wails dev の画面を開いて操作する
 import { chromium } from 'playwright-core';
 import path from 'node:path';
+import { sh } from './server.mjs';
 
 const OUT = path.join(import.meta.dirname, 'out');
 const results = [];
 const ok = (name, cond, extra = '') => results.push(`${cond ? 'OK ' : 'NG '} ${name}${extra ? '  ' + extra : ''}`);
 const errors = [];
 let page;
+// ほかのユーザーのホームに置く 3 MiB のファイル。sudo モードのときだけ数える
+const cleanup = () => sh('rm -f /home/zuser/e2e-big', 'zuser');
 process.on('uncaughtException', async e => {
   console.log(results.join('\n'));
   console.log('止まった: ' + e.message.split('\n')[0]);
   await page?.screenshot({ path: path.join(OUT, 'monitor-failed.png') }).catch(() => {});
+  cleanup();
   process.exit(1);
 });
+sh('head -c 3145728 /dev/zero > /home/zuser/e2e-big', 'zuser');
 
 const browser = await chromium.launch({ channel: 'chrome' });
 page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -57,7 +62,22 @@ await win.locator('.mon-head button:has-text("メモリ")').click();
 ok('メモリの内訳が出る', await waitFor(async () => (await win.locator('.legend').textContent()).includes('キャッシュ')) && (await win.textContent()).includes('スワップ'));
 await win.locator('.mon-head button:has-text("ディスク")').click();
 ok('マウントが出る', await waitFor(async () => (await win.locator('.mount').count()) > 0 && (await win.locator('.mount').first().textContent()).startsWith('/')));
-ok('ホームの大きいフォルダを数える', await waitFor(async () => (await win.locator('.dir-row').count()) > 0 || (await win.textContent()).includes('フォルダがありません'), 20000));
+// 大きいフォルダはディスクの最上位から数える。ほかのユーザーのホームは読めないので数えない
+const zuser = win.locator('.dir-row:has-text("/home/zuser")');
+ok('大きいフォルダをディスクの最上位から数える', await waitFor(async () => (await win.locator('.dir-row:has-text("/usr")').count()) > 0, 20000), await win.locator('.dir-row').allTextContents().then(x => x.join(' | ')));
+ok('読めないフォルダは数えていないと出す', await win.locator('[data-dirs-denied]').count() === 1 && await zuser.count() === 0);
+await page.screenshot({ path: `${OUT}/monitor-disk.png` });
+// sudo モードを ON にすると数え直し、ほかのユーザーのホームも数える
+await win.locator('[data-dirs-denied] button').click();
+const sudoDlg = page.locator('[role=dialog]:has-text("sudo モードを ON にする")');
+ok('sudo のパスワードを聞く', (await sudoDlg.textContent()).includes('読めないフォルダも数えるには'));
+await sudoDlg.locator('input[type=password]').fill('drag');
+await sudoDlg.locator('button:has-text("ON にする")').click();
+ok('ON にすると、ほかのユーザーのホームも数える', await waitFor(async () => (await zuser.count()) === 1 && (await win.locator('[data-dirs-denied]').count()) === 0, 20000), await win.locator('.dir-row').allTextContents().then(x => x.join(' | ')));
+ok('数えた大きさを出す', /\d+(\.\d)? MB/.test(await zuser.textContent()), await zuser.textContent().catch(() => ''));
+await page.screenshot({ path: `${OUT}/monitor-disk-sudo.png` });
+await page.click('[data-sudo]');
+cleanup();
 await win.locator('.mon-head button:has-text("ネットワーク")').click();
 ok('待ち受け中のポートに 22 が出る', await waitFor(async () => /\b22\b/.test(await win.locator('[data-listen]').textContent())));
 ok('接続中に SSH の接続が出る', await waitFor(async () => (await win.locator('[data-conns] .crow:not(.chead)').count()) > 0));

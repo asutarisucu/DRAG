@@ -13,7 +13,7 @@ export function ArchiveOpen(arg1:string,arg2:string):Promise<main.ArchiveInfo>;
 
 export function ArchiveRead(arg1:string,arg2:string):Promise<string>;
 
-export function BigDirs(arg1:string):Promise<Array<remote.DirSize>>;
+export function BigDirs(arg1:string):Promise<remote.DiskDirs>;
 
 export function CloseShell(arg1:string):Promise<void>;
 

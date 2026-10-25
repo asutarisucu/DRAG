@@ -157,8 +157,8 @@ func TestDetails(t *testing.T) {
 		t.Fatalf("%+v %v", ms, err)
 	}
 	home, _ := s.Home()
-	if _, err := s.BigDirs(home, 5); err != nil {
-		t.Fatal(err)
+	if d, err := s.BigDirs([]string{home}, 5); err != nil || d.Denied {
+		t.Fatalf("%+v %v", d, err)
 	}
 	// フォルダの中のファイルの大きさの合計と数。サブフォルダの中も数える
 	d := testDir(t, s)
@@ -179,6 +179,33 @@ func TestDetails(t *testing.T) {
 	n, err := s.Network()
 	if err != nil || !slices.ContainsFunc(n.Listen, func(l Listen) bool { return l.Port == 22 }) || len(n.Conns) == 0 {
 		t.Fatalf("%+v %v", n, err)
+	}
+}
+
+// ほかのユーザーのホームは、ログインしたユーザーの権限では読めないので数えずに Denied を立てる。sudo モードなら数える
+func TestBigDirsCountsOtherHomesWithSudo(t *testing.T) {
+	s := dialTrusted(t)
+	if err := s.EnableSudo("drag"); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := s.Exec(`sudo -u zuser sh -c "head -c 2097152 /dev/zero > /home/zuser/drag-big"`, 10*time.Second); err != nil || r.Code != 0 {
+		t.Fatalf("%+v %v", r, err)
+	}
+	t.Cleanup(func() {
+		s.EnableSudo("drag")
+		s.Exec("rm -f /home/zuser/drag-big", 10*time.Second)
+		s.DisableSudo()
+	})
+	zuser := func(d DiskDirs) bool {
+		return slices.ContainsFunc(d.Dirs, func(x DirSize) bool { return x.Path == "/home/zuser" && x.Size >= 2<<20 })
+	}
+	d, err := s.BigDirs([]string{"/home"}, 10)
+	if err != nil || !zuser(d) || d.Denied || slices.ContainsFunc(d.Dirs, func(x DirSize) bool { return x.Path == "/home" }) {
+		t.Fatalf("%+v %v", d, err)
+	}
+	s.DisableSudo()
+	if d, err := s.BigDirs([]string{"/home"}, 10); err != nil || zuser(d) || !d.Denied {
+		t.Fatalf("OFF でも数えた %+v %v", d, err)
 	}
 }
 

@@ -1916,7 +1916,7 @@ const MON_DETAIL = {
   disk(srv, main) {
     const mounts = el('div'), io = el('div', { class: 'mon-sub' }), dirs = el('div');
     const list = [];
-    for (const c of srv.homeNode.children) {
+    for (const c of srv.root.children) {
       if (!c.dir) continue;
       list.push({ node: c, size: dirSize(c) });
       for (const g of c.children) if (g.dir) list.push({ node: g, size: dirSize(g) });

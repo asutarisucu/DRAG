@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/asutarisucu/DRAG/app/internal/remote"
@@ -60,17 +61,24 @@ func (a *App) Mounts(serverID string) ([]remote.Mount, error) {
 	return s.Mounts()
 }
 
-// BigDirs はホームの下の大きいフォルダ
-func (a *App) BigDirs(serverID string) ([]remote.DirSize, error) {
+// BigDirs は、ディスクのファイルシステムごとに、最上位から数えた大きいフォルダ。
+// NFS (host:/path) と CIFS (//host/share) は、数えるとネットワークの先を全部読むので外す
+func (a *App) BigDirs(serverID string) (remote.DiskDirs, error) {
 	s, err := a.server(serverID)
 	if err != nil {
-		return nil, err
+		return remote.DiskDirs{}, err
 	}
-	home, err := s.Home()
+	ms, err := s.Mounts()
 	if err != nil {
-		return nil, err
+		return remote.DiskDirs{}, err
 	}
-	return s.BigDirs(home, 8)
+	roots := []string{}
+	for _, m := range ms {
+		if !strings.Contains(m.Dev, ":") && !strings.HasPrefix(m.Dev, "//") {
+			roots = append(roots, m.Path)
+		}
+	}
+	return s.BigDirs(roots, 12)
 }
 
 func (a *App) Network(serverID string) (remote.NetInfo, error) {

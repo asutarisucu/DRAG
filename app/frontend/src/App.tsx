@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Disconnect, PhoneState, Reconnect, SavedServers, Servers, SetLanguage } from '../wailsjs/go/main/App'
 import type { store } from '../wailsjs/go/models'
-import { EventsOn, OnFileDrop, OnFileDropOff } from '../wailsjs/runtime/runtime'
+import { EventsOn, OnFileDrop, OnFileDropOff, WindowHide, WindowIsMaximised, WindowMinimise, WindowToggleMaximise } from '../wailsjs/runtime/runtime'
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
 import { Desktop } from './components/Desktop'
 import { FileTree } from './components/FileTree'
@@ -147,13 +147,16 @@ export default function App() {
 
   return (
     <div className={`grid h-dvh ${rows}`}>
-      <header className={`flex min-w-0 items-center gap-2 border-b border-line bg-chrome ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}>
+      <header
+        className={`app-bar flex min-w-0 items-center gap-2 border-b border-line bg-chrome select-none ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}
+        onDoubleClick={e => { if (!isRemote && !mobile && !(e.target as HTMLElement).closest('button, .no-drag')) WindowToggleMaximise() }}
+      >
         <span className="brand pr-2 pl-1.5 text-[13px]">DRAG</span>
         <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           {servers.filter(s => !mobile || s.id === active).map(s => (
             <div
               key={s.id}
-              className={`group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
+              className={`no-drag group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
               onClick={() => setActive(s.id)}
               title={`${s.user}@${s.host}`}
             >
@@ -171,10 +174,11 @@ export default function App() {
           ))}
         </div>
         {servers.length > 0 && !mobile && (
-          <button className="mr-auto grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('tabs.add')} onClick={() => setConnecting({})}>
+          <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('tabs.add')} onClick={() => setConnecting({})}>
             <Icon name="plus" />
           </button>
         )}
+        {!mobile && <div className="flex-1 self-stretch" />}
         {cur && (
           <button
             className={`inline-flex h-7 flex-none items-center gap-1.5 rounded-lg border pr-2 pl-[9px] text-[12px] ${mobile ? 'ml-auto h-[30px]' : ''} ${sudo ? 'border-warn bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn' : 'border-line-strong text-muted hover:text-text'}`}
@@ -199,6 +203,7 @@ export default function App() {
             <Icon name="gear" />
           </button>
         )}
+        {!isRemote && !mobile && <WindowButtons />}
       </header>
 
       <div className="relative min-h-0">
@@ -233,6 +238,26 @@ export default function App() {
       {pairOpen && <PairDialog onClose={() => setPairOpen(false)} />}
       <SudoDialog who={id => { const s = servers.find(x => x.id === id); return s ? `${s.user}@${s.name}` : '' }} />
       <Toasts />
+    </div>
+  )
+}
+
+// 窓の枠を外しているので、最小化・最大化・閉じるを上の帯の右端に置く。閉じても通知領域に残る
+function WindowButtons() {
+  const { t } = useTranslation()
+  const [max, setMax] = useState(false)
+  useEffect(() => {
+    const check = () => WindowIsMaximised().then(setMax)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  const btn = 'grid h-full w-[46px] place-items-center text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
+  return (
+    <div className="-mr-2 flex flex-none self-stretch" data-winbtns>
+      <button className={btn} title={t('desktop.minimize')} onClick={() => WindowMinimise()}><Icon name="min" size={14} /></button>
+      <button className={btn} title={max ? t('desktop.restore') : t('desktop.maximize')} onClick={() => WindowToggleMaximise()}><Icon name={max ? 'restore' : 'max'} size={14} /></button>
+      <button className={`${btn} hover:!bg-[#c42b1c] hover:!text-white`} title={t('desktop.close')} onClick={() => WindowHide()}><Icon name="x" size={14} /></button>
     </div>
   )
 }

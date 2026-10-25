@@ -2,6 +2,7 @@ package remote
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
 	"encoding/hex"
 	"errors"
@@ -225,23 +226,32 @@ type DirSize struct {
 	Size int64  `json:"size"`
 }
 
-// BigDirs は、dir の下の2段目までのフォルダを大きい順に返す。sudo モードなら読めないフォルダも数える
-func (s *Server) BigDirs(dir string, n int) ([]DirSize, error) {
-	cmd, stdin := s.command(`IFS= read -r d; du -x -k -d 2 -- "$d" 2>/dev/null; exit 0`, dir+"\n")
+// DiskDirs は大きいフォルダの一覧。Denied は、ログインしたユーザーの権限で読めないフォルダがあり、その中を数えていないとき
+type DiskDirs struct {
+	Dirs   []DirSize `json:"dirs"`
+	Denied bool      `json:"denied"`
+}
+
+// BigDirs は、roots のそれぞれの下の2段目までのフォルダを大きい順に返す。du -x なので、ほかのファイルシステムには入らない。
+// sudo モードなら読めないフォルダも数える
+func (s *Server) BigDirs(roots []string, n int) (DiskDirs, error) {
+	cmd, stdin := s.command(`set --; while IFS= read -r d; do set -- "$@" "$d"; done; LC_ALL=C du -x -k -d 2 -- "$@"; exit 0`, strings.Join(roots, "\n")+"\n")
 	sess, err := s.ssh.NewSession()
 	if err != nil {
-		return nil, err
+		return DiskDirs{}, err
 	}
 	defer sess.Close()
 	sess.Stdin = strings.NewReader(stdin)
+	var stderr bytes.Buffer
+	sess.Stderr = &stderr
 	out, err := sess.Output(cmd)
 	if err != nil {
-		return nil, err
+		return DiskDirs{}, err
 	}
 	list := []DirSize{}
 	for _, l := range strings.Split(string(out), "\n") {
 		size, p, ok := strings.Cut(l, "\t")
-		if !ok || p == dir {
+		if !ok || slices.Contains(roots, p) {
 			continue
 		}
 		k, err := strconv.ParseInt(size, 10, 64)
@@ -251,7 +261,7 @@ func (s *Server) BigDirs(dir string, n int) ([]DirSize, error) {
 		list = append(list, DirSize{Path: p, Size: k * 1024})
 	}
 	slices.SortFunc(list, func(a, b DirSize) int { return cmp.Compare(b.Size, a.Size) })
-	return list[:min(n, len(list))], nil
+	return DiskDirs{Dirs: list[:min(n, len(list))], Denied: denied(stderr.String())}, nil
 }
 
 // NetInfo はネットワークのインターフェース・接続・待ち受け

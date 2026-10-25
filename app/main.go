@@ -20,6 +20,9 @@ func main() {
 		Height:    900,
 		MinWidth:  900,
 		MinHeight: 560,
+		// Windows の枠 (タイトルバー) を外し、上のタブの帯を窓の上の端にする。
+		// 帯をつかむと窓が動き、最小化・最大化・閉じるのボタンは帯の右端に画面の側で置く
+		Frameless: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

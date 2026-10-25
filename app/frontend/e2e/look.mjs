@@ -45,6 +45,16 @@ const openSettings = async () => {
   await dlg.waitFor();
 };
 
+// 窓の枠を外しているので、上の帯をつかむと窓が動き、右端に最小化・最大化・閉じるのボタンがある。
+// wails dev の画面をブラウザで開いているので、押すと裏の窓が動く。ここでは押さない
+const drag = sel => page.locator(sel).first().evaluate(el => getComputedStyle(el).getPropertyValue('--wails-draggable').trim());
+ok('上の帯をつかむと窓が動く', (await drag('header')) === 'drag');
+ok('タブとボタンはつかまない', (await drag('header .no-drag')) === 'no-drag' && (await drag('header [data-sudo]')) === 'no-drag');
+const btns = page.locator('header [data-winbtns] button');
+ok('右端に窓のボタンが3つある', await btns.count() === 3 && JSON.stringify(await btns.evaluateAll(b => b.map(x => x.title))) === '["最小化","最大化","閉じる"]');
+const hb = await page.locator('header').boundingBox(), wb = await page.locator('header [data-winbtns]').boundingBox();
+ok('ボタンは帯の右上の角まで', Math.abs(wb.x + wb.width - (hb.x + hb.width)) < 1 && wb.y <= hb.y + 0.5, JSON.stringify([hb, wb]));
+
 // アクセントの色
 await openSettings();
 ok('はじめは青', (await root()).accent === '#5b9dff' && (await dlg.locator('[data-accent="#5b9dff"]').getAttribute('class')).includes('border-text'));

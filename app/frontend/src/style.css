@@ -142,6 +142,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .ic svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ic svg .fill { fill: currentColor; stroke: none; }
 
+/* 窓の枠を外しているので、上の帯をつかむと窓が動く (Wails の --wails-draggable)。ボタンとタブはつかまない */
+.app-bar { --wails-draggable: drag; }
+.app-bar button, .app-bar .no-drag { --wails-draggable: no-drag; }
+
 .brand {
   font-weight: 800; letter-spacing: .14em;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
