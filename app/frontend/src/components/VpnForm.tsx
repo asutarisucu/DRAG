@@ -12,7 +12,7 @@ export const VPN_TYPES: { type: string; ready: boolean; file: boolean }[] = [
   { type: 'ikev2', ready: true, file: false },
   { type: 'sstp', ready: true, file: false },
   { type: 'ac', ready: true, file: false },
-  { type: 'l2tp', ready: false, file: false },
+  { type: 'l2tp', ready: true, file: false },
   { type: 'ts', ready: false, file: false },
 ]
 
@@ -114,7 +114,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
         </>
         : <>
           <div className="grid grid-cols-2 gap-x-3">
-            <label className={value.type === 'ikev2' || value.type === 'ac' ? '' : 'col-span-2'}><span className={label}>{t('vpn.server')}</span><input className={`${input} w-full`} value={value.server} onChange={e => set('server', e.target.value)} placeholder="vpn.example.com" spellCheck={false} /></label>
+            <label className={value.type === 'sstp' ? 'col-span-2' : ''}><span className={label}>{t('vpn.server')}</span><input className={`${input} w-full`} value={value.server} onChange={e => set('server', e.target.value)} placeholder="vpn.example.com" spellCheck={false} /></label>
             {/* IKEv2 は証明書でも入れる。いまはユーザー名とパスワードだけ */}
             {value.type === 'ikev2' && (
               <label>
@@ -128,17 +128,23 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
             {value.type === 'ac' && (
               <label><span className={label}>{t('vpn.group')}</span><input className={`${input} w-full`} value={value.group} onChange={e => set('group', e.target.value)} placeholder={t('vpn.groupPh')} spellCheck={false} /></label>
             )}
+            {value.type === 'l2tp' && (
+              <label><span className={label}>{t('vpn.psk')}</span><input className={`${input} w-full`} type="password" value={value.psk} onChange={e => set('psk', e.target.value)} /></label>
+            )}
           </div>
           {login}
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
-            <button type="button" className={smallBtn} onClick={() => caFile.current?.click()}>
-              <Icon name="upload" size={14} />{t('vpn.loadCA')}
-            </button>
-            <input ref={caFile} type="file" accept=".crt,.pem,.cer" hidden onChange={e => { const f = e.target.files?.[0]; if (f) loadCA(f); e.target.value = '' }} />
-            {value.ca
-              ? <span className="flex min-w-0 items-center gap-2 text-[12px] text-ok" data-vpn-ca>{t('vpn.caLoaded', { name: caName || 'CA' })}<button type="button" className="text-muted hover:text-text" onClick={() => { set('ca', ''); setCaName('') }}>{t('vpn.caClear')}</button></span>
-              : <span className="min-w-0 text-[12px] text-muted">{t('vpn.caNone')}</span>}
-          </div>
+          {/* L2TP/IPsec は事前共有キーで確かめるので、サーバーの証明書を見ない */}
+          {value.type !== 'l2tp' && (
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
+              <button type="button" className={smallBtn} onClick={() => caFile.current?.click()}>
+                <Icon name="upload" size={14} />{t('vpn.loadCA')}
+              </button>
+              <input ref={caFile} type="file" accept=".crt,.pem,.cer" hidden onChange={e => { const f = e.target.files?.[0]; if (f) loadCA(f); e.target.value = '' }} />
+              {value.ca
+                ? <span className="flex min-w-0 items-center gap-2 text-[12px] text-ok" data-vpn-ca>{t('vpn.caLoaded', { name: caName || 'CA' })}<button type="button" className="text-muted hover:text-text" onClick={() => { set('ca', ''); setCaName('') }}>{t('vpn.caClear')}</button></span>
+                : <span className="min-w-0 text-[12px] text-muted">{t('vpn.caNone')}</span>}
+            </div>
+          )}
           {error}
         </>}
       <div className="text-[12px] text-muted">{t('vpn.note')}</div>

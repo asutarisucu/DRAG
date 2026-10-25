@@ -55,6 +55,7 @@ const en: Messages = {
     authCert: 'Certificate',
     group: 'Group',
     groupPh: "Empty for the server's default",
+    psk: 'Pre-shared key',
     loadCA: 'Load CA certificate',
     caLoaded: 'Verified with {{name}}',
     caClear: 'Remove',

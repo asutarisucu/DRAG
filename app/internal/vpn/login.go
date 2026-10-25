@@ -20,7 +20,7 @@ func serverCA(v store.VPN) (*x509.CertPool, error) {
 	return pool, nil
 }
 
-// checkServerLogin は、サーバーとユーザー名とパスワードで入る種類 (IKEv2、SSTP、AnyConnect 互換) の設定を確かめる
+// checkServerLogin は、サーバーとユーザー名とパスワードで入る種類 (IKEv2、SSTP、AnyConnect 互換、L2TP/IPsec) の設定を確かめる
 func checkServerLogin(v store.VPN) (Summary, error) {
 	if strings.TrimSpace(v.Server) == "" {
 		return Summary{}, errors.New("サーバーを入れてください")

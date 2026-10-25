@@ -201,3 +201,40 @@ func TestAnyConnectCarriesSSH(t *testing.T) {
 		t.Fatalf("%q %v", home, err)
 	}
 }
+
+// 試験用の SoftEther VPN (dev/softether) に L2TP/IPsec でつなぎ、VPN の中から検証用の SSH サーバーへつなぐ。
+// DRAG_TEST_SOFTETHER に dev/softether のフォルダを渡したときだけ動く
+func TestL2TPCarriesSSH(t *testing.T) {
+	dir := os.Getenv("DRAG_TEST_SOFTETHER")
+	if dir == "" {
+		t.Skip("DRAG_TEST_SOFTETHER が無い")
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "out", "target"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := strings.TrimSpace(string(b))
+	v := store.VPN{Type: "l2tp", Server: "127.0.0.1:15501", PSK: "dragpsk", User: "asuta", Password: "drag"}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	tun, err := Open(ctx, v, target)
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tun.Close()
+	cfg := remote.Config{Host: target, Port: 22, User: "asuta", Password: "drag", Dial: tun.DialContext}
+	kh := filepath.Join(t.TempDir(), "known_hosts")
+	_, err = remote.Dial(cfg, kh, "")
+	var he *remote.HostKeyError
+	if !errors.As(err, &he) {
+		t.Fatal(err)
+	}
+	sc, err := remote.Dial(cfg, kh, he.Fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sc.Close()
+	if home, err := sc.Home(); err != nil || home != "/home/asuta" {
+		t.Fatalf("%q %v", home, err)
+	}
+}

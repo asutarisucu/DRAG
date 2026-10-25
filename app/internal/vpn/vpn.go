@@ -5,6 +5,7 @@ package vpn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -43,6 +44,11 @@ func Check(v store.VPN) (Summary, error) {
 		return checkOpenVPN(v)
 	case "ikev2", "sstp", "ac":
 		return checkServerLogin(v)
+	case "l2tp":
+		if v.PSK == "" {
+			return Summary{}, errors.New("事前共有キーを入れてください")
+		}
+		return checkServerLogin(v)
 	}
 	return Summary{}, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }
@@ -60,6 +66,8 @@ func Open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
 		return openSSTP(ctx, v)
 	case "ac":
 		return openAnyConnect(ctx, v)
+	case "l2tp":
+		return openL2TP(ctx, v)
 	}
 	return nil, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }

@@ -55,6 +55,7 @@ const ja = {
     authCert: '証明書',
     group: 'グループ',
     groupPh: '空ならサーバーの既定',
+    psk: '事前共有キー',
     loadCA: 'CA の証明書を読み込む',
     caLoaded: '{{name}} で確かめます',
     caClear: '外す',
