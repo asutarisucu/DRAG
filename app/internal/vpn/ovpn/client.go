@@ -784,7 +784,7 @@ func (c *Client) frame(p []byte) []byte {
 	return p
 }
 
-// unframe は圧縮の印を外す。圧縮されたパケットは開けないので捨てる
+// unframe は圧縮の印を外し、サーバーが圧縮したものは戻す。戻せないものは捨てる
 func (c *Client) unframe(p []byte) []byte {
 	if len(p) == 0 {
 		return nil
@@ -792,26 +792,56 @@ func (c *Client) unframe(p []byte) []byte {
 	c.mu.Lock()
 	mode := c.comp
 	c.mu.Unlock()
+	var out []byte
+	var err error
 	switch mode {
 	case compLZO:
-		if p[0] == 0xfa {
+		switch p[0] {
+		case 0xfa:
 			return p[1:]
-		}
-		return nil
-	case compSwap:
-		if p[0] == 0xfb && len(p) >= 2 {
-			return append([]byte{p[len(p)-1]}, p[1:len(p)-1]...)
-		}
-		return nil
-	case compV2:
-		if p[0] == 0x50 {
-			if len(p) >= 2 && p[1] == 0 {
-				return p[2:]
-			}
+		case lzoCompressByte:
+			out, err = lzo1xDecompress(p[1:])
+		default:
 			return nil
 		}
+	case compSwap:
+		if len(p) < 2 {
+			return nil
+		}
+		// 先頭の印の場所に、末尾へ動かした元の先頭を戻す
+		body := append([]byte{p[len(p)-1]}, p[1:len(p)-1]...)
+		switch p[0] {
+		case 0xfb:
+			return body
+		case lz4CompressByte:
+			out, err = lz4Decompress(body)
+		default:
+			return nil
+		}
+	case compV2:
+		if p[0] != 0x50 {
+			return p
+		}
+		if len(p) < 2 {
+			return nil
+		}
+		switch p[1] {
+		case 0:
+			return p[2:]
+		case v2LZ4Byte:
+			out, err = lz4Decompress(p[2:])
+		case v2LZOByte:
+			out, err = lzo1xDecompress(p[2:])
+		default:
+			return nil
+		}
+	default:
+		return p
 	}
-	return p
+	if err != nil {
+		return nil
+	}
+	return out
 }
 
 func (c *Client) handleData(b []byte) {

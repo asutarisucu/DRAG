@@ -3,6 +3,7 @@ package vpn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,5 +237,51 @@ func TestL2TPCarriesSSH(t *testing.T) {
 	defer sc.Close()
 	if home, err := sc.Home(); err != nil || home != "/home/asuta" {
 		t.Fatalf("%q %v", home, err)
+	}
+}
+
+// 試験用の OpenVPN サーバー (dev/ovpnserver) の e、f、g は、サーバーが LZO と LZ4 で圧縮して送ってくる。
+// SSH の鍵の交換と、よく縮むコマンドの出力が、戻した上で届くことを確かめる
+func TestOpenVPNCompressed(t *testing.T) {
+	dir := os.Getenv("DRAG_TEST_OVPN")
+	if dir == "" {
+		t.Skip("DRAG_TEST_OVPN が無い")
+	}
+	var want strings.Builder
+	for i := 1; i <= 20000; i++ {
+		fmt.Fprintf(&want, "%d\n", i)
+	}
+	for _, c := range []struct{ file, server string }{
+		{"e.ovpn", "10.8.4.1"},
+		{"f.ovpn", "10.8.5.1"},
+		{"g.ovpn", "10.8.6.1"},
+	} {
+		b, err := os.ReadFile(filepath.Join(dir, c.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		tun, err := Open(ctx, store.VPN{Type: "ovpn", Config: string(b)}, c.server)
+		cancel()
+		if err != nil {
+			t.Fatalf("%s: %v", c.file, err)
+		}
+		cfg := remote.Config{Host: c.server, Port: 22, User: "asuta", Password: "drag", Dial: tun.DialContext}
+		kh := filepath.Join(t.TempDir(), "known_hosts")
+		_, err = remote.Dial(cfg, kh, "")
+		var he *remote.HostKeyError
+		if !errors.As(err, &he) {
+			t.Fatalf("%s: %v", c.file, err)
+		}
+		s, err := remote.Dial(cfg, kh, he.Fingerprint)
+		if err != nil {
+			t.Fatalf("%s: %v", c.file, err)
+		}
+		r, err := s.Exec("seq 1 20000", 20*time.Second)
+		if err != nil || r.Stdout != want.String() {
+			t.Fatalf("%s: %d バイト (欲しいのは %d) %v", c.file, len(r.Stdout), want.Len(), err)
+		}
+		s.Close()
+		tun.Close()
 	}
 }

@@ -1,9 +1,12 @@
 #!/bin/sh
-# 証明書と鍵を作り、設定の違う 4 つの OpenVPN サーバーを動かす。クライアントの .ovpn を /out に書く
+# 証明書と鍵を作り、設定の違う 7 つの OpenVPN サーバーを動かす。クライアントの .ovpn を /out に書く
 #   a: UDP 1194  tls-crypt、ユーザー名とパスワードだけ (クライアント証明書なし)、AES-256-GCM、30 秒ごとに鍵を替える
 #   b: TCP 1195  tls-auth (SHA256)、クライアント証明書、AES-128-GCM、comp-lzo no、net30
 #   c: UDP 1196  包みなし、クライアント証明書、CHACHA20-POLY1305、compress stub-v2
 #   d: UDP 1197  tls-auth (SHA1)、クライアント証明書、AES-256-CBC と HMAC-SHA256
+#   e: UDP 1198  クライアント証明書、comp-lzo yes (サーバーが LZO で圧縮して送る)
+#   f: UDP 1199  クライアント証明書、compress lz4-v2 (サーバーが LZ4 で圧縮して送る)
+#   g: UDP 1200  クライアント証明書、compress lz4 (先頭と末尾を入れ替える形で LZ4)
 set -e
 P=/etc/openvpn/pki
 mkdir -p $P /out
@@ -91,6 +94,21 @@ data-ciphers AES-256-CBC
 EOF
 } > d.conf
 
+# 2.6 は既定では圧縮して送らない。allow-compression yes で送らせる
+for x in "e 1198 tun4 10.8.4.0 comp-lzo yes" "f 1199 tun5 10.8.5.0 compress lz4-v2" "g 1200 tun6 10.8.6.0 compress lz4"; do
+  set -- $x
+  name=$1 port=$2 dev=$3 net=$4; shift 4
+  { common $dev $net; cat <<EOF
+proto udp
+port $port
+topology subnet
+allow-compression yes
+$*
+push "$*"
+EOF
+  } > $name.conf
+done
+
 inline() { printf '<%s>\n' "$1"; cat "$2"; printf '</%s>\n' "$1"; }
 client() {
   printf 'client\ndev tun\nproto %s\nremote 127.0.0.1 %s\nnobind\nremote-cert-tls server\n' "$1" "$2"
@@ -100,10 +118,13 @@ client() {
 { client tcp 1195; echo 'auth SHA256'; echo 'comp-lzo no'; echo 'key-direction 1'; inline cert client.crt; inline key client.key; inline tls-auth ta.key; } > /out/b.ovpn
 { client udp 1196; echo 'compress stub-v2'; inline cert client.crt; inline key client.key; } > /out/c.ovpn
 { client udp 1197; echo 'auth SHA256'; echo 'cipher AES-256-CBC'; echo 'key-direction 1'; inline cert client.crt; inline key client.key; inline tls-auth ta.key; } > /out/d.ovpn
+{ client udp 1198; echo 'comp-lzo yes'; inline cert client.crt; inline key client.key; } > /out/e.ovpn
+{ client udp 1199; echo 'compress lz4-v2'; inline cert client.crt; inline key client.key; } > /out/f.ovpn
+{ client udp 1200; echo 'compress lz4'; inline cert client.crt; inline key client.key; } > /out/g.ovpn
 
 # VPN の中の :22 を、検証用の SSH サーバーへ渡す
 socat TCP-LISTEN:22,fork,reuseaddr TCP:host.docker.internal:2222 &
-for s in a b c d; do
+for s in a b c d e f g; do
   openvpn --config $P/$s.conf --log /var/log/openvpn-$s.log &
 done
 wait
