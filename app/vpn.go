@@ -116,26 +116,86 @@ func (a *App) AddVPN(in VPNInput) (VPNInfo, error) {
 	return VPNInfo{ID: v.ID, Name: v.Name, Type: v.Type, Summary: sum, Servers: []string{}}, nil
 }
 
-// DeleteVPN は保存した VPN を消す。この VPN を使う保存済みのサーバーは、VPN なしに戻す
-func (a *App) DeleteVPN(id string) error {
+// VPNDetail は、編集の画面に出す保存した VPN。パスワードと事前共有キーは渡さない
+func (a *App) VPNDetail(id string) (VPNInput, error) {
+	v, err := a.vpns.Get(id)
+	if err != nil {
+		return VPNInput{}, err
+	}
+	in := VPNInput{Name: v.Name, Type: v.Type, Config: v.Config, Server: v.Server, CA: v.CA, Group: v.Group, User: v.User}
+	if v.Type == "ts" {
+		in.Config = "" // 端末の鍵は渡さない
+	}
+	return in, nil
+}
+
+// UpdateVPN は保存した VPN を書き換える。種類は変えない。パスワードと事前共有キーは、空なら今のまま。
+// Tailscale はログインを変えず、名前だけを書き換える
+func (a *App) UpdateVPN(id string, in VPNInput) (VPNInfo, error) {
+	if err := a.vpnIdle(id); err != nil {
+		return VPNInfo{}, err
+	}
+	old, err := a.vpns.Get(id)
+	if err != nil {
+		return VPNInfo{}, err
+	}
+	v := in.store()
+	v.ID, v.Type = id, old.Type
+	if v.Password == "" {
+		v.Password = old.Password
+	}
+	if v.PSK == "" {
+		v.PSK = old.PSK
+	}
+	if v.Type == "ts" {
+		v.Config = old.Config
+	}
+	sum, err := vpn.Check(v)
+	if err != nil {
+		return VPNInfo{}, err
+	}
+	if v.Name == "" {
+		v.Name = old.Name
+	}
+	if err := a.vpns.Update(v); err != nil {
+		return VPNInfo{}, err
+	}
+	a.forgetTunnel(id)
+	return VPNInfo{ID: v.ID, Name: v.Name, Type: v.Type, Summary: sum, Servers: []string{}}, nil
+}
+
+// vpnIdle は、この VPN でつないでいるサーバーがなければ nil を返す
+func (a *App) vpnIdle(id string) error {
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	for _, c := range a.servers {
 		if c.req.VPN == id {
-			a.mu.Unlock()
 			return errors.New("この VPN でつないでいるサーバーがあります")
 		}
 	}
-	a.mu.Unlock()
-	if err := a.vpns.Remove(id); err != nil {
-		return err
-	}
+	return nil
+}
+
+// forgetTunnel は、張ったままにしている VPN を閉じる。次に使うときは保存した設定で張り直す
+func (a *App) forgetTunnel(id string) {
 	a.tunnels.mu.Lock()
+	defer a.tunnels.mu.Unlock()
 	if t := a.tunnels.m[id]; t != nil {
 		t.idle.Stop()
 		t.Close()
 		delete(a.tunnels.m, id)
 	}
-	a.tunnels.mu.Unlock()
+}
+
+// DeleteVPN は保存した VPN を消す。この VPN を使う保存済みのサーバーは、VPN なしに戻す
+func (a *App) DeleteVPN(id string) error {
+	if err := a.vpnIdle(id); err != nil {
+		return err
+	}
+	if err := a.vpns.Remove(id); err != nil {
+		return err
+	}
+	a.forgetTunnel(id)
 	saved, err := a.saved.List()
 	if err != nil {
 		return err

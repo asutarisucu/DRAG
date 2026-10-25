@@ -575,7 +575,7 @@ svg.spark.big { height: 64px; margin: 0; }
 
 /* メニュー */
 .menu {
-  position: fixed; z-index: 2147483200; min-width: 210px; padding: 5px;
+  position: fixed; z-index: 2147483280; min-width: 210px; padding: 5px;
   border-radius: 10px; border: 1px solid var(--border-strong); background: var(--raised); box-shadow: var(--shadow);
   animation: pop .12s ease;
 }
@@ -584,7 +584,7 @@ svg.spark.big { height: 64px; margin: 0; }
 .menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; text-align: left; font-size: 13px; }
 .menu button:hover { background: var(--accent-soft); }
 .menu button .ic { color: var(--muted); }
-.sheet-backdrop { position: fixed; inset: 0; z-index: 2147483150; background: rgba(0, 0, 0, .45); animation: fade .15s; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 2147483270; background: rgba(0, 0, 0, .45); animation: fade .15s; }
 
 /* トースト */
 #toasts { position: fixed; right: 16px; bottom: 36px; z-index: 2147483300; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }

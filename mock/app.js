@@ -3270,6 +3270,12 @@ function openConnect(preset) {
   };
   const add = vpnForm();
   f.vpn.addEventListener('change', () => { add.box.hidden = f.vpn.value !== 'new'; if (!add.box.hidden) add.focus(); });
+  // 選んでいる保存済みの VPN は、右クリックで編集できる
+  f.vpn.addEventListener('contextmenu', e => {
+    const v = VPNS.find(x => x.id === f.vpn.value);
+    if (!v) return;
+    vpnMenu(e, v, () => { f.vpn.selectedOptions[0].textContent = `${v.name} (${VPN_TYPES[v.type]})`; });
+  });
   let chosen = null;
   const saved = el('div', { class: 'saved' }, SAVED.map(s => el('button', {
     class: 'saved-item',
@@ -3309,9 +3315,10 @@ function openConnect(preset) {
   else if (!isMobile()) f.host.focus();
 }
 
-// 接続の画面で新しい VPN を足す欄。make() は入力から VPN を作る。足りなければその欄を示して null を返す
-function vpnForm() {
-  let type = 'wg', login = null;
+// 接続の画面で新しい VPN を足す欄。make() は入力から VPN を作る。足りなければその欄を示して null を返す。
+// preset を渡すと、その VPN を編集する欄になる。種類は変えられず、パスワードは空なら今のまま
+function vpnForm(preset) {
+  let type = preset?.type || 'wg', login = preset?.type === 'ts' ? { tailnet: preset.tailnet, node: preset.node } : null;
   const name = el('input', { class: 'input', placeholder: '名前', spellcheck: 'false' });
   const kind = el('select', { class: 'input vpn-kind' }, Object.entries(VPN_TYPES).map(([v, l]) => el('option', { value: v }, l)));
   const field = (label, input, cls = '') => el('label', { class: 'field ' + cls }, el('span', { class: 'field-label' }, label), input);
@@ -3335,7 +3342,7 @@ function vpnForm() {
     }, ic('upload'), 'ファイルから読み込む');
     let onConf = null;
     return {
-      conf, sum, show, row: el('div', { class: 'vpn-row' }, load, sum),
+      conf, sum, show, sample, row: el('div', { class: 'vpn-row' }, load, sum),
       set onConf(f) { onConf = f; },
       empty: () => { sum.className = 'vpn-sum err'; sum.textContent = '設定ファイルを読み込むか、中身を貼り付けてください'; },
     };
@@ -3419,6 +3426,18 @@ function vpnForm() {
     drawCred();
   };
   kind.addEventListener('change', () => { type = kind.value; showType(); });
+  if (preset) {
+    kind.value = type;
+    kind.disabled = true;
+    name.value = preset.name;
+    if (type === 'wg') { wgConf.conf.value = wgConf.sample; wgConf.show(); }
+    if (type === 'ovpn') { ovConf.conf.value = ovConf.sample; ovUser.value = preset.user || ''; ovCreds.hidden = !ovConf.show().userPass; }
+    cred.server.value = preset.server || '';
+    cred.user.value = preset.user || '';
+    cred.group.value = preset.group || '';
+    for (const i of [ovPass, cred.pass, cred.psk]) i.placeholder = '変更しないときは空のまま';
+    if (login) { tsMsg.className = 'vpn-sum ok'; tsMsg.textContent = `${login.tailnet} にログインしています · この PC は ${login.node}`; loginBtn.hidden = true; }
+  }
   const box = el('div', { class: 'vpn-new', hidden: true },
     el('div', { class: 'vpn-head' }, kind, name),
     wg, ovpn, credBox, ts,
@@ -3441,18 +3460,47 @@ function vpnForm() {
         const c = ovConf.show();
         if (!ovConf.conf.value.trim()) ovConf.empty();
         if (!c.server) { ovConf.conf.focus(); return null; }
-        if (c.userPass && !need(ovUser, ovPass)) return null;
+        if (c.userPass && !need(ovUser, ...(preset ? [] : [ovPass]))) return null;
         return vpn(name.value.trim() || c.server.replace(/:\d+$/, ''), { server: c.server, user: ovUser.value.trim() });
       }
       if (type === 'ts') {
         if (!login) { tsMsg.className = 'vpn-sum err'; tsMsg.textContent = 'ログインしてください'; loginBtn.focus(); return null; }
         return vpn(name.value.trim() || login.tailnet.split('.')[0], login);
       }
-      const inputs = type === 'ikev2' && cred.auth.value === 'cert' ? [cred.server] : [cred.server, cred.user, cred.pass, ...(type === 'l2tp' ? [cred.psk] : [])];
+      const inputs = type === 'ikev2' && cred.auth.value === 'cert' ? [cred.server] : [cred.server, cred.user, ...(preset ? [] : [cred.pass, ...(type === 'l2tp' ? [cred.psk] : [])])];
       if (!need(...inputs)) return null;
       return vpn(name.value.trim() || cred.server.value.trim(), { server: cred.server.value.trim(), user: cred.user.value.trim() });
     },
   };
+}
+
+// 保存した VPN を編集する。種類は変えられない
+function editVpn(v, done) {
+  const form = vpnForm(v);
+  form.box.hidden = false;
+  const save = () => {
+    const nv = form.make();
+    if (!nv) return;
+    Object.assign(v, nv, { id: v.id });
+    m.close();
+    toast(`VPN ${v.name} を保存しました`, 'ok');
+    done?.();
+  };
+  const body = el('div', {}, form.box,
+    el('div', { class: 'modal-foot' }, el('div', { class: 'grow' }), el('button', { class: 'btn', onclick: () => m.close() }, 'キャンセル'), el('button', { class: 'btn primary', onclick: save }, '保存')));
+  const m = modal({ title: 'VPN を編集', body, width: 560 });
+}
+
+// VPN の右クリックのメニュー。設定の VPN の一覧と、接続の画面の VPN の欄で出す。
+// この VPN でつないでいるサーバーがあれば、編集も削除もさせない
+function vpnMenu(e, v, onChange, onRemove) {
+  e.preventDefault();
+  const busy = state.list.some(s => s.vpn === v);
+  showMenu(e.clientX, e.clientY, [
+    { icon: 'edit', label: '編集', disabled: busy, fn: () => editVpn(v, onChange) },
+    onRemove && { sep: true },
+    onRemove && { icon: 'trash', label: '削除', danger: true, disabled: busy, fn: onRemove },
+  ], v.name);
 }
 
 /* ---------- サーバーが1台もないとき ---------- */
@@ -3767,15 +3815,18 @@ function openSettings() {
       // 自分のドメインの証明書は作らないことにした (2026-10-25)。IP アドレスの証明書だけ
       row('証明書', `Let's Encrypt · ${PC.ip} · 10/30 まで。数日おきに自動で更新する`, el('span', { class: 'muted small' }, 'IP アドレス')),
     ]],
-    // VPN はサーバーに接続するときに足す。ここでは保存したものを見て消す
+    // VPN はサーバーに接続するときに足す。ここでは保存したものを見て、右クリックで編集して消す
     vpn: ['VPN', 'shield', () => VPNS.length ? VPNS.map(v => {
       const users = SAVED.filter(s => s.vpn === v.id).map(s => s.name);
       const busy = state.list.some(s => s.vpn === v);
-      return row(v.name, [vpnDesc(v), users.length && `${users.join('、')} で使う`].filter(Boolean).join(' · '),
+      const remove = () => { VPNS.splice(VPNS.indexOf(v), 1); SAVED.forEach(s => { if (s.vpn === v.id) delete s.vpn; }); show('vpn'); };
+      const r = row(v.name, [vpnDesc(v), users.length && `${users.join('、')} で使う`].filter(Boolean).join(' · '),
         el('button', {
           class: 'btn small', disabled: busy, title: busy ? 'この VPN でつないでいるサーバーがあります' : null,
-          onclick: () => { VPNS.splice(VPNS.indexOf(v), 1); SAVED.forEach(s => { if (s.vpn === v.id) delete s.vpn; }); show('vpn'); },
+          onclick: remove,
         }, '削除'));
+      r.addEventListener('contextmenu', e => vpnMenu(e, v, () => show('vpn'), remove));
+      return r;
     }) : [el('div', { class: 'set-desc' }, '保存した VPN はありません。サーバーに接続するときに足せます')]],
   };
   const nav = el('div', { class: 'set-nav' });

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckVPN, TailscaleLogin, TailscaleWait } from '../../wailsjs/go/main/App'
+import { CheckVPN, TailscaleLogin, TailscaleWait, UpdateVPN, VPNDetail } from '../../wailsjs/go/main/App'
 import { main, vpn } from '../../wailsjs/go/models'
 import { Icon } from './Icon'
+import { Modal } from './Modal'
 
 // VPN の種類。並びは画面に出す順。
 // file は設定ファイルをそのまま使う種類で、そうでない種類はサーバーとユーザー名とパスワードで入る。
@@ -33,14 +34,16 @@ async function pem(f: File): Promise<string> {
   return `-----BEGIN CERTIFICATE-----\n${btoa(s).replace(/.{64}/g, '$&\n')}\n-----END CERTIFICATE-----\n`
 }
 
-// 接続の画面で新しい VPN を足す欄。入力は親が持ち、設定を読めたかは check で返す
-export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }: {
+// 接続の画面で新しい VPN を足す欄。入力は親が持ち、設定を読めたかは check で返す。
+// edit を渡すと保存した VPN を編集する欄になる。種類は変えられず、パスワードは空なら今のまま
+export function VpnForm({ value, onChange, check, onCheck, configRef, userRef, edit }: {
   value: main.VPNInput
   onChange: (v: main.VPNInput) => void
   check: VpnCheck
   onCheck: (c: VpnCheck) => void
   configRef: React.RefObject<HTMLTextAreaElement | null>
   userRef: React.RefObject<HTMLInputElement | null>
+  edit?: { tailnet: string }
 }) {
   const { t } = useTranslation()
   const file = useRef<HTMLInputElement>(null)
@@ -91,7 +94,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
   const login = (
     <div className="grid grid-cols-2 gap-x-3">
       <label><span className={label}>{t('vpn.user')}</span><input ref={userRef} className={`${input} w-full`} value={value.user} onChange={e => set('user', e.target.value)} spellCheck={false} /></label>
-      <label><span className={label}>{t('vpn.password')}</span><input className={`${input} w-full`} type="password" value={value.password} onChange={e => set('password', e.target.value)} /></label>
+      <label><span className={label}>{t('vpn.password')}</span><input className={`${input} w-full`} type="password" value={value.password} onChange={e => set('password', e.target.value)} placeholder={edit ? t('vpn.keep') : undefined} /></label>
     </div>
   )
   const error = !typing && check.error && <span className="min-w-0 text-[12px] text-err" data-vpn-err>{check.error}</span>
@@ -99,7 +102,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
   return (
     <div className="col-span-3 grid gap-2.5 rounded-[10px] border border-line-strong bg-panel-2 p-3" data-vpn-new>
       <div className="flex items-center gap-2">
-        <select className={`${input} w-[170px] flex-none`} value={value.type} onChange={e => set('type', e.target.value)} aria-label={t('vpn.type')}>
+        <select className={`${input} w-[170px] flex-none`} value={value.type} onChange={e => set('type', e.target.value)} aria-label={t('vpn.type')} disabled={!!edit}>
           {VPN_TYPES.map(x => <option key={x.type} value={x.type}>{t(`vpn.types.${x.type}`)}</option>)}
         </select>
         <input className={`${input} min-w-0 flex-1`} value={value.name} onChange={e => set('name', e.target.value)} placeholder={t('vpn.name')} spellCheck={false} aria-label={t('vpn.name')} />
@@ -107,8 +110,12 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
       {value.type === 'ts'
         ? <>
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2" data-vpn-ts>
-            <button type="button" className={smallBtn} disabled={ts.busy} onClick={tsLogin}>{t('vpn.tsLogin')}</button>
-            {ts.text && <span className={`min-w-0 text-[12px] ${ts.ok ? 'text-ok' : ts.busy ? 'text-muted' : 'text-err'}`}>{ts.text}</span>}
+            {edit
+              ? <span className="min-w-0 text-[12px] text-ok">{t('vpn.tsLoggedIn', { tailnet: edit.tailnet })}</span>
+              : <>
+                <button type="button" className={smallBtn} disabled={ts.busy} onClick={tsLogin}>{t('vpn.tsLogin')}</button>
+                {ts.text && <span className={`min-w-0 text-[12px] ${ts.ok ? 'text-ok' : ts.busy ? 'text-muted' : 'text-err'}`}>{ts.text}</span>}
+              </>}
           </div>
           {error}
         </>
@@ -153,7 +160,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
               <label><span className={label}>{t('vpn.group')}</span><input className={`${input} w-full`} value={value.group} onChange={e => set('group', e.target.value)} placeholder={t('vpn.groupPh')} spellCheck={false} /></label>
             )}
             {value.type === 'l2tp' && (
-              <label><span className={label}>{t('vpn.psk')}</span><input className={`${input} w-full`} type="password" value={value.psk} onChange={e => set('psk', e.target.value)} /></label>
+              <label><span className={label}>{t('vpn.psk')}</span><input className={`${input} w-full`} type="password" value={value.psk} onChange={e => set('psk', e.target.value)} placeholder={edit ? t('vpn.keep') : undefined} /></label>
             )}
           </div>
           {login}
@@ -173,5 +180,35 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
         </>}
       <div className="text-[12px] text-muted">{t('vpn.note')}</div>
     </div>
+  )
+}
+
+// 保存した VPN を編集する窓。この VPN でつないでいるサーバーがあれば、保存のときに Go が断る
+export function VpnEdit({ vpn, onClose, onSaved }: { vpn: main.VPNInfo; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState<main.VPNInput | null>(null)
+  const [check, setCheck] = useState<VpnCheck>({ sum: null, error: '' })
+  const configRef = useRef<HTMLTextAreaElement>(null)
+  const userRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    VPNDetail(vpn.id).then(setValue, err => setCheck({ sum: null, error: String(err) }))
+  }, [vpn.id])
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!value) return
+    UpdateVPN(vpn.id, value).then(() => { onSaved(); onClose() }, err => setCheck({ sum: null, error: String(err) }))
+  }
+  return (
+    <Modal title={t('vpn.editTitle')} width={560} onClose={onClose}>
+      <form className="flex flex-col gap-[18px]" onSubmit={save} data-vpn-edit>
+        {value
+          ? <VpnForm value={value} onChange={setValue} check={check} onCheck={setCheck} configRef={configRef} userRef={userRef} edit={{ tailnet: vpn.summary.target }} />
+          : check.error && <span className="text-[12px] text-err">{check.error}</span>}
+        <div className="flex items-center justify-end gap-2">
+          <button type="button" className="h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover" onClick={onClose}>{t('vpn.cancel')}</button>
+          <button type="submit" className="btn-primary h-8 rounded-lg px-3.5 disabled:opacity-50" disabled={!value}>{t('vpn.save')}</button>
+        </div>
+      </form>
+    </Modal>
   )
 }

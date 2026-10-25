@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AddVPN, CheckVPN, Connect, ConnectVPN, Disconnect, Probe, SavedServers, VPNs } from '../../wailsjs/go/main/App'
 import { main, remote, store } from '../../wailsjs/go/models'
+import { isRemote } from '../remote'
 import { Icon } from './Icon'
+import { Menu } from './Menu'
 import { Modal } from './Modal'
-import { VPN_TYPES, VpnForm, type VpnCheck } from './VpnForm'
+import { VPN_TYPES, VpnEdit, VpnForm, type VpnCheck } from './VpnForm'
 
 // vpn は通している VPN の名前。VPN なしなら空
 export type Connected = { id: string; home: string; name: string; user: string; host: string; info: remote.Info; vpn?: string }
@@ -39,6 +41,9 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   const [saved, setSaved] = useState<store.Server[]>([])
   const [f, setF] = useState({ name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '', vpn: '' })
   const [vpns, setVpns] = useState<main.VPNInfo[]>([])
+  // 選んでいる保存済みの VPN は、右クリックで編集できる。スマホからは編集しない
+  const [vpnMenu, setVpnMenu] = useState<{ x: number; y: number; vpn: main.VPNInfo } | null>(null)
+  const [editing, setEditing] = useState<main.VPNInfo | null>(null)
   // 新しい VPN の入力と、それを読めたか
   const [newVpn, setNewVpn] = useState(new main.VPNInput({ name: '', type: 'wg', config: '', server: '', ca: '', group: '', psk: '', user: '', password: '' }))
   const [vpnCheck, setVpnCheck] = useState<VpnCheck>({ sum: null, error: '' })
@@ -216,7 +221,15 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
           <label className="col-span-2"><span className={label}>{t('connect.host')}</span><input ref={hostRef} className={input} value={f.host} onChange={set('host')} spellCheck={false} /></label>
           <label>
             <span className={label}>{t('vpn.label')}</span>
-            <select className={input} value={f.vpn} onChange={set('vpn')} data-vpn-select>
+            <select
+              className={input} value={f.vpn} onChange={set('vpn')} data-vpn-select
+              onContextMenu={e => {
+                const v = vpns.find(x => x.id === f.vpn)
+                if (!v || isRemote) return
+                e.preventDefault()
+                setVpnMenu({ x: e.clientX, y: e.clientY, vpn: v })
+              }}
+            >
               <option value="">{t('vpn.none')}</option>
               {vpns.map(v => <option key={v.id} value={v.id}>{v.name} ({t(`vpn.types.${v.type}`)})</option>)}
               <option value="new">{t('vpn.add')}</option>
@@ -243,6 +256,10 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
           <button type="submit" className="btn-primary h-8 rounded-lg px-3.5">{t('connect.submit')}</button>
         </div>
       </form>
+      {vpnMenu && <Menu x={vpnMenu.x} y={vpnMenu.y} title={vpnMenu.vpn.name} onClose={() => setVpnMenu(null)} items={[
+        { icon: 'edit', label: t('vpn.edit'), disabled: vpnMenu.vpn.inUse, fn: () => setEditing(vpnMenu.vpn) },
+      ]} />}
+      {editing && <VpnEdit vpn={editing} onClose={() => setEditing(null)} onSaved={() => VPNs().then(list => setVpns(list ?? []))} />}
     </Modal>
   )
 }

@@ -104,6 +104,22 @@ func (s *VPNs) Add(v VPN) (VPN, error) {
 	return v, s.save(append(list, v))
 }
 
+// Update は同じ番号の VPN を置き換える
+func (s *VPNs) Update(v VPN) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(list, func(o VPN) bool { return o.ID == v.ID })
+	if i < 0 {
+		return errors.New("保存した VPN にありません")
+	}
+	list[i] = v
+	return s.save(list)
+}
+
 func (s *VPNs) Remove(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

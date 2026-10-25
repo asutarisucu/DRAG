@@ -142,7 +142,11 @@ export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;
 
 export function TrashList(arg1:string):Promise<Array<remote.TrashEntry>>;
 
+export function UpdateVPN(arg1:string,arg2:main.VPNInput):Promise<main.VPNInfo>;
+
 export function Upload(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:string):Promise<string>;
+
+export function VPNDetail(arg1:string):Promise<main.VPNInput>;
 
 export function VPNs():Promise<Array<main.VPNInfo>>;
 

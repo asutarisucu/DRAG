@@ -274,8 +274,16 @@ export function TrashList(arg1) {
   return window['go']['main']['App']['TrashList'](arg1);
 }
 
+export function UpdateVPN(arg1, arg2) {
+  return window['go']['main']['App']['UpdateVPN'](arg1, arg2);
+}
+
 export function Upload(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['Upload'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function VPNDetail(arg1) {
+  return window['go']['main']['App']['VPNDetail'](arg1);
 }
 
 export function VPNs() {

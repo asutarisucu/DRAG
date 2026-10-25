@@ -7,7 +7,9 @@ import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
 import { DEFAULTS, setSettings, useSettings } from '../settings'
 import { Icon, type IconName } from './Icon'
+import { Menu } from './Menu'
 import { Modal } from './Modal'
+import { VpnEdit } from './VpnForm'
 
 function Seg<T extends string>({ value, options, onPick }: { value: T; options: [T, string][]; onPick: (v: T) => void }) {
   return (
@@ -103,28 +105,40 @@ function AutoCmds({ list, onChange }: { list: string[]; onChange: (l: string[]) 
 type Page = 'look' | 'term' | 'ops' | 'phone' | 'vpn'
 
 // 保存した VPN。足すのはサーバーに接続するときで、ここでは見て消す
+// 保存した VPN。右クリックで編集と削除ができる。この VPN でつないでいるサーバーがあれば、どちらもさせない
 function VpnPage() {
   const { t } = useTranslation()
   const [list, setList] = useState<main.VPNInfo[] | null>(null)
   const [error, setError] = useState('')
+  const [menu, setMenu] = useState<{ x: number; y: number; vpn: main.VPNInfo } | null>(null)
+  const [editing, setEditing] = useState<main.VPNInfo | null>(null)
   const load = () => VPNs().then(l => setList(l ?? []))
   useEffect(() => { load() }, [])
   if (!list) return null
   if (list.length === 0) return <div className="py-[13px] text-[12px] text-muted">{t('vpn.empty')}</div>
+  const remove = (v: main.VPNInfo) => DeleteVPN(v.id).then(() => { setError(''); load() }, e => setError(String(e)))
   return (
     <>
       {error && <div className="py-2 text-[12px] text-err">{error}</div>}
       {list.map(v => (
-        <Row key={v.id} label={v.name} desc={[`${t(`vpn.types.${v.type}`)} · ${v.summary.target}`, v.servers.length > 0 && t('vpn.usedBy', { names: v.servers.join(', ') })].filter(Boolean).join(' · ')}>
-          <button
-            className="h-7 flex-none rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover disabled:opacity-50"
-            disabled={v.inUse}
-            title={v.inUse ? t('vpn.inUse') : undefined}
-            onClick={() => DeleteVPN(v.id).then(() => { setError(''); load() }, e => setError(String(e)))}
-            data-vpn-remove={v.name}
-          >{t('vpn.remove')}</button>
-        </Row>
+        <div key={v.id} onContextMenu={e => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, vpn: v }) }} data-vpn-row={v.name}>
+          <Row label={v.name} desc={[`${t(`vpn.types.${v.type}`)} · ${v.summary.target}`, v.servers.length > 0 && t('vpn.usedBy', { names: v.servers.join(', ') })].filter(Boolean).join(' · ')}>
+            <button
+              className="h-7 flex-none rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover disabled:opacity-50"
+              disabled={v.inUse}
+              title={v.inUse ? t('vpn.inUse') : undefined}
+              onClick={() => remove(v)}
+              data-vpn-remove={v.name}
+            >{t('vpn.remove')}</button>
+          </Row>
+        </div>
       ))}
+      {menu && <Menu x={menu.x} y={menu.y} title={menu.vpn.name} onClose={() => setMenu(null)} items={[
+        { icon: 'edit', label: t('vpn.edit'), disabled: menu.vpn.inUse, fn: () => setEditing(menu.vpn) },
+        { sep: true },
+        { icon: 'trash', label: t('vpn.remove'), danger: true, disabled: menu.vpn.inUse, fn: () => remove(menu.vpn) },
+      ]} />}
+      {editing && <VpnEdit vpn={editing} onClose={() => setEditing(null)} onSaved={() => { setError(''); load() }} />}
     </>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMobile } from '../mobile'
 import { Icon } from './Icon'
 
@@ -11,8 +11,13 @@ export function Modal({ title, width = 520, height, onClose, children }: {
   children: React.ReactNode
 }) {
   const mobile = useMobile()
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // 窓の上に窓を開いたときは、いちばん上のものだけを閉じる
+    const esc = (e: KeyboardEvent) => {
+      const all = document.querySelectorAll('[role=dialog]')
+      if (e.key === 'Escape' && all[all.length - 1] === ref.current) onClose()
+    }
     document.addEventListener('keydown', esc)
     return () => document.removeEventListener('keydown', esc)
   }, [onClose])
@@ -23,6 +28,7 @@ export function Modal({ title, width = 520, height, onClose, children }: {
         className={`flex flex-col border border-line-strong bg-panel shadow-win ${mobile ? 'anim-sheet max-h-[92dvh] rounded-t-2xl pb-[env(safe-area-inset-bottom)]' : 'anim-modal max-h-[calc(100dvh-32px)] rounded-[14px]'}`}
         style={{ width: mobile ? '100%' : `min(${width}px, 100%)`, height }}
         role="dialog"
+        ref={ref}
       >
         <div className="flex h-[50px] flex-none items-center border-b border-line pr-2.5 pl-5">
           <h2 className="m-0 flex-1 text-[15px] font-semibold">{title}</h2>
