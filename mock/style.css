@@ -635,6 +635,9 @@ svg.spark.big { height: 64px; margin: 0; }
 .vpn-new { grid-column: 1 / -1; display: grid; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--panel-2); }
 .vpn-head { display: flex; align-items: center; gap: 8px; }
 .vpn-head .input { flex: 1; min-width: 0; }
+.vpn-head .vpn-kind { flex: none; width: 170px; }
+.vpn-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.vpn-grid .span2 { grid-column: span 2; }
 .vpn-body { display: grid; gap: 8px; }
 .vpn-conf { height: auto; padding: 8px 10px; resize: vertical; font: 12px/1.5 var(--font-mono); }
 .vpn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }

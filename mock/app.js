@@ -351,10 +351,12 @@ const DEFS = [
 // 保存済みの VPN。DRAG の中だけで張り、サーバーへの接続だけを通す。PC のほかの通信は変えない
 const VPNS = [
   { id: 'office', name: 'office', type: 'wg', endpoint: '203.0.113.80:51820', address: '10.8.0.5/32', allowed: '10.8.0.0/24' },
+  { id: 'home', name: 'home', type: 'ovpn', server: 'vpn.example.net:1194', user: 'asuta' },
   { id: 'tailnet', name: 'tailnet', type: 'ts', tailnet: 'tail0000.ts.net', node: 'drag-desktop-01' },
 ];
-const VPN_TYPES = { wg: 'WireGuard', ts: 'Tailscale' };
-const vpnDesc = v => v.type === 'wg' ? `WireGuard · ${v.endpoint}` : `Tailscale · ${v.tailnet}`;
+// 対応する VPN の種類。ネットワークの部分は DRAG の中で持ち、種類ごとにサーバーとのやり取りだけを作る
+const VPN_TYPES = { wg: 'WireGuard', ovpn: 'OpenVPN', ikev2: 'IKEv2', sstp: 'SSTP', ac: 'AnyConnect 互換', l2tp: 'L2TP/IPsec', ts: 'Tailscale' };
+const vpnDesc = v => `${VPN_TYPES[v.type]} · ${v.type === 'wg' ? v.endpoint : v.type === 'ts' ? v.tailnet : v.server}`;
 
 const SAVED = [
   { name: 'web01', host: '198.51.100.24', user: 'asuta', port: 22 },
@@ -3311,38 +3313,82 @@ function openConnect(preset) {
 function vpnForm() {
   let type = 'wg', login = null;
   const name = el('input', { class: 'input', placeholder: '名前', spellcheck: 'false' });
-  const seg = el('div', { class: 'seg' });
-  const drawSeg = () => seg.replaceChildren(...Object.entries(VPN_TYPES).map(([v, l]) => el('button', {
-    type: 'button', class: v === type ? 'active' : '',
-    onclick: () => { type = v; drawSeg(); wg.hidden = type !== 'wg'; ts.hidden = type !== 'ts'; },
-  }, l)));
-  drawSeg();
+  const kind = el('select', { class: 'input vpn-kind' }, Object.entries(VPN_TYPES).map(([v, l]) => el('option', { value: v }, l)));
+  const field = (label, input, cls = '') => el('label', { class: 'field ' + cls }, el('span', { class: 'field-label' }, label), input);
+  const text = (o = {}) => el('input', { class: 'input', spellcheck: 'false', ...o });
+  const pass = () => el('input', { class: 'input', type: 'password' });
 
-  // WireGuard は設定ファイル (.conf) をそのまま使う
-  const conf = el('textarea', {
-    class: 'input vpn-conf', rows: 7, spellcheck: 'false', wrap: 'off',
-    placeholder: '[Interface]\nPrivateKey = …\nAddress = 10.8.0.5/32\n\n[Peer]\nPublicKey = …\nEndpoint = vpn.example.com:51820\nAllowedIPs = 10.8.0.0/24',
-  });
-  const sum = el('div', { class: 'vpn-sum' });
-  const parse = () => {
-    const get = k => conf.value.match(new RegExp(`^\\s*${k}\\s*=\\s*(.+)$`, 'mi'))?.[1].trim();
-    return { key: get('PrivateKey'), endpoint: get('Endpoint'), address: get('Address') || '', allowed: get('AllowedIPs') || '' };
+  // 設定ファイルをそのまま使う種類 (WireGuard の .conf と OpenVPN の .ovpn)。読み込むか中身を貼り付ける
+  const confBox = (placeholder, sample, sampleName, parse, summary) => {
+    const conf = el('textarea', { class: 'input vpn-conf', rows: 7, spellcheck: 'false', wrap: 'off', placeholder });
+    const sum = el('div', { class: 'vpn-sum' });
+    const show = () => {
+      const c = parse(conf.value), s = summary(c);
+      sum.className = 'vpn-sum ' + (conf.value.trim() ? s.ok ? 'ok' : 'err' : '');
+      sum.textContent = conf.value.trim() ? s.text : '';
+      return c;
+    };
+    conf.addEventListener('input', () => { show(); onConf?.(); });
+    const load = el('button', {
+      type: 'button', class: 'btn small',
+      onclick: () => { conf.value = sample; if (!name.value.trim()) name.value = sampleName; show(); onConf?.(); },
+    }, ic('upload'), 'ファイルから読み込む');
+    let onConf = null;
+    return {
+      conf, sum, show, row: el('div', { class: 'vpn-row' }, load, sum),
+      set onConf(f) { onConf = f; },
+      empty: () => { sum.className = 'vpn-sum err'; sum.textContent = '設定ファイルを読み込むか、中身を貼り付けてください'; },
+    };
   };
-  const showSum = () => {
-    const c = parse(), ok = c.key && c.endpoint;
-    sum.className = 'vpn-sum ' + (conf.value.trim() ? ok ? 'ok' : 'err' : '');
-    sum.textContent = !conf.value.trim() ? '' : ok ? `つなぎ先 ${c.endpoint} · この PC は ${c.address.split('/')[0]} · 通す範囲 ${c.allowed}` : 'PrivateKey と Endpoint が見つかりません';
-  };
-  conf.addEventListener('input', showSum);
-  const load = el('button', {
-    type: 'button', class: 'btn small',
-    onclick: () => {
-      conf.value = '[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.20.0.7/32\nDNS = 10.20.0.1\n\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 198.51.100.60:51820\nAllowedIPs = 10.20.0.0/16\nPersistentKeepalive = 25\n';
-      if (!name.value.trim()) name.value = 'lab';
-      showSum();
+  const ini = (v, k) => v.match(new RegExp(`^\\s*${k}\\s*=\\s*(.+)$`, 'mi'))?.[1].trim();
+
+  // WireGuard
+  const wgConf = confBox('[Interface]\nPrivateKey = …\nAddress = 10.8.0.5/32\n\n[Peer]\nPublicKey = …\nEndpoint = vpn.example.com:51820\nAllowedIPs = 10.8.0.0/24',
+    '[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.20.0.7/32\nDNS = 10.20.0.1\n\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 198.51.100.60:51820\nAllowedIPs = 10.20.0.0/16\nPersistentKeepalive = 25\n',
+    'lab',
+    v => ({ key: ini(v, 'PrivateKey'), endpoint: ini(v, 'Endpoint'), address: ini(v, 'Address') || '', allowed: ini(v, 'AllowedIPs') || '' }),
+    c => c.key && c.endpoint
+      ? { ok: true, text: `つなぎ先 ${c.endpoint} · この PC は ${c.address.split('/')[0]} · 通す範囲 ${c.allowed}` }
+      : { ok: false, text: 'PrivateKey と Endpoint が見つかりません' });
+  const wg = el('div', { class: 'vpn-body' }, wgConf.conf, wgConf.row);
+
+  // OpenVPN。.ovpn に auth-user-pass があれば、ユーザー名とパスワードも聞く
+  const ovUser = text(), ovPass = pass();
+  const ovCreds = el('div', { class: 'vpn-grid', hidden: true }, field('ユーザー名', ovUser), field('パスワード', ovPass));
+  const ovConf = confBox('client\ndev tun\nproto udp\nremote vpn.example.com 1194\nauth-user-pass\n<ca>\n…\n</ca>',
+    'client\ndev tun\nproto udp\nremote 198.51.100.70 1194\nresolv-retry infinite\nnobind\nremote-cert-tls server\ncipher AES-256-GCM\nauth SHA256\nauth-user-pass\n<ca>\n-----BEGIN CERTIFICATE-----\nMIIDSzCCAjOgAwIBAgIUJ1x…\n-----END CERTIFICATE-----\n</ca>\n<tls-crypt>\n-----BEGIN OpenVPN Static key V1-----\n6acef03f62675b4b1bbd03e5…\n-----END OpenVPN Static key V1-----\n</tls-crypt>\n',
+    'home',
+    v => {
+      const r = v.match(/^\s*remote\s+(\S+)(?:\s+(\d+))?(?:\s+(udp|tcp)\S*)?/mi);
+      const proto = r?.[3] || v.match(/^\s*proto\s+(udp|tcp)/mi)?.[1] || 'udp';
+      return { server: r ? `${r[1]}:${r[2] || 1194}` : '', proto: proto.toUpperCase(), userPass: /^\s*auth-user-pass\b/mi.test(v) };
     },
-  }, ic('upload'), 'ファイルから読み込む');
-  const wg = el('div', { class: 'vpn-body' }, conf, el('div', { class: 'vpn-row' }, load, sum));
+    c => c.server
+      ? { ok: true, text: `つなぎ先 ${c.server} (${c.proto})` + (c.userPass ? ' · ユーザー名とパスワードを使う' : '') }
+      : { ok: false, text: 'remote の行が見つかりません' });
+  ovConf.onConf = () => { ovCreds.hidden = !ovConf.show().userPass; };
+  const ovpn = el('div', { class: 'vpn-body', hidden: true }, ovConf.conf, ovConf.row, ovCreds);
+
+  // サーバーとユーザー名とパスワードで入る種類
+  const cred = {
+    server: text({ placeholder: 'vpn.example.com' }), user: text(), pass: pass(),
+    group: text({ placeholder: '空ならサーバーの既定' }), psk: pass(),
+    auth: el('select', { class: 'input' }, el('option', { value: 'eap' }, 'ユーザー名とパスワード'), el('option', { value: 'cert' }, '証明書')),
+  };
+  const certMsg = el('div', { class: 'vpn-sum' });
+  const certBtn = el('button', { type: 'button', class: 'btn small', onclick: () => { certMsg.className = 'vpn-sum ok'; certMsg.textContent = 'asuta.p12 を読み込みました'; } }, ic('upload'), '証明書 (.p12) を読み込む');
+  const credBox = el('div', { class: 'vpn-grid' });
+  const credFields = {
+    ikev2: () => [field('サーバー', cred.server, 'span2'), field('認証', cred.auth, 'span2'),
+      ...(cred.auth.value === 'cert'
+        ? [el('div', { class: 'vpn-row span2' }, certBtn, certMsg), field('証明書のパスワード', cred.pass, 'span2')]
+        : [field('ユーザー名', cred.user), field('パスワード', cred.pass)])],
+    sstp: () => [field('サーバー', cred.server, 'span2'), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
+    ac: () => [field('サーバー', cred.server), field('グループ', cred.group), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
+    l2tp: () => [field('サーバー', cred.server), field('事前共有キー', cred.psk), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
+  };
+  const drawCred = () => { if (credFields[type]) credBox.replaceChildren(...credFields[type]()); };
+  cred.auth.addEventListener('change', drawCred);
 
   // Tailscale は DRAG をひとつの端末としてログインさせる
   const tsMsg = el('div', { class: 'vpn-sum' });
@@ -3362,24 +3408,45 @@ function vpnForm() {
   }, 'ブラウザでログイン');
   const ts = el('div', { class: 'vpn-body', hidden: true }, el('div', { class: 'vpn-row' }, loginBtn, tsMsg));
 
+  const bodies = { wg, ovpn, ts };
+  const showType = () => {
+    for (const [k, b] of Object.entries(bodies)) b.hidden = k !== type;
+    credBox.hidden = !credFields[type];
+    drawCred();
+  };
+  kind.addEventListener('change', () => { type = kind.value; showType(); });
   const box = el('div', { class: 'vpn-new', hidden: true },
-    el('div', { class: 'vpn-head' }, seg, name),
-    wg, ts,
+    el('div', { class: 'vpn-head' }, kind, name),
+    wg, ovpn, credBox, ts,
     el('div', { class: 'muted small' }, 'VPN は DRAG の中だけで張ります。ほかのソフトの通信は変わりません'));
+  showType();
   const uniq = n => { let id = n.replace(/[^\w-]/g, '') || 'vpn'; while (VPNS.some(v => v.id === id)) id += '_'; return id; };
+  const vpn = (n, o) => ({ id: uniq(n), name: n, type, ...o });
+  const need = (...inputs) => { const e = inputs.find(i => !i.value.trim()); e?.focus(); return !e; };
   return {
     box,
-    focus: () => (type === 'wg' ? conf : loginBtn).focus(),
+    focus: () => kind.focus(),
     make() {
       if (type === 'wg') {
-        const c = parse();
-        if (!c.key || !c.endpoint) { showSum(); if (!conf.value.trim()) { sum.className = 'vpn-sum err'; sum.textContent = '設定ファイルを読み込むか、中身を貼り付けてください'; } conf.focus(); return null; }
-        const n = name.value.trim() || c.endpoint.replace(/:\d+$/, '');
-        return { id: uniq(n), name: n, type, endpoint: c.endpoint, address: c.address, allowed: c.allowed };
+        const c = wgConf.show();
+        if (!wgConf.conf.value.trim()) wgConf.empty();
+        if (!c.key || !c.endpoint) { wgConf.conf.focus(); return null; }
+        return vpn(name.value.trim() || c.endpoint.replace(/:\d+$/, ''), { endpoint: c.endpoint, address: c.address, allowed: c.allowed });
       }
-      if (!login) { tsMsg.className = 'vpn-sum err'; tsMsg.textContent = 'ログインしてください'; loginBtn.focus(); return null; }
-      const n = name.value.trim() || login.tailnet.split('.')[0];
-      return { id: uniq(n), name: n, type, ...login };
+      if (type === 'ovpn') {
+        const c = ovConf.show();
+        if (!ovConf.conf.value.trim()) ovConf.empty();
+        if (!c.server) { ovConf.conf.focus(); return null; }
+        if (c.userPass && !need(ovUser, ovPass)) return null;
+        return vpn(name.value.trim() || c.server.replace(/:\d+$/, ''), { server: c.server, user: ovUser.value.trim() });
+      }
+      if (type === 'ts') {
+        if (!login) { tsMsg.className = 'vpn-sum err'; tsMsg.textContent = 'ログインしてください'; loginBtn.focus(); return null; }
+        return vpn(name.value.trim() || login.tailnet.split('.')[0], login);
+      }
+      const inputs = type === 'ikev2' && cred.auth.value === 'cert' ? [cred.server] : [cred.server, cred.user, cred.pass, ...(type === 'l2tp' ? [cred.psk] : [])];
+      if (!need(...inputs)) return null;
+      return vpn(name.value.trim() || cred.server.value.trim(), { server: cred.server.value.trim(), user: cred.user.value.trim() });
     },
   };
 }
@@ -3494,7 +3561,7 @@ async function runSetup(def) {
       // 同じ VPN でつないでいるサーバーがあれば、その VPN をそのまま使う
       const v = def.vpn, up = state.list.some(s => s.vpn === v && s.conn === 'ok');
       set('vpn', 'run'); await wait(up ? 200 : 900);
-      set('vpn', 'done', (up ? 'つながっている VPN を使う · ' : '') + (v.type === 'wg' ? `WireGuard · ${v.endpoint} · この PC は ${v.address.split('/')[0]}` : `Tailscale · ${v.tailnet} · ${v.node}`));
+      set('vpn', 'done', (up ? 'つながっている VPN を使う · ' : '') + vpnDesc(v) + (v.type === 'wg' ? ` · この PC は ${v.address.split('/')[0]}` : v.type === 'ts' ? ` · ${v.node}` : ' · この PC は 10.9.0.6'));
     }
     set('ssh', 'run'); await wait(700); set('ssh', 'done', `${def.user}@${def.host}:${def.port}` + (def.vpn ? ' · VPN 経由' : ''));
     set('probe', 'run'); await wait(600);
