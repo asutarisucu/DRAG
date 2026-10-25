@@ -50,6 +50,7 @@ const ICONS = {
   phone: '<rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/>',
   grip: '<circle class="fill" cx="9" cy="6" r="1.4"/><circle class="fill" cx="15" cy="6" r="1.4"/><circle class="fill" cx="9" cy="12" r="1.4"/><circle class="fill" cx="15" cy="12" r="1.4"/><circle class="fill" cx="9" cy="18" r="1.4"/><circle class="fill" cx="15" cy="18" r="1.4"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  shield: '<path d="M12 3 5 6v5c0 4.5 3 8.4 7 10 4-1.6 7-5.5 7-10V6z"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   box: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/>',
   db: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>',
@@ -347,11 +348,25 @@ const DEFS = [
   },
 ];
 
+// 保存済みの VPN。DRAG の中だけで張り、サーバーへの接続だけを通す。PC のほかの通信は変えない
+const VPNS = [
+  { id: 'office', name: 'office', type: 'wg', endpoint: '203.0.113.80:51820', address: '10.8.0.5/32', allowed: '10.8.0.0/24' },
+  { id: 'tailnet', name: 'tailnet', type: 'ts', tailnet: 'tail0000.ts.net', node: 'drag-desktop-01' },
+];
+const VPN_TYPES = { wg: 'WireGuard', ts: 'Tailscale' };
+const vpnDesc = v => v.type === 'wg' ? `WireGuard · ${v.endpoint}` : `Tailscale · ${v.tailnet}`;
+
 const SAVED = [
   { name: 'web01', host: '198.51.100.24', user: 'asuta', port: 22 },
   { name: 'pi', host: '192.168.1.20', user: 'pi', port: 22 },
   { name: 'router', host: '192.168.1.1', user: 'admin', port: 22, router: true },
+  { name: 'db-internal', host: '10.8.0.12', user: 'asuta', port: 22, vpn: 'office' },
 ];
+// 保存済みのサーバーの名前の行。VPN を通すものは、名前の横に VPN の名前を出す
+const savedName = s => {
+  const v = VPNS.find(x => x.id === s.vpn);
+  return el('div', { class: 'saved-name' }, s.name, v && el('span', { class: 'saved-vpn', title: `${vpnDesc(v)} を通して接続` }, ic('shield'), v.name));
+};
 
 // あとから接続したサーバーに入れる作り物のデータ
 const GENERIC = {
@@ -2875,11 +2890,12 @@ function attachToTerminal(srv, key) {
 
 function renderTabs() {
   $('#server-tabs').replaceChildren(...state.list.map(srv => el('div', {
-    class: 'server-tab' + (srv === cur() ? ' active' : ''), role: 'tab', title: `${srv.user}@${srv.host}`,
+    class: 'server-tab' + (srv === cur() ? ' active' : ''), role: 'tab', title: `${srv.user}@${srv.host}` + (srv.vpn ? ` · VPN ${srv.vpn.name} 経由` : ''),
     onclick: () => switchServer(srv.id),
   },
     el('span', { class: 'dot' + dotClass(srv) }),
     el('span', { class: 'tab-name' }, srv.name),
+    srv.vpn && el('span', { class: 'tab-vpn' }, ic('shield')),
     el('span', { class: 'tab-host' }, srv.host),
     el('button', { class: 'tab-close', title: '切断', onclick: e => { e.stopPropagation(); disconnect(srv); } }, ic('x')))));
 }
@@ -2977,6 +2993,7 @@ function renderStatus() {
   $('#statusbar').replaceChildren(...[
     el('span', { class: 'sb-item' }, el('span', { class: 'dot' + dotClass(srv) }),
       srv.conn !== 'ok' ? `${srv.user}@${srv.host} · 接続が切れています` : `${srv.user}@${srv.host}`),
+    srv.vpn && el('span', { class: 'sb-item', title: `${vpnDesc(srv.vpn)} を通して接続` }, ic('shield'), `VPN ${srv.vpn.name}`),
     el('button', { class: 'sb-item', title: 'スマホを登録', onclick: () => openPair() }, ic('phone'), `スマホ ${state.devices.length}台`),
     el('span', { class: 'grow' }),
     sb.uptime && el('span', { class: 'sb-item', title: `${boot.getMonth() + 1}/${boot.getDate()} ${pad2(boot.getHours())}:${pad2(boot.getMinutes())} の起動から連続で稼働` }, ic('clock'), refs.up),
@@ -3122,7 +3139,7 @@ function addServer(def) {
   let id = def.name.replace(/[^\w-]/g, '') || 'srv';
   while (state.list.some(s => s.id === id)) id += '_';
   const srv = createServer({
-    id, name: def.name, host: def.host, lan: def.host, user: def.user, router: def.router,
+    id, name: def.name, host: def.host, lan: def.host, user: def.user, router: def.router, vpn: def.vpn,
     tree: () => genericTree(def),
     services: def.router ? [] : [
       { name: 'nginx.service', desc: 'Web サーバー', active: true },
@@ -3245,30 +3262,43 @@ function openConnect(preset) {
     user: el('input', { class: 'input', spellcheck: 'false' }),
     auth: sel([['pass', 'パスワード'], ['key', '鍵ファイル']]),
     pass: el('input', { class: 'input', type: 'password' }),
+    vpn: el('select', { class: 'input' }, el('option', { value: '' }, 'なし'),
+      VPNS.map(v => el('option', { value: v.id }, `${v.name} (${VPN_TYPES[v.type]})`)),
+      el('option', { value: 'new' }, '新しい VPN を追加…')),
   };
+  const add = vpnForm();
+  f.vpn.addEventListener('change', () => { add.box.hidden = f.vpn.value !== 'new'; if (!add.box.hidden) add.focus(); });
   let chosen = null;
   const saved = el('div', { class: 'saved' }, SAVED.map(s => el('button', {
     class: 'saved-item',
     onclick: e => {
       chosen = s;
       f.name.value = s.name; f.host.value = s.host; f.user.value = s.user; f.port.value = s.port;
+      f.vpn.value = s.vpn || ''; add.box.hidden = true;
       $$('.saved-item', saved).forEach(b => b.classList.toggle('active', b === e.currentTarget));
       f.pass.focus();
     },
-  }, ic('server'), el('div', { style: 'min-width:0' }, el('div', { class: 'saved-name' }, s.name), el('div', { class: 'saved-host mono' }, `${s.user}@${s.host}`)))));
+  }, ic('server'), el('div', { style: 'min-width:0' }, savedName(s), el('div', { class: 'saved-host mono' }, `${s.user}@${s.host}`)))));
   const field = (label, input, cls = '') => el('label', { class: 'field ' + cls }, el('span', { class: 'field-label' }, label), input);
   const go = () => {
     const host = f.host.value.trim(), user = f.user.value.trim();
     if (!host) return f.host.focus();
     if (!user) return f.user.focus();
+    let vpn = VPNS.find(v => v.id === f.vpn.value) || null;
+    if (f.vpn.value === 'new') {
+      vpn = add.make();
+      if (!vpn) return;
+      VPNS.push(vpn);
+    }
     m.close();
-    runSetup({ name: f.name.value.trim() || host, host, user, port: f.port.value.trim() || '22', router: !!(chosen?.router && chosen.host === host) });
+    runSetup({ name: f.name.value.trim() || host, host, user, port: f.port.value.trim() || '22', router: !!(chosen?.router && chosen.host === host), vpn });
   };
   const body = el('div', {},
     el('span', { class: 'field-label' }, '保存済み'), saved,
     el('div', { class: 'form-grid' },
       field('名前', f.name), field('ユーザー', f.user), field('ポート', f.port),
-      field('ホスト', f.host, 'span3'),
+      field('ホスト', f.host, 'span2'), field('VPN', f.vpn),
+      add.box,
       field('認証', f.auth), field('パスワード', f.pass, 'span2')),
     el('div', { class: 'modal-foot' }, el('div', { class: 'grow' }), el('button', { class: 'btn', onclick: () => m.close() }, 'キャンセル'), el('button', { class: 'btn primary', onclick: go }, '接続')));
   body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') go(); });
@@ -3277,13 +3307,90 @@ function openConnect(preset) {
   else if (!isMobile()) f.host.focus();
 }
 
+// 接続の画面で新しい VPN を足す欄。make() は入力から VPN を作る。足りなければその欄を示して null を返す
+function vpnForm() {
+  let type = 'wg', login = null;
+  const name = el('input', { class: 'input', placeholder: '名前', spellcheck: 'false' });
+  const seg = el('div', { class: 'seg' });
+  const drawSeg = () => seg.replaceChildren(...Object.entries(VPN_TYPES).map(([v, l]) => el('button', {
+    type: 'button', class: v === type ? 'active' : '',
+    onclick: () => { type = v; drawSeg(); wg.hidden = type !== 'wg'; ts.hidden = type !== 'ts'; },
+  }, l)));
+  drawSeg();
+
+  // WireGuard は設定ファイル (.conf) をそのまま使う
+  const conf = el('textarea', {
+    class: 'input vpn-conf', rows: 7, spellcheck: 'false', wrap: 'off',
+    placeholder: '[Interface]\nPrivateKey = …\nAddress = 10.8.0.5/32\n\n[Peer]\nPublicKey = …\nEndpoint = vpn.example.com:51820\nAllowedIPs = 10.8.0.0/24',
+  });
+  const sum = el('div', { class: 'vpn-sum' });
+  const parse = () => {
+    const get = k => conf.value.match(new RegExp(`^\\s*${k}\\s*=\\s*(.+)$`, 'mi'))?.[1].trim();
+    return { key: get('PrivateKey'), endpoint: get('Endpoint'), address: get('Address') || '', allowed: get('AllowedIPs') || '' };
+  };
+  const showSum = () => {
+    const c = parse(), ok = c.key && c.endpoint;
+    sum.className = 'vpn-sum ' + (conf.value.trim() ? ok ? 'ok' : 'err' : '');
+    sum.textContent = !conf.value.trim() ? '' : ok ? `つなぎ先 ${c.endpoint} · この PC は ${c.address.split('/')[0]} · 通す範囲 ${c.allowed}` : 'PrivateKey と Endpoint が見つかりません';
+  };
+  conf.addEventListener('input', showSum);
+  const load = el('button', {
+    type: 'button', class: 'btn small',
+    onclick: () => {
+      conf.value = '[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.20.0.7/32\nDNS = 10.20.0.1\n\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 198.51.100.60:51820\nAllowedIPs = 10.20.0.0/16\nPersistentKeepalive = 25\n';
+      if (!name.value.trim()) name.value = 'lab';
+      showSum();
+    },
+  }, ic('upload'), 'ファイルから読み込む');
+  const wg = el('div', { class: 'vpn-body' }, conf, el('div', { class: 'vpn-row' }, load, sum));
+
+  // Tailscale は DRAG をひとつの端末としてログインさせる
+  const tsMsg = el('div', { class: 'vpn-sum' });
+  const loginBtn = el('button', {
+    type: 'button', class: 'btn small',
+    onclick: () => {
+      loginBtn.disabled = true;
+      tsMsg.className = 'vpn-sum';
+      tsMsg.textContent = 'ブラウザで開いたページでログインしてください';
+      setTimeout(() => {
+        login = { tailnet: 'tail5678.ts.net', node: 'drag-desktop-01' };
+        tsMsg.className = 'vpn-sum ok';
+        tsMsg.textContent = `${login.tailnet} にログインしました · この PC は ${login.node} として加わります`;
+        loginBtn.disabled = false;
+      }, 1500);
+    },
+  }, 'ブラウザでログイン');
+  const ts = el('div', { class: 'vpn-body', hidden: true }, el('div', { class: 'vpn-row' }, loginBtn, tsMsg));
+
+  const box = el('div', { class: 'vpn-new', hidden: true },
+    el('div', { class: 'vpn-head' }, seg, name),
+    wg, ts,
+    el('div', { class: 'muted small' }, 'VPN は DRAG の中だけで張ります。ほかのソフトの通信は変わりません'));
+  const uniq = n => { let id = n.replace(/[^\w-]/g, '') || 'vpn'; while (VPNS.some(v => v.id === id)) id += '_'; return id; };
+  return {
+    box,
+    focus: () => (type === 'wg' ? conf : loginBtn).focus(),
+    make() {
+      if (type === 'wg') {
+        const c = parse();
+        if (!c.key || !c.endpoint) { showSum(); if (!conf.value.trim()) { sum.className = 'vpn-sum err'; sum.textContent = '設定ファイルを読み込むか、中身を貼り付けてください'; } conf.focus(); return null; }
+        const n = name.value.trim() || c.endpoint.replace(/:\d+$/, '');
+        return { id: uniq(n), name: n, type, endpoint: c.endpoint, address: c.address, allowed: c.allowed };
+      }
+      if (!login) { tsMsg.className = 'vpn-sum err'; tsMsg.textContent = 'ログインしてください'; loginBtn.focus(); return null; }
+      const n = name.value.trim() || login.tailnet.split('.')[0];
+      return { id: uniq(n), name: n, type, ...login };
+    },
+  };
+}
+
 /* ---------- サーバーが1台もないとき ---------- */
 
 function showWelcome() {
   $('#app').classList.add('no-server');
   $('#welcome').hidden = false;
   $('#welcome-saved').replaceChildren(...SAVED.map(s => el('button', { class: 'saved-item', onclick: () => openConnect(s) },
-    ic('server'), el('div', { style: 'min-width:0' }, el('div', { class: 'saved-name' }, s.name), el('div', { class: 'saved-host mono' }, `${s.user}@${s.host}`)))));
+    ic('server'), el('div', { style: 'min-width:0' }, savedName(s), el('div', { class: 'saved-host mono' }, `${s.user}@${s.host}`)))));
   $('#conn-banner').hidden = true;
   $('#app').classList.remove('conn-lost', 'sudo-on');
   renderStatus();
@@ -3368,7 +3475,7 @@ function renderConn() {
 
 async function runSetup(def) {
   let aborted = false;
-  const steps = [['ssh', 'SSH で接続'], ['probe', 'サーバーを確認']];
+  const steps = [...(def.vpn ? [['vpn', `VPN (${def.vpn.name}) につなぐ`]] : []), ['ssh', 'SSH で接続'], ['probe', 'サーバーを確認']];
   const items = {};
   const list = el('ol', { class: 'steps' }, steps.map(([k, label]) => {
     const detail = el('div', { class: 'step-detail' });
@@ -3383,7 +3490,13 @@ async function runSetup(def) {
   const set = (k, st, text) => { items[k].li.className = 'step ' + st; if (text != null) items[k].detail.textContent = text; };
   const wait = async ms => { await sleep(ms); if (aborted) throw new Error('abort'); };
   try {
-    set('ssh', 'run'); await wait(700); set('ssh', 'done', `${def.user}@${def.host}:${def.port}`);
+    if (def.vpn) {
+      // 同じ VPN でつないでいるサーバーがあれば、その VPN をそのまま使う
+      const v = def.vpn, up = state.list.some(s => s.vpn === v && s.conn === 'ok');
+      set('vpn', 'run'); await wait(up ? 200 : 900);
+      set('vpn', 'done', (up ? 'つながっている VPN を使う · ' : '') + (v.type === 'wg' ? `WireGuard · ${v.endpoint} · この PC は ${v.address.split('/')[0]}` : `Tailscale · ${v.tailnet} · ${v.node}`));
+    }
+    set('ssh', 'run'); await wait(700); set('ssh', 'done', `${def.user}@${def.host}:${def.port}` + (def.vpn ? ' · VPN 経由' : ''));
     set('probe', 'run'); await wait(600);
     set('probe', 'done', def.router ? 'Linux · mipsel · BusyBox · systemd と Docker はない' : 'Linux · x86_64 · Ubuntu 24.04 · systemd · Docker · screen · tmux');
     addServer(def);
@@ -3583,6 +3696,16 @@ function openSettings() {
       // 自分のドメインの証明書は作らないことにした (2026-10-25)。IP アドレスの証明書だけ
       row('証明書', `Let's Encrypt · ${PC.ip} · 10/30 まで。数日おきに自動で更新する`, el('span', { class: 'muted small' }, 'IP アドレス')),
     ]],
+    // VPN はサーバーに接続するときに足す。ここでは保存したものを見て消す
+    vpn: ['VPN', 'shield', () => VPNS.length ? VPNS.map(v => {
+      const users = SAVED.filter(s => s.vpn === v.id).map(s => s.name);
+      const busy = state.list.some(s => s.vpn === v);
+      return row(v.name, [vpnDesc(v), users.length && `${users.join('、')} で使う`].filter(Boolean).join(' · '),
+        el('button', {
+          class: 'btn small', disabled: busy, title: busy ? 'この VPN でつないでいるサーバーがあります' : null,
+          onclick: () => { VPNS.splice(VPNS.indexOf(v), 1); SAVED.forEach(s => { if (s.vpn === v.id) delete s.vpn; }); show('vpn'); },
+        }, '削除'));
+    }) : [el('div', { class: 'set-desc' }, '保存した VPN はありません。サーバーに接続するときに足せます')]],
   };
   const nav = el('div', { class: 'set-nav' });
   const pane = el('div', { class: 'set-pane' });

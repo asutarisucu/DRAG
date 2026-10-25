@@ -624,11 +624,26 @@ svg.spark.big { height: 64px; margin: 0; }
 .saved-item:hover { border-color: var(--faint); }
 .saved-item.active { border-color: var(--accent); background: var(--accent-soft); }
 .saved-item .ic { color: var(--muted); }
-.saved-name { font-weight: 600; }
+.saved-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+.saved-vpn { display: inline-flex; align-items: center; gap: 3px; min-width: 0; font-size: 11px; font-weight: 400; color: var(--muted); overflow: hidden; white-space: nowrap; }
+.saved-vpn .ic svg { width: 12px; height: 12px; }
 .saved-host { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .field.span2 { grid-column: span 2; }
 .field.span3 { grid-column: span 3; }
+/* 接続の画面で新しい VPN を足す欄 */
+.vpn-new { grid-column: 1 / -1; display: grid; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--panel-2); }
+.vpn-head { display: flex; align-items: center; gap: 8px; }
+.vpn-head .input { flex: 1; min-width: 0; }
+.vpn-body { display: grid; gap: 8px; }
+.vpn-conf { height: auto; padding: 8px 10px; resize: vertical; font: 12px/1.5 var(--font-mono); }
+.vpn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.vpn-row .btn { flex: none; }
+.vpn-sum { min-width: 0; font-size: 12px; color: var(--muted); }
+.vpn-sum.ok { color: var(--ok); }
+.vpn-sum.err { color: var(--err); }
+.tab-vpn { display: inline-grid; color: var(--muted); }
+.tab-vpn .ic svg { width: 13px; height: 13px; }
 
 .steps { list-style: none; margin: 0; padding: 0; }
 .step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 9px 0; color: var(--faint); }
