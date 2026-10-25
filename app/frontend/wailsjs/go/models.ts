@@ -318,6 +318,34 @@ export namespace main {
 	        this.rows = source["rows"];
 	    }
 	}
+	export class TSInfo {
+	    tailnet: string;
+	    node: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TSInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.tailnet = source["tailnet"];
+	        this.node = source["node"];
+	    }
+	}
+	export class TSLogin {
+	    id: string;
+	    url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TSLogin(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.url = source["url"];
+	    }
+	}
 	export class VPNInfo {
 	    id: string;
 	    name: string;

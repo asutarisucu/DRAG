@@ -254,6 +254,14 @@ export function Stat(arg1, arg2) {
   return window['go']['main']['App']['Stat'](arg1, arg2);
 }
 
+export function TailscaleLogin() {
+  return window['go']['main']['App']['TailscaleLogin']();
+}
+
+export function TailscaleWait(arg1) {
+  return window['go']['main']['App']['TailscaleWait'](arg1);
+}
+
 export function TrashDelete(arg1, arg2) {
   return window['go']['main']['App']['TrashDelete'](arg1, arg2);
 }

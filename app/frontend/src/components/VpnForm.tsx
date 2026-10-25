@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckVPN } from '../../wailsjs/go/main/App'
+import { CheckVPN, TailscaleLogin, TailscaleWait } from '../../wailsjs/go/main/App'
 import { main, vpn } from '../../wailsjs/go/models'
 import { Icon } from './Icon'
 
-// VPN の種類。並びは画面に出す順。ready でないものは選べないようにして出す。
-// file は設定ファイルをそのまま使う種類で、そうでない種類はサーバーとユーザー名とパスワードで入る
-export const VPN_TYPES: { type: string; ready: boolean; file: boolean }[] = [
-  { type: 'wg', ready: true, file: true },
-  { type: 'ovpn', ready: true, file: true },
-  { type: 'ikev2', ready: true, file: false },
-  { type: 'sstp', ready: true, file: false },
-  { type: 'ac', ready: true, file: false },
-  { type: 'l2tp', ready: true, file: false },
-  { type: 'ts', ready: false, file: false },
+// VPN の種類。並びは画面に出す順。
+// file は設定ファイルをそのまま使う種類で、そうでない種類はサーバーとユーザー名とパスワードで入る。
+// Tailscale だけは、ブラウザでログインして DRAG を tailnet の端末の1つにする
+export const VPN_TYPES: { type: string; file: boolean }[] = [
+  { type: 'wg', file: true },
+  { type: 'ovpn', file: true },
+  { type: 'ikev2', file: false },
+  { type: 'sstp', file: false },
+  { type: 'ac', file: false },
+  { type: 'l2tp', file: false },
+  { type: 'ts', file: false },
 ]
 
 export type VpnCheck = { sum: vpn.Summary | null; error: string }
@@ -46,6 +47,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
   const caFile = useRef<HTMLInputElement>(null)
   const [typing, setTyping] = useState(false)
   const [caName, setCaName] = useState('')
+  const [ts, setTs] = useState({ busy: false, ok: false, text: '' })
   const kind = VPN_TYPES.find(x => x.type === value.type) ?? VPN_TYPES[0]
   const set = (k: keyof main.VPNInput, v: string) => {
     onChange(new main.VPNInput({ ...value, [k]: v }))
@@ -72,6 +74,20 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
     setCaName(f.name)
   }
 
+  // ログインは Go がブラウザで開き、済むまで待つ。config には Go が持っているログインの番号を入れる
+  const tsLogin = async () => {
+    setTs({ busy: true, ok: false, text: t('vpn.tsWait') })
+    try {
+      const l = await TailscaleLogin()
+      const info = await TailscaleWait(l.id)
+      onChange(new main.VPNInput({ ...value, config: l.id, name: value.name.trim() ? value.name : info.tailnet.split('.')[0] }))
+      if (check.error) onCheck({ ...check, error: '' })
+      setTs({ busy: false, ok: true, text: t('vpn.tsDone', { tailnet: info.tailnet, node: info.node }) })
+    } catch (err) {
+      setTs({ busy: false, ok: false, text: String(err) })
+    }
+  }
+
   const login = (
     <div className="grid grid-cols-2 gap-x-3">
       <label><span className={label}>{t('vpn.user')}</span><input ref={userRef} className={`${input} w-full`} value={value.user} onChange={e => set('user', e.target.value)} spellCheck={false} /></label>
@@ -84,11 +100,19 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
     <div className="col-span-3 grid gap-2.5 rounded-[10px] border border-line-strong bg-panel-2 p-3" data-vpn-new>
       <div className="flex items-center gap-2">
         <select className={`${input} w-[170px] flex-none`} value={value.type} onChange={e => set('type', e.target.value)} aria-label={t('vpn.type')}>
-          {VPN_TYPES.map(x => <option key={x.type} value={x.type} disabled={!x.ready}>{x.ready ? t(`vpn.types.${x.type}`) : t('vpn.soon', { name: t(`vpn.types.${x.type}`) })}</option>)}
+          {VPN_TYPES.map(x => <option key={x.type} value={x.type}>{t(`vpn.types.${x.type}`)}</option>)}
         </select>
         <input className={`${input} min-w-0 flex-1`} value={value.name} onChange={e => set('name', e.target.value)} placeholder={t('vpn.name')} spellCheck={false} aria-label={t('vpn.name')} />
       </div>
-      {kind.file
+      {value.type === 'ts'
+        ? <>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2" data-vpn-ts>
+            <button type="button" className={smallBtn} disabled={ts.busy} onClick={tsLogin}>{t('vpn.tsLogin')}</button>
+            {ts.text && <span className={`min-w-0 text-[12px] ${ts.ok ? 'text-ok' : ts.busy ? 'text-muted' : 'text-err'}`}>{ts.text}</span>}
+          </div>
+          {error}
+        </>
+        : kind.file
         ? <>
           <textarea
             ref={configRef}

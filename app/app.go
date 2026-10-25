@@ -21,6 +21,7 @@ import (
 	"github.com/asutarisucu/DRAG/app/internal/phone"
 	"github.com/asutarisucu/DRAG/app/internal/remote"
 	"github.com/asutarisucu/DRAG/app/internal/store"
+	"github.com/asutarisucu/DRAG/app/internal/vpn/tsvpn"
 )
 
 // App は画面から呼ばれる窓口。サーバーとシェルを番号で持つ。
@@ -38,12 +39,13 @@ type core struct {
 	tray  *tray        // 通知領域に置かないときは nil
 	agent *http.Server // AI エージェントの窓口。開けなかったときは nil
 
-	mu      sync.Mutex
-	next    int
-	servers map[string]*conn
-	shells  map[string]*openShell
-	fs      *fileState
-	tunnels tunnels
+	mu       sync.Mutex
+	next     int
+	servers  map[string]*conn
+	shells   map[string]*openShell
+	fs       *fileState
+	tunnels  tunnels
+	tsLogins tsLogins
 }
 
 // openShell は開いているシェル1つと、それを開いた端末。ほかの端末から続きを操作するときに一覧に出す
@@ -66,11 +68,12 @@ type conn struct {
 
 func NewApp() *App {
 	return &App{core: &core{
-		saved:   store.NewServers(configDir()),
-		vpns:    store.NewVPNs(configDir()),
-		servers: map[string]*conn{},
-		shells:  map[string]*openShell{},
-		tunnels: tunnels{m: map[string]*tunnel{}},
+		saved:    store.NewServers(configDir()),
+		vpns:     store.NewVPNs(configDir()),
+		servers:  map[string]*conn{},
+		shells:   map[string]*openShell{},
+		tunnels:  tunnels{m: map[string]*tunnel{}},
+		tsLogins: tsLogins{m: map[string]*tsvpn.Node{}},
 	}}
 }
 

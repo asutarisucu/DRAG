@@ -42,9 +42,9 @@ type Client struct {
 	resend   map[uint32][]byte   // 自分が送った Quick Mode の最後のメッセージ
 	qm       map[uint32]*qmState // サーバーが始めた Quick Mode
 	inbound  map[uint32]*espSA
-	outbound []*espSA            // 送る SA。最後がいちばん新しい
-	later    map[uint32]*espSA   // サーバーが始めた Quick Mode で、終わってから使う送る SA (受ける SPI ごと)
-	pair     map[uint32]uint32   // 送る SPI に対の受ける SPI
+	outbound []*espSA          // 送る SA。最後がいちばん新しい
+	later    map[uint32]*espSA // サーバーが始めた Quick Mode で、終わってから使う送る SA (受ける SPI ごと)
+	pair     map[uint32]uint32 // 送る SPI に対の受ける SPI
 	rekeying bool
 	lastSent time.Time
 

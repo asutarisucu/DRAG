@@ -1,0 +1,32 @@
+# DRAG の Tailscale の試験。外へは何も出さず、Docker のネットワークの中だけで動く
+#   docker compose up -d && sh setup.sh   # ユーザーと鍵を作って out/ に書く
+#   試験は app で GOOS=linux の試験のバイナリを out/ に作り、tester で動かす (setup.sh の最後を見る)
+services:
+  headscale:
+    image: headscale/headscale:0.29.6
+    command: serve
+    volumes:
+      - ./config.yaml:/etc/headscale/config.yaml:ro
+  # tailnet の中の SSH のつなぎ先。peer:22 を検証用の SSH サーバー (dev/testserver) へ渡す
+  peer:
+    build: peer
+    volumes:
+      - ./out:/out
+    environment:
+      TS_DEBUG_USE_DERP_HTTP: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - headscale
+  # DRAG の tsvpn の試験を動かす
+  tester:
+    image: alpine:3.22
+    profiles: ["test"]
+    volumes:
+      - ./out:/out
+    environment:
+      DRAG_TEST_TS_CONTROL: http://headscale:8080
+      DRAG_TEST_TS_DIR: /out
+      TS_DEBUG_USE_DERP_HTTP: "1"
+    depends_on:
+      - headscale

@@ -132,6 +132,10 @@ export function ShellResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function Stat(arg1:string,arg2:string):Promise<remote.Props>;
 
+export function TailscaleLogin():Promise<main.TSLogin>;
+
+export function TailscaleWait(arg1:string):Promise<main.TSInfo>;
+
 export function TrashDelete(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function TrashEntry(arg1:string,arg2:string):Promise<remote.TrashItem>;

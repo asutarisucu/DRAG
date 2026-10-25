@@ -52,8 +52,7 @@ try {
   await vpnSel.selectOption('new');
   const form = dlg.locator('[data-vpn-new]');
   const kinds = await form.locator('select option').evaluateAll(os => os.map(o => `${o.textContent}${o.disabled ? '(x)' : ''}`));
-  // まだ作っていない種類は、準備中として選べないようにして出す
-ok('種類は WireGuard から並び、準備中のものは選べない', kinds[0] === 'WireGuard' && kinds.length === 7 && kinds.every(k => k.includes('(準備中)') === k.endsWith('(x)')), kinds.join('|'));
+  ok('種類は WireGuard から並び、7 つとも選べる', kinds[0] === 'WireGuard' && kinds.length === 7 && kinds.every(k => !k.endsWith('(x)')), kinds.join('|'));
   await dlg.locator('button[type=submit]').click();
   ok('設定がないと接続しない', await waitFor(async () => (await form.locator('[data-vpn-err]').textContent()).includes('設定ファイル')));
   await form.locator('textarea').fill('[Interface]\nPrivateKey = abc\n');
