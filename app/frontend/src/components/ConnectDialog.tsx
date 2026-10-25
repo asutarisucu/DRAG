@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AddVPN, Connect, ConnectVPN, Disconnect, Probe, SavedServers, VPNs } from '../../wailsjs/go/main/App'
+import { AddVPN, CheckVPN, Connect, ConnectVPN, Disconnect, Probe, SavedServers, VPNs } from '../../wailsjs/go/main/App'
 import { main, remote, store } from '../../wailsjs/go/models'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
-import { VpnForm, type VpnCheck } from './VpnForm'
+import { VPN_TYPES, VpnForm, type VpnCheck } from './VpnForm'
 
 // vpn は通している VPN の名前。VPN なしなら空
 export type Connected = { id: string; home: string; name: string; user: string; host: string; info: remote.Info; vpn?: string }
@@ -40,7 +40,7 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   const [f, setF] = useState({ name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '', vpn: '' })
   const [vpns, setVpns] = useState<main.VPNInfo[]>([])
   // 新しい VPN の入力と、それを読めたか
-  const [newVpn, setNewVpn] = useState(new main.VPNInput({ name: '', type: 'wg', config: '', user: '', password: '' }))
+  const [newVpn, setNewVpn] = useState(new main.VPNInput({ name: '', type: 'wg', config: '', server: '', ca: '', user: '', password: '' }))
   const [vpnCheck, setVpnCheck] = useState<VpnCheck>({ sum: null, error: '' })
   const [via, setVia] = useState<main.VPNInfo | null>(null)
   const [phase, setPhase] = useState<'form' | 'steps'>('form')
@@ -129,13 +129,21 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
     let v = vpns.find(x => x.id === f.vpn) ?? null
     if (f.vpn === 'new') {
       // 読めない設定のまま足さない。足した VPN は、接続できなくても次から選べる
-      if (!vpnCheck.sum) {
-        if (!newVpn.config.trim()) setVpnCheck({ sum: null, error: t('vpn.needConfig') })
+      const file = VPN_TYPES.find(x => x.type === newVpn.type)?.file
+      if (file && !newVpn.config.trim()) {
+        setVpnCheck({ sum: null, error: t('vpn.needConfig') })
         configRef.current?.focus()
         return
       }
-      if (vpnCheck.sum.login && (!newVpn.user.trim() || !newVpn.password)) {
-        setVpnCheck({ ...vpnCheck, error: t('vpn.needLogin') })
+      let sum
+      try {
+        sum = await CheckVPN(newVpn)
+      } catch (err) {
+        setVpnCheck({ sum: null, error: String(err) })
+        return
+      }
+      if (sum.login && (!newVpn.user.trim() || !newVpn.password)) {
+        setVpnCheck({ sum, error: t('vpn.needLogin') })
         vpnUserRef.current?.focus()
         return
       }

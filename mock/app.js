@@ -3377,12 +3377,16 @@ function vpnForm() {
   };
   const certMsg = el('div', { class: 'vpn-sum' });
   const certBtn = el('button', { type: 'button', class: 'btn small', onclick: () => { certMsg.className = 'vpn-sum ok'; certMsg.textContent = 'asuta.p12 を読み込みました'; } }, ic('upload'), '証明書 (.p12) を読み込む');
+  // サーバーの証明書を確かめる CA。空なら Windows が信頼する CA で確かめる
+  const caMsg = el('div', { class: 'vpn-sum' }, '空なら Windows が信頼する CA で確かめます');
+  const caBtn = el('button', { type: 'button', class: 'btn small', onclick: () => { caMsg.className = 'vpn-sum ok'; caMsg.textContent = 'office-ca.crt で確かめます'; } }, ic('upload'), 'CA の証明書を読み込む');
   const credBox = el('div', { class: 'vpn-grid' });
   const credFields = {
-    ikev2: () => [field('サーバー', cred.server, 'span2'), field('認証', cred.auth, 'span2'),
+    ikev2: () => [field('サーバー', cred.server), field('認証', cred.auth),
       ...(cred.auth.value === 'cert'
         ? [el('div', { class: 'vpn-row span2' }, certBtn, certMsg), field('証明書のパスワード', cred.pass, 'span2')]
-        : [field('ユーザー名', cred.user), field('パスワード', cred.pass)])],
+        : [field('ユーザー名', cred.user), field('パスワード', cred.pass)]),
+      el('div', { class: 'vpn-row span2' }, caBtn, caMsg)],
     sstp: () => [field('サーバー', cred.server, 'span2'), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
     ac: () => [field('サーバー', cred.server), field('グループ', cred.group), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
     l2tp: () => [field('サーバー', cred.server), field('事前共有キー', cred.psk), field('ユーザー名', cred.user), field('パスワード', cred.pass)],

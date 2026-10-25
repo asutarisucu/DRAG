@@ -1,0 +1,16 @@
+services:
+  ikev2server:
+    build: .
+    # カーネルの IPsec (xfrm) を使うのに要る
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.ip_forward=1
+    # Windows が 500 番と 4500 番を使うので、別の番号で出す。DRAG は 4500 番の形 (UDP の包み) で最初から話す
+    ports:
+      - "127.0.0.1:14500:4500/udp"
+    # クライアントが使う CA の証明書をここに書く
+    volumes:
+      - ./out:/out
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -16,8 +16,10 @@ import (
 type VPN struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
-	Type     string `json:"type"`             // "wg" WireGuard、"ovpn" OpenVPN
+	Type     string `json:"type"`             // "wg" WireGuard、"ovpn" OpenVPN、"ikev2" IKEv2
 	Config   string `json:"config,omitempty"` // WireGuard の .conf、OpenVPN の .ovpn の中身
+	Server   string `json:"server,omitempty"` // 設定ファイルを使わない種類のつなぎ先
+	CA       string `json:"ca,omitempty"`     // サーバーの証明書を確かめる CA (PEM)。空なら Windows が信頼する CA
 	User     string `json:"user,omitempty"`
 	Password string `json:"password,omitempty"`
 }

@@ -362,6 +362,8 @@ export namespace main {
 	    name: string;
 	    type: string;
 	    config: string;
+	    server: string;
+	    ca: string;
 	    user: string;
 	    password: string;
 	
@@ -374,6 +376,8 @@ export namespace main {
 	        this.name = source["name"];
 	        this.type = source["type"];
 	        this.config = source["config"];
+	        this.server = source["server"];
+	        this.ca = source["ca"];
 	        this.user = source["user"];
 	        this.password = source["password"];
 	    }
