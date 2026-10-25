@@ -1915,17 +1915,29 @@ const MON_DETAIL = {
   },
   disk(srv, main) {
     const mounts = el('div'), io = el('div', { class: 'mon-sub' }), dirs = el('div');
-    const list = [];
-    for (const c of srv.root.children) {
-      if (!c.dir) continue;
-      list.push({ node: c, size: dirSize(c) });
-      for (const g of c.children) if (g.dir) list.push({ node: g, size: dirSize(g) });
-    }
-    list.sort((a, b) => b.size - a.size);
-    const top = list.slice(0, 6), max = top[0]?.size || 1;
-    dirs.append(...top.map(x => el('button', { class: 'dir-row', title: 'ツリーで表示', onclick: () => revealInTree(srv, x.node.path) },
-      ic('folder', 'f-dir'), el('span', { class: 'mono' }, tilde(srv, x.node.path)), meter(x.size / max * 100, 'alt'), el('span', { class: 'num' }, fmtSize(x.size)))));
-    if (!top.length) dirs.append(el('div', { class: 'mon-sub' }, 'フォルダがありません'));
+    // 左クリックでそのフォルダの中を数え、右クリックでツリーに表示する。opened は開いた順のフォルダ
+    const opened = [];
+    const showDirs = () => {
+      const base = opened.at(-1) || srv.root, list = [];
+      for (const c of base.children) {
+        if (!c.dir) continue;
+        list.push({ node: c, size: dirSize(c) });
+        for (const g of c.children) if (g.dir) list.push({ node: g, size: dirSize(g) });
+      }
+      list.sort((a, b) => b.size - a.size);
+      const top = list.slice(0, 6), max = top[0]?.size || 1;
+      dirs.replaceChildren(
+        ...(opened.length ? [el('div', { class: 'dir-nav' },
+          el('button', { class: 'btn small ghost', onclick: () => { opened.pop(); showDirs(); } }, `‹ ${opened.length > 1 ? tilde(srv, opened.at(-2).path) : 'ディスク全体'}`),
+          el('span', { class: 'mono' }, tilde(srv, base.path)))] : []),
+        ...top.map(x => el('button', {
+          class: 'dir-row', title: 'クリックで中のフォルダの大きさを出す · 右クリックでツリーに表示',
+          onclick: () => { opened.push(x.node); showDirs(); },
+          oncontextmenu: e => { e.preventDefault(); revealInTree(srv, x.node.path); },
+        }, ic('folder', 'f-dir'), el('span', { class: 'mono' }, tilde(srv, x.node.path)), meter(x.size / max * 100, 'alt'), el('span', { class: 'num' }, fmtSize(x.size)))),
+        ...(top.length ? [] : [el('div', { class: 'mon-sub' }, 'フォルダがありません')]));
+    };
+    showDirs();
     main.append(section('マウント', mounts, io), section(null, dirs));
     return () => {
       mounts.replaceChildren(...srv.mounts.map(([mp, size, pct], i) => {

@@ -200,6 +200,8 @@ const en: Messages = {
     io: 'Read {{read}} · Write {{write}}',
     dirsDenied: 'Folders you can\'t read were not counted. Turn on sudo mode to count them',
     dirsNeedSudo: 'Turn on sudo mode to count folders you can\'t read',
+    dirHint: 'Click to show the folders inside · Right-click to show in the tree',
+    wholeDisk: 'Whole disk',
     counting: 'Counting',
     noDirs: 'No folders',
     ifaces: 'Interfaces',

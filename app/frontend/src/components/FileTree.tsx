@@ -530,7 +530,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
     <>
       {!mobile && (
         <div className="flex h-9 flex-none items-center gap-0.5 pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">
-          <span className="flex-1">{t('files.title')}</span>
+          <span className="min-w-0 flex-1 truncate">{t('files.title')}</span>
           <button className={headBtn} title={t('menu.newFile')} onClick={() => create(here(), false)}><Icon name="filePlus" /></button>
           <button className={headBtn} title={t('menu.newFolder')} onClick={() => create(here(), true)}><Icon name="folderPlus" /></button>
           {!isRemote && <button className={headBtn} title={t('files.upload')} onClick={() => pickUpload(here())}><Icon name="upload" /></button>}

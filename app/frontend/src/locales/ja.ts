@@ -199,6 +199,8 @@ const ja = {
     io: '読み込み {{read}} · 書き込み {{write}}',
     dirsDenied: '読めないフォルダの中は数えていません。sudo モードを ON にすると数えます',
     dirsNeedSudo: '読めないフォルダも数えるには sudo モードを ON にしてください',
+    dirHint: 'クリックで中のフォルダの大きさを出す · 右クリックでツリーに表示',
+    wholeDisk: 'ディスク全体',
     counting: '数えています',
     noDirs: 'フォルダがありません',
     ifaces: 'インターフェース',

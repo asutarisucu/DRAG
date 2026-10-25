@@ -47,6 +47,21 @@ const waitFor = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 200) { i
 const at = p => page.locator(`.tree-row[data-path="${p}"]`);
 const selected = async p => (await at(p).getAttribute('class').catch(() => '')).includes('bg-accent-soft');
 
+// ファイルの区画をいちばん狭くしても、見出しの「ファイル」は1行に入りきる
+const resizer = page.locator('.cursor-col-resize').first();
+const rb = await resizer.boundingBox();
+const resize = async x => {
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(x, rb.y + 100, { steps: 4 });
+  await page.mouse.up();
+};
+await resize(0);
+const title = page.locator('aside div:has(> button[title="すべて閉じる"]) > span');
+const tb = await title.boundingBox(), hb = await page.locator('aside div:has(> button[title="すべて閉じる"])').boundingBox();
+ok('狭くしても見出しは1行に入りきる', tb.height < 20 && tb.y >= hb.y && tb.y + tb.height <= hb.y + hb.height && await title.evaluate(s => s.scrollWidth <= s.clientWidth), JSON.stringify([tb, hb]));
+await resize(rb.x + rb.width / 2);
+
 // ドラッグでフォルダへ移す
 await at(H).click();
 await at(`${H}/note.txt`).dragTo(at(`${H}/dst`));
@@ -140,9 +155,13 @@ await page.click('[data-tool="monitor"]');
 const mon = page.locator('[data-win]:has([data-mon])');
 await mon.locator('.mon-card:has-text("ディスク")').click().catch(() => {});
 await mon.locator('.mon-head button:has-text("ディスク")').click();
+// ディスク全体ではホームは ~ の1行なので、左クリックでホームの中を数え、右クリックでツリーに表示する
+const homeRow = mon.locator('.dir-row').filter({ has: page.locator('span.font-mono', { hasText: /^~$/ }) });
+await waitFor(async () => (await homeRow.count()) === 1, 20000);
+await homeRow.click();
 const dirRow = mon.locator('.dir-row:has-text("~/tree-e2e/src")').first();
 ok('大きいフォルダに出る', await waitFor(async () => (await dirRow.count()) === 1, 20000));
-await dirRow.click();
+await dirRow.click({ button: 'right' });
 ok('ファイルの一覧に切り替える', await waitFor(async () => (await page.locator('aside button[title="すべて閉じる"]').isVisible())));
 ok('大きいフォルダをツリーで開いて選ぶ', await waitFor(async () => await selected(`${H}/src`) && (await at(`${H}/src/deep`).count()) === 1));
 ok('ツリーで表示した行を光らせる', (await at(`${H}/src`).getAttribute('class')).includes('flash'));

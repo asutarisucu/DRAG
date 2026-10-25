@@ -25,6 +25,9 @@ import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
 
+// ファイルの区画の最小の幅。見出しの「ファイル」と5つのボタンが1行に入る幅
+const SIDEBAR_MIN = 200
+
 // conn は接続の様子。切れたら retry 回目の再接続まで wait 秒待つ。
 // gen は再接続のたびに増え、ターミナルとファイルツリーが開き直す
 type Server = Connected & {
@@ -365,7 +368,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   return (
     <div
       className={`absolute inset-0 ${mobile ? 'flex flex-col' : 'grid'} ${visible ? '' : 'invisible'}`}
-      style={mobile ? undefined : { gridTemplateColumns: collapsed ? '48px 0 0 minmax(0,1fr)' : `48px ${st.sidebarW}px 4px minmax(0,1fr)` }}
+      style={mobile ? undefined : { gridTemplateColumns: collapsed ? '48px 0 0 minmax(0,1fr)' : `48px ${Math.max(SIDEBAR_MIN, st.sidebarW)}px 4px minmax(0,1fr)` }}
       data-server={s.id}
     >
       {!mobile && (
@@ -394,7 +397,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
           <SessionsView serverId={s.id} visible={visible} terminalKey={sessionKeyOf(termFg)} onOpen={x => openSessionWindow(s.id, x)} />
         )}
       </aside>
-      {!mobile && (collapsed ? <div /> : <Resizer dir="v" value={st.sidebarW} min={180} max={520} onChange={sidebarW => setSettings({ sidebarW })} />)}
+      {!mobile && (collapsed ? <div /> : <Resizer dir="v" value={Math.max(SIDEBAR_MIN, st.sidebarW)} min={SIDEBAR_MIN} max={520} onChange={sidebarW => setSettings({ sidebarW })} />)}
       <main
         className={mobile ? (mtab === 'files' ? 'hidden' : 'flex min-h-0 flex-1 flex-col') : 'grid min-h-0 min-w-0'}
         style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}

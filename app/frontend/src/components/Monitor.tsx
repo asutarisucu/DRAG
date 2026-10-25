@@ -188,9 +188,13 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
   const { t } = useTranslation()
   const sudo = useSudo(serverId)
   const [mounts] = usePoll(() => Mounts(serverId), 10000, [serverId])
-  // 大きいフォルダは du でディスク全体を数えるので時間がかかる。開いたときと、sudo モードを替えたときに1回だけ数える
-  const [big, dirsErr] = usePoll(() => BigDirs(serverId), 0, [serverId, sudo])
-  const dirs = big?.dirs ?? null
+  // 大きいフォルダを左クリックすると、そのフォルダの中を数える。opened は開いた順のフォルダで、空ならディスク全体
+  const [opened, setOpened] = useState<string[]>([])
+  const dir = opened.at(-1) ?? ''
+  // du で数えるので時間がかかる。開いたときと、フォルダや sudo モードを替えたときに1回だけ数える
+  const [big, dirsErr] = usePoll(() => BigDirs(serverId, dir).then(r => ({ ...r, dir })), 0, [serverId, sudo, dir])
+  const cur = big?.dir === dir ? big : null
+  const dirs = cur?.dirs ?? null
   const tilde = (p: string) => p === home ? '~' : p.startsWith(home + '/') ? '~' + p.slice(home.length) : p
   const maxDir = dirs?.[0]?.size || 1
   return <>
@@ -201,9 +205,17 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
       <div className="mon-sub">{t('mon.io', { read: fmtRate(m.diskRead), write: fmtRate(m.diskWrite) })}</div>
     </Section>
     <Section>
+      {dir && (
+        <div className="mb-1.5 flex min-w-0 items-center gap-2" data-dir-nav>
+          <button className="h-6 max-w-[45%] flex-none truncate rounded-md px-2 text-[12px] text-muted hover:text-text" onClick={() => setOpened(o => o.slice(0, -1))}>
+            ‹ {opened.length > 1 ? tilde(opened.at(-2)!) : t('mon.wholeDisk')}
+          </button>
+          <span className="min-w-0 truncate font-mono text-[12px] font-semibold">{tilde(dir)}</span>
+        </div>
+      )}
       {dirs === null && !dirsErr && <div className="mon-sub">{t('mon.counting')}</div>}
       {dirsErr && <div className="mon-sub">{dirsErr}</div>}
-      {big?.denied && (
+      {cur?.denied && (
         <div className="mon-sub flex items-center gap-2" data-dirs-denied>
           <span className="min-w-0 flex-1">{t('mon.dirsDenied')}</span>
           <button className="sbtn" onClick={() => requireSudo(serverId, t('mon.dirsNeedSudo'))}>{t('sudo.turnOn')}</button>
@@ -211,7 +223,7 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
       )}
       {dirs?.length === 0 && <div className="mon-sub">{t('mon.noDirs')}</div>}
       {dirs?.map(d => (
-        <button key={d.path} className="dir-row" title={t('files.reveal')} onClick={() => revealInTree(serverId, d.path, true)}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>
+        <button key={d.path} className="dir-row" title={t('mon.dirHint')} onClick={() => setOpened(o => [...o, d.path])} onContextMenu={e => { e.preventDefault(); revealInTree(serverId, d.path, true) }}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>
       ))}
     </Section>
   </>

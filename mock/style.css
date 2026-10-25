@@ -511,6 +511,8 @@ svg.spark.big { height: 64px; margin: 0; }
   padding: 5px 6px; border: 0; border-radius: 6px; background: none; color: inherit; text-align: left; font-size: 12px;
 }
 .dir-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.dir-nav { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 6px; }
+.dir-nav .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
 .crow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 110px; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--border); font-size: 12px; }
 .chip.sm { height: 22px; padding: 0 8px; font-size: 11px; }
 

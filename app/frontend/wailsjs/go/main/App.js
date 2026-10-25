@@ -18,8 +18,8 @@ export function ArchiveRead(arg1, arg2) {
   return window['go']['main']['App']['ArchiveRead'](arg1, arg2);
 }
 
-export function BigDirs(arg1) {
-  return window['go']['main']['App']['BigDirs'](arg1);
+export function BigDirs(arg1, arg2) {
+  return window['go']['main']['App']['BigDirs'](arg1, arg2);
 }
 
 export function CloseShell(arg1) {

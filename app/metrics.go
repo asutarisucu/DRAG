@@ -61,12 +61,15 @@ func (a *App) Mounts(serverID string) ([]remote.Mount, error) {
 	return s.Mounts()
 }
 
-// BigDirs は、ディスクのファイルシステムごとに、最上位から数えた大きいフォルダ。
+// BigDirs は、dir の下の大きいフォルダ。dir が空なら、ディスクのファイルシステムごとに最上位から数える。
 // NFS (host:/path) と CIFS (//host/share) は、数えるとネットワークの先を全部読むので外す
-func (a *App) BigDirs(serverID string) (remote.DiskDirs, error) {
+func (a *App) BigDirs(serverID, dir string) (remote.DiskDirs, error) {
 	s, err := a.server(serverID)
 	if err != nil {
 		return remote.DiskDirs{}, err
+	}
+	if dir != "" {
+		return s.BigDirs([]string{dir}, 12)
 	}
 	ms, err := s.Mounts()
 	if err != nil {
