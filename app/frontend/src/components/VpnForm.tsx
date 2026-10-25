@@ -10,7 +10,7 @@ export const VPN_TYPES: { type: string; ready: boolean; file: boolean }[] = [
   { type: 'wg', ready: true, file: true },
   { type: 'ovpn', ready: true, file: true },
   { type: 'ikev2', ready: true, file: false },
-  { type: 'sstp', ready: false, file: false },
+  { type: 'sstp', ready: true, file: false },
   { type: 'ac', ready: false, file: false },
   { type: 'l2tp', ready: false, file: false },
   { type: 'ts', ready: false, file: false },
@@ -114,14 +114,17 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef }:
         </>
         : <>
           <div className="grid grid-cols-2 gap-x-3">
-            <label><span className={label}>{t('vpn.server')}</span><input className={`${input} w-full`} value={value.server} onChange={e => set('server', e.target.value)} placeholder="vpn.example.com" spellCheck={false} /></label>
-            <label>
-              <span className={label}>{t('vpn.auth')}</span>
-              <select className={`${input} w-full`} value="eap" onChange={() => {}}>
-                <option value="eap">{t('vpn.authPassword')}</option>
-                <option value="cert" disabled>{t('vpn.soon', { name: t('vpn.authCert') })}</option>
-              </select>
-            </label>
+            <label className={value.type === 'ikev2' ? '' : 'col-span-2'}><span className={label}>{t('vpn.server')}</span><input className={`${input} w-full`} value={value.server} onChange={e => set('server', e.target.value)} placeholder="vpn.example.com" spellCheck={false} /></label>
+            {/* IKEv2 は証明書でも入れる。いまはユーザー名とパスワードだけ */}
+            {value.type === 'ikev2' && (
+              <label>
+                <span className={label}>{t('vpn.auth')}</span>
+                <select className={`${input} w-full`} value="eap" onChange={() => {}}>
+                  <option value="eap">{t('vpn.authPassword')}</option>
+                  <option value="cert" disabled>{t('vpn.soon', { name: t('vpn.authCert') })}</option>
+                </select>
+              </label>
+            )}
           </div>
           {login}
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">

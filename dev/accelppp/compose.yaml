@@ -1,0 +1,13 @@
+# 先に、Docker の VM に ppp_generic を読み込んでおく (VM を再起動するまで残る)
+#   MSYS_NO_PATHCONV=1 docker run --rm --privileged -v /lib/modules:/lib/modules:ro alpine sh -c 'apk add kmod && modprobe ppp_generic'
+services:
+  accelppp:
+    build: .
+    # ppp のインターフェースを作るのに要る
+    privileged: true
+    ports:
+      - "127.0.0.1:15443:443/tcp"
+    volumes:
+      - ./out:/out
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

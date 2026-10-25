@@ -1,0 +1,12 @@
+services:
+  softether:
+    build: .
+    # Windows が 500 番と 4500 番を使うので、別の番号で出す
+    ports:
+      - "127.0.0.1:14443:443/tcp"
+      - "127.0.0.1:15500:500/udp"
+      - "127.0.0.1:15501:4500/udp"
+    volumes:
+      - ./out:/out
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

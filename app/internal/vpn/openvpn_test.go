@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,5 +107,58 @@ func TestIKEv2CarriesSSH(t *testing.T) {
 	defer s.Close()
 	if home, err := s.Home(); err != nil || home != "/home/asuta" {
 		t.Fatalf("%q %v", home, err)
+	}
+}
+
+// 試験用の SSTP のサーバー (dev/softether と dev/accelppp) を通して、VPN の中から検証用の SSH サーバーへつなぐ。
+// DRAG_TEST_SOFTETHER と DRAG_TEST_ACCEL に、それぞれのフォルダを渡したときだけ動く。
+// accel-ppp は Crypto Binding の Compound MAC を確かめる
+func TestSSTPCarriesSSH(t *testing.T) {
+	for _, s := range []struct {
+		env, server, target string
+	}{
+		{"DRAG_TEST_SOFTETHER", "127.0.0.1:14443", ""},
+		{"DRAG_TEST_ACCEL", "127.0.0.1:15443", "192.168.40.1"},
+	} {
+		dir := os.Getenv(s.env)
+		if dir == "" {
+			t.Logf("%s が無いので飛ばす", s.env)
+			continue
+		}
+		ca, err := os.ReadFile(filepath.Join(dir, "out", "ca.crt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := s.target
+		if target == "" {
+			b, err := os.ReadFile(filepath.Join(dir, "out", "target"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target = strings.TrimSpace(string(b))
+		}
+		v := store.VPN{Type: "sstp", Server: s.server, CA: string(ca), User: "asuta", Password: "drag"}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		tun, err := Open(ctx, v, target)
+		cancel()
+		if err != nil {
+			t.Fatalf("%s: %v", s.env, err)
+		}
+		cfg := remote.Config{Host: target, Port: 22, User: "asuta", Password: "drag", Dial: tun.DialContext}
+		kh := filepath.Join(t.TempDir(), "known_hosts")
+		_, err = remote.Dial(cfg, kh, "")
+		var he *remote.HostKeyError
+		if !errors.As(err, &he) {
+			t.Fatalf("%s: %v", s.env, err)
+		}
+		sc, err := remote.Dial(cfg, kh, he.Fingerprint)
+		if err != nil {
+			t.Fatalf("%s: %v", s.env, err)
+		}
+		if home, err := sc.Home(); err != nil || home != "/home/asuta" {
+			t.Fatalf("%s: %q %v", s.env, home, err)
+		}
+		sc.Close()
+		tun.Close()
 	}
 }

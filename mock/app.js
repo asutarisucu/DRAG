@@ -3387,7 +3387,7 @@ function vpnForm() {
         ? [el('div', { class: 'vpn-row span2' }, certBtn, certMsg), field('証明書のパスワード', cred.pass, 'span2')]
         : [field('ユーザー名', cred.user), field('パスワード', cred.pass)]),
       el('div', { class: 'vpn-row span2' }, caBtn, caMsg)],
-    sstp: () => [field('サーバー', cred.server, 'span2'), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
+    sstp: () => [field('サーバー', cred.server, 'span2'), field('ユーザー名', cred.user), field('パスワード', cred.pass), el('div', { class: 'vpn-row span2' }, caBtn, caMsg)],
     ac: () => [field('サーバー', cred.server), field('グループ', cred.group), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
     l2tp: () => [field('サーバー', cred.server), field('事前共有キー', cred.psk), field('ユーザー名', cred.user), field('パスワード', cred.pass)],
   };

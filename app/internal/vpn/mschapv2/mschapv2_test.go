@@ -1,4 +1,4 @@
-package ikev2
+package mschapv2
 
 import (
 	"encoding/hex"
@@ -24,11 +24,11 @@ func TestMSCHAPv2HashExample(t *testing.T) {
 	if got := hex.EncodeToString(ntPasswordHash("clientPass")); got != "44ebba8d5312b8d611474411f56989ae" {
 		t.Fatalf("NtPasswordHash %s", got)
 	}
-	nt := ntResponse(auth, peer, "User", "clientPass")
+	nt := NTResponse(auth, peer, "User", "clientPass")
 	if got := hex.EncodeToString(nt); got != "82309ecd8d708b5ea08faa3981cd83544233114a3d85d6df" {
 		t.Fatalf("NT-Response %s", got)
 	}
-	if got := authenticatorResponse("clientPass", nt, peer, auth, "User"); got != "S=407A5589115FD0D6209F510FE9C04566932CDA56" {
+	if got := AuthenticatorResponse("clientPass", nt, peer, auth, "User"); got != "S=407A5589115FD0D6209F510FE9C04566932CDA56" {
 		t.Fatalf("AuthenticatorResponse %s", got)
 	}
 	// ドメインを付けても、ChallengeHash にはユーザー名だけを使う
