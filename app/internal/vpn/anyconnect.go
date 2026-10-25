@@ -15,7 +15,7 @@ func openAnyConnect(ctx context.Context, v store.VPN) (Tunnel, error) {
 		return nil, err
 	}
 	ca, _ := serverCA(v)
-	c, err := anyconnect.Dial(ctx, anyconnect.Config{Server: sum.Target, Group: v.Group, User: v.User, Pass: v.Password, CA: ca, MTU: stackMTU})
+	c, err := anyconnect.Dial(ctx, anyconnect.Config{Server: sum.Target, Group: v.Group, User: v.User, Pass: v.Password, CA: ca, MTU: stackMTU, Logf: Logf})
 	if err != nil {
 		return nil, err
 	}

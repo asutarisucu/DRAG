@@ -66,7 +66,8 @@ type Client struct {
 	cipher      string
 	ekm         bool
 	comp        compMode
-	user, pass  string // 鍵を替えるときにも送る。auth-token を受けたら pass をそれにする
+	frag        *fragmenter // .ovpn に fragment があるとき
+	user, pass  string      // 鍵を替えるときにも送る。auth-token を受けたら pass をそれにする
 	pingEvery   time.Duration
 	pingRestart time.Duration
 	lastSent    time.Time
@@ -153,6 +154,9 @@ func start(ctx context.Context, cfg *Config, opts Options, tr transport, user, p
 		gotReset: make(chan struct{}), pushCh: make(chan []string, 4),
 		ipIn: make(chan []byte, 512), done: make(chan struct{}),
 		lastRecv: time.Now(), lastSent: time.Now(),
+	}
+	if cfg.Fragment > 0 {
+		c.frag = newFragmenter(cfg.Fragment)
 	}
 	rand.Read(c.sid[:])
 	go c.recvLoop()
@@ -402,6 +406,10 @@ func (c *Client) applyPush(opts []string) error {
 		f := strings.Fields(o)
 		if len(f) == 0 {
 			continue
+		}
+		// auth-token はパスワードの代わりなので、ログに書かない
+		if !strings.HasPrefix(f[0], "auth-token") {
+			c.logf("サーバーの設定: %s", o)
 		}
 		arg := func(i int) string {
 			if i < len(f) {
@@ -732,7 +740,7 @@ func (c *Client) timerLoop() {
 			return
 		}
 		if cur != nil && cur.data != nil && pingDue {
-			c.sendData(pingMagic)
+			c.sendPayload(pingMagic)
 		}
 	}
 }
@@ -744,7 +752,25 @@ func (c *Client) WriteIP(p []byte) error {
 		return c.err
 	default:
 	}
-	return c.sendData(c.frame(p))
+	return c.sendPayload(p)
+}
+
+// sendPayload は、圧縮の印を付け、fragment があれば分けて、データのパケットで送る (OpenVPN の forward.c の順)
+func (c *Client) sendPayload(p []byte) error {
+	framed := c.frame(p)
+	if c.frag == nil {
+		return c.sendData(framed)
+	}
+	parts := c.frag.split(framed)
+	if parts == nil {
+		return errors.New("パケットが大きすぎて fragment で分けられません")
+	}
+	for _, part := range parts {
+		if err := c.sendData(part); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Client) sendData(payload []byte) error {
@@ -867,12 +893,18 @@ func (c *Client) handleData(b []byte) {
 	c.mu.Lock()
 	c.lastRecv = time.Now()
 	c.mu.Unlock()
-	if bytes.Equal(plain, pingMagic) || bytes.HasPrefix(plain, occMagic) {
-		return
+	// 分かれて届いたものをつなぎ、圧縮の印を外してから、ping と OCC を見分ける (OpenVPN の forward.c の順)
+	if c.frag != nil {
+		if plain = c.frag.join(plain); plain == nil {
+			return
+		}
 	}
 	ip := c.unframe(plain)
 	if ip == nil {
-		c.logf("圧縮されたパケットを捨てました")
+		c.logf("圧縮の印を読めないパケットを捨てました")
+		return
+	}
+	if bytes.Equal(ip, pingMagic) || bytes.HasPrefix(ip, occMagic) {
 		return
 	}
 	select {
@@ -923,7 +955,7 @@ func (c *Client) Close() error {
 		select {
 		case <-c.done:
 		default:
-			c.sendData(append(append([]byte{}, occMagic...), occExit))
+			c.sendPayload(append(append([]byte{}, occMagic...), occExit))
 		}
 	}
 	c.fail(net.ErrClosed)

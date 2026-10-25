@@ -21,6 +21,7 @@ import (
 	"github.com/asutarisucu/DRAG/app/internal/phone"
 	"github.com/asutarisucu/DRAG/app/internal/remote"
 	"github.com/asutarisucu/DRAG/app/internal/store"
+	"github.com/asutarisucu/DRAG/app/internal/vpn"
 	"github.com/asutarisucu/DRAG/app/internal/vpn/tsvpn"
 )
 
@@ -79,6 +80,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	startVPNLog()
 	a.startPhone()
 	a.startAgent()
 	a.startTray()
@@ -160,6 +162,9 @@ func (a *App) dial(req ConnectRequest) (*remote.Server, ConnectResult) {
 		var he *remote.HostKeyError
 		if errors.As(err, &he) {
 			return nil, ConnectResult{Error: he.Error(), HostKey: &HostKey{Fingerprint: he.Fingerprint, KeyType: he.KeyType, Mismatch: he.Mismatch}}
+		}
+		if req.VPN != "" {
+			vpn.Logf("VPN を通した SSH で %s@%s:%d へつなげません: %v", req.User, req.Host, req.Port, err)
 		}
 		return nil, ConnectResult{Error: err.Error()}
 	}

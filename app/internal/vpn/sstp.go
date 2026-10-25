@@ -14,7 +14,7 @@ func openSSTP(ctx context.Context, v store.VPN) (Tunnel, error) {
 		return nil, err
 	}
 	ca, _ := serverCA(v)
-	c, err := sstp.Dial(ctx, sstp.Config{Server: sum.Target, User: v.User, Pass: v.Password, CA: ca})
+	c, err := sstp.Dial(ctx, sstp.Config{Server: sum.Target, User: v.User, Pass: v.Password, CA: ca, Logf: Logf})
 	if err != nil {
 		return nil, err
 	}

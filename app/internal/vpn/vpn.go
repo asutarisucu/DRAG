@@ -60,8 +60,23 @@ func Check(v store.VPN) (Summary, error) {
 	return Summary{}, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
 }
 
+// Logf は、VPN を張るときと通すときの様子を書く先。パスワードと鍵は書かない
+var Logf = func(format string, args ...any) {}
+
 // Open は VPN を張る。target はつなぐサーバーのアドレスで、張れたかを確かめるのに使う
 func Open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
+	Logf("VPN %s (%s) を張ります。つなぐサーバーは %s", v.Name, v.Type, target)
+	t, err := open(ctx, v, target)
+	if err != nil {
+		Logf("VPN %s を張れません: %v", v.Name, err)
+		return nil, err
+	}
+	s := t.Summary()
+	Logf("VPN %s を張りました。つなぎ先 %s、この PC は %s、通す範囲 %s", v.Name, s.Target, s.Address, s.Routes)
+	return t, nil
+}
+
+func open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
 	switch v.Type {
 	case "wg":
 		return openWireGuard(ctx, v, target)

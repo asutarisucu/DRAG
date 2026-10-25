@@ -26,11 +26,13 @@ func openOpenVPN(ctx context.Context, v store.VPN) (Tunnel, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := ovpn.Dial(ctx, cfg, ovpn.Options{User: v.User, Pass: v.Password})
+	Logf("OpenVPN: fragment %d", cfg.Fragment)
+	c, err := ovpn.Dial(ctx, cfg, ovpn.Options{User: v.User, Pass: v.Password, Logf: Logf})
 	if err != nil {
 		return nil, err
 	}
 	p := c.Pushed()
+	Logf("OpenVPN: 暗号 %s、DNS %v", p.Cipher, p.DNS)
 	sum, _ := checkOpenVPN(v)
 	return newStackTunnel(c, p.Addrs, p.DNS, p.Routes, sum)
 }

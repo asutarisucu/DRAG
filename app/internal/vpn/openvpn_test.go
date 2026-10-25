@@ -241,8 +241,9 @@ func TestL2TPCarriesSSH(t *testing.T) {
 }
 
 // 試験用の OpenVPN サーバー (dev/ovpnserver) の e、f、g は、サーバーが LZO と LZ4 で圧縮して送ってくる。
-// SSH の鍵の交換と、よく縮むコマンドの出力が、戻した上で届くことを確かめる
-func TestOpenVPNCompressed(t *testing.T) {
+// h は fragment 1300 で、大きいパケットを分けて送ってくる。
+// SSH の鍵の交換と、大きいコマンドとその出力が、どちら向きにも届くことを確かめる
+func TestOpenVPNLargeData(t *testing.T) {
 	dir := os.Getenv("DRAG_TEST_OVPN")
 	if dir == "" {
 		t.Skip("DRAG_TEST_OVPN が無い")
@@ -255,6 +256,7 @@ func TestOpenVPNCompressed(t *testing.T) {
 		{"e.ovpn", "10.8.4.1"},
 		{"f.ovpn", "10.8.5.1"},
 		{"g.ovpn", "10.8.6.1"},
+		{"h.ovpn", "10.8.7.1"},
 	} {
 		b, err := os.ReadFile(filepath.Join(dir, c.file))
 		if err != nil {
@@ -280,6 +282,11 @@ func TestOpenVPNCompressed(t *testing.T) {
 		r, err := s.Exec("seq 1 20000", 20*time.Second)
 		if err != nil || r.Stdout != want.String() {
 			t.Fatalf("%s: %d バイト (欲しいのは %d) %v", c.file, len(r.Stdout), want.Len(), err)
+		}
+		// 3000 バイトのコマンドは、1 つの IP のパケットに入りきらないほど大きく送る
+		r, err = s.Exec("printf %s "+strings.Repeat("x", 3000)+" | wc -c", 20*time.Second)
+		if err != nil || strings.TrimSpace(r.Stdout) != "3000" {
+			t.Fatalf("%s: %q %v", c.file, r.Stdout, err)
 		}
 		s.Close()
 		tun.Close()

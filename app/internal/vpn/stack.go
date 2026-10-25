@@ -103,7 +103,11 @@ func (t *stackTunnel) DialContext(ctx context.Context, network, addr string) (ne
 		return nil, fmt.Errorf("VPN が切れています: %w", t.vpn.Err())
 	default:
 	}
-	return t.net.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(ip, uint16(pn)))
+	c, err := t.net.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(ip, uint16(pn)))
+	if err != nil {
+		Logf("VPN を通して %s へつなげません: %v", addr, err)
+	}
+	return c, err
 }
 
 func (t *stackTunnel) Summary() Summary { return t.sum }

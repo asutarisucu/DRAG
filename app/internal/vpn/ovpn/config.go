@@ -33,6 +33,7 @@ type Config struct {
 	AuthUserPass bool
 	User, Pass   string // <auth-user-pass> に書いてあったとき
 	Comp         compMode
+	Fragment     int // fragment の値。UDP の中身の大きさの上限で、0 なら分けない
 }
 
 type Remote struct {
@@ -159,6 +160,11 @@ func Parse(text string) (*Config, error) {
 			c.Comp = compLZO
 		case "compress":
 			c.Comp = compressMode(arg(1))
+		case "fragment":
+			c.Fragment, _ = strconv.Atoi(arg(1))
+			if arg(2) == "mtu" { // IP と UDP の頭も含めた値
+				c.Fragment -= 28
+			}
 		case "ca", "cert", "key":
 			if _, ok := blocks[f[0]]; !ok {
 				return nil, fmt.Errorf("%s を .ovpn の中に <%s> で書いてください", f[0], f[0])

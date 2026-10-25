@@ -14,7 +14,7 @@ func openL2TP(ctx context.Context, v store.VPN) (Tunnel, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := l2tp.Dial(ctx, l2tp.Config{Server: sum.Target, PSK: v.PSK, User: v.User, Pass: v.Password})
+	c, err := l2tp.Dial(ctx, l2tp.Config{Server: sum.Target, PSK: v.PSK, User: v.User, Pass: v.Password, Logf: Logf})
 	if err != nil {
 		return nil, err
 	}

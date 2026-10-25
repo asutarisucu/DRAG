@@ -1,5 +1,5 @@
 #!/bin/sh
-# 証明書と鍵を作り、設定の違う 7 つの OpenVPN サーバーを動かす。クライアントの .ovpn を /out に書く
+# 証明書と鍵を作り、設定の違う 8 つの OpenVPN サーバーを動かす。クライアントの .ovpn を /out に書く
 #   a: UDP 1194  tls-crypt、ユーザー名とパスワードだけ (クライアント証明書なし)、AES-256-GCM、30 秒ごとに鍵を替える
 #   b: TCP 1195  tls-auth (SHA256)、クライアント証明書、AES-128-GCM、comp-lzo no、net30
 #   c: UDP 1196  包みなし、クライアント証明書、CHACHA20-POLY1305、compress stub-v2
@@ -7,6 +7,7 @@
 #   e: UDP 1198  クライアント証明書、comp-lzo yes (サーバーが LZO で圧縮して送る)
 #   f: UDP 1199  クライアント証明書、compress lz4-v2 (サーバーが LZ4 で圧縮して送る)
 #   g: UDP 1200  クライアント証明書、compress lz4 (先頭と末尾を入れ替える形で LZ4)
+#   h: UDP 1201  クライアント証明書、fragment 1300、tun-mtu 1400、mssfix 1380 (データのパケットを分ける)
 set -e
 P=/etc/openvpn/pki
 mkdir -p $P /out
@@ -109,6 +110,16 @@ EOF
   } > $name.conf
 done
 
+{ common tun7 10.8.7.0; cat <<EOF
+proto udp
+port 1201
+topology subnet
+tun-mtu 1400
+mssfix 1380
+fragment 1300
+EOF
+} > h.conf
+
 inline() { printf '<%s>\n' "$1"; cat "$2"; printf '</%s>\n' "$1"; }
 client() {
   printf 'client\ndev tun\nproto %s\nremote 127.0.0.1 %s\nnobind\nremote-cert-tls server\n' "$1" "$2"
@@ -121,10 +132,11 @@ client() {
 { client udp 1198; echo 'comp-lzo yes'; inline cert client.crt; inline key client.key; } > /out/e.ovpn
 { client udp 1199; echo 'compress lz4-v2'; inline cert client.crt; inline key client.key; } > /out/f.ovpn
 { client udp 1200; echo 'compress lz4'; inline cert client.crt; inline key client.key; } > /out/g.ovpn
+{ client udp 1201; echo 'tun-mtu 1400'; echo 'mssfix 1380'; echo 'fragment 1300'; inline cert client.crt; inline key client.key; } > /out/h.ovpn
 
 # VPN の中の :22 を、検証用の SSH サーバーへ渡す
 socat TCP-LISTEN:22,fork,reuseaddr TCP:host.docker.internal:2222 &
-for s in a b c d e f g; do
+for s in a b c d e f g h; do
   openvpn --config $P/$s.conf --log /var/log/openvpn-$s.log &
 done
 wait
