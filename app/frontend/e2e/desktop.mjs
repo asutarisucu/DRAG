@@ -46,9 +46,10 @@ const sshWin = ids[0];
 ok('ターミナルに移したことが出る', await waitText(panelText, 'をウィンドウに移しました'));
 ok('ウィンドウにパスワードの入力が出る', await waitText(() => winText(sshWin), 'password:'), (await winText(sshWin)).split('\n').filter(Boolean).slice(0, 3).join(' | '));
 await typeIn(`[data-win="${sshWin}"]`, 'drag\n');
-await waitText(() => winText(sshWin), 'asuta@');
+// ログインし終えてプロンプトが出るまで待つ。前のプロンプトにも asuta@ があるので、password: のあとを見る
+await waitText(async () => { const t = await winText(sshWin); return t.slice(t.lastIndexOf('password:')); }, ':~$');
 await page.keyboard.type('echo INWIN-$((3+4))\n');
-ok('ウィンドウの中の ssh で打てる', await waitText(() => winText(sshWin), 'INWIN-7'));
+ok('ウィンドウの中の ssh で打てる', await waitText(() => winText(sshWin), 'INWIN-7'), (await winText(sshWin)).split('\n').filter(Boolean).slice(-4).join(' | '));
 await page.screenshot({ path: `${OUT}/desktop-ssh.png` });
 
 // ターミナルには同じフォルダで新しいシェルが開いている

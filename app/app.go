@@ -33,6 +33,7 @@ type App struct {
 type core struct {
 	ctx   context.Context
 	saved *store.Servers
+	vpns  *store.VPNs
 	phone *phone.Server
 	tray  *tray        // 通知領域に置かないときは nil
 	agent *http.Server // AI エージェントの窓口。開けなかったときは nil
@@ -42,6 +43,7 @@ type core struct {
 	servers map[string]*conn
 	shells  map[string]*openShell
 	fs      *fileState
+	tunnels tunnels
 }
 
 // openShell は開いているシェル1つと、それを開いた端末。ほかの端末から続きを操作するときに一覧に出す
@@ -56,6 +58,7 @@ type conn struct {
 	req    ConnectRequest
 	server *remote.Server
 	info   *remote.Info
+	vpn    string // 通している VPN の名前。VPN なしなら空
 	// つなぎ直しは PC とスマホの両方から来るので、1つずつにする
 	redial sync.Mutex
 	hist   *store.History
@@ -64,8 +67,10 @@ type conn struct {
 func NewApp() *App {
 	return &App{core: &core{
 		saved:   store.NewServers(configDir()),
+		vpns:    store.NewVPNs(configDir()),
 		servers: map[string]*conn{},
 		shells:  map[string]*openShell{},
+		tunnels: tunnels{m: map[string]*tunnel{}},
 	}}
 }
 
@@ -82,10 +87,11 @@ func (a *App) shutdown(ctx context.Context) {
 	a.phone.Stop()
 	a.closeFiles()
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	for _, c := range a.servers {
 		c.server.Close()
 	}
+	a.mu.Unlock()
+	a.closeTunnels()
 }
 
 func (a *App) newID(prefix string) string {
@@ -110,6 +116,7 @@ type ConnectRequest struct {
 	Auth     string `json:"auth"` // "pass" か "key"
 	Password string `json:"password"`
 	KeyFile  string `json:"keyFile"`
+	VPN      string `json:"vpn"` // 通す VPN の番号。VPN なしなら空
 	// 利用者が画面で確かめたサーバーの鍵の指紋。未登録の鍵を登録するときに渡す
 	Trust string `json:"trust"`
 }
@@ -137,8 +144,15 @@ func (a *App) dial(req ConnectRequest) (*remote.Server, ConnectResult) {
 	if req.Auth == "key" {
 		keyFile = req.KeyFile
 	}
-	s, err := remote.Dial(remote.Config{Host: req.Host, Port: req.Port, User: req.User, Password: req.Password, KeyFile: keyFile},
-		filepath.Join(configDir(), "known_hosts"), req.Trust)
+	cfg := remote.Config{Host: req.Host, Port: req.Port, User: req.User, Password: req.Password, KeyFile: keyFile}
+	if req.VPN != "" {
+		t, err := a.useTunnel(req.VPN, req.Host)
+		if err != nil {
+			return nil, ConnectResult{Error: "VPN: " + err.Error()}
+		}
+		cfg.Dial = t.DialContext
+	}
+	s, err := remote.Dial(cfg, filepath.Join(configDir(), "known_hosts"), req.Trust)
 	if err != nil {
 		var he *remote.HostKeyError
 		if errors.As(err, &he) {
@@ -189,11 +203,12 @@ type ServerInfo struct {
 	Host string       `json:"host"`
 	Home string       `json:"home"`
 	Info *remote.Info `json:"info"`
+	VPN  string       `json:"vpn"` // 通している VPN の名前
 }
 
 func serverInfo(id string, c *conn) ServerInfo {
 	home, _ := c.server.Home()
-	return ServerInfo{ID: id, Name: c.req.Name, User: c.req.User, Host: c.req.Host, Home: home, Info: c.info}
+	return ServerInfo{ID: id, Name: c.req.Name, User: c.req.User, Host: c.req.Host, Home: home, Info: c.info, VPN: c.vpn}
 }
 
 // Servers はつないでいるサーバーを、つないだ順に返す
@@ -221,16 +236,22 @@ func (a *App) Connect(req ConnectRequest) ConnectResult {
 	if s == nil {
 		return r
 	}
+	c := &conn{req: req, server: s}
+	if req.VPN != "" {
+		a.holdTunnel(req.VPN)
+		if v, err := a.vpns.Get(req.VPN); err == nil {
+			c.vpn = v.Name
+		}
+	}
 	a.mu.Lock()
 	id := a.newID("s")
-	c := &conn{req: req, server: s}
 	a.servers[id] = c
 	a.mu.Unlock()
 	go a.watch(id, s)
 	a.startMetrics(id, c, s)
 	// ほかの端末の画面にもタブを足す。開いた端末は、接続の手順を見せてから自分で足す
 	a.emitOthers("server:opened", serverInfo(id, c))
-	if _, err := a.saved.Put(store.Server{Name: req.Name, Host: req.Host, Port: req.Port, User: req.User, Auth: req.Auth, KeyFile: req.KeyFile}); err != nil {
+	if _, err := a.saved.Put(store.Server{Name: req.Name, Host: req.Host, Port: req.Port, User: req.User, Auth: req.Auth, KeyFile: req.KeyFile, VPN: req.VPN}); err != nil {
 		runtime.LogWarningf(a.ctx, "保存済みのサーバーに書けません: %v", err)
 	}
 	r.ID = id
@@ -329,6 +350,9 @@ func (a *App) Disconnect(id string) {
 	a.mu.Unlock()
 	if c != nil {
 		c.server.Close()
+		if c.req.VPN != "" {
+			a.dropTunnel(c.req.VPN)
+		}
 		a.emitOthers("server:removed", id)
 	}
 }

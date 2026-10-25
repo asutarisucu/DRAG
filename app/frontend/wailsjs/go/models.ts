@@ -77,6 +77,7 @@ export namespace main {
 	    auth: string;
 	    password: string;
 	    keyFile: string;
+	    vpn: string;
 	    trust: string;
 	
 	    static createFrom(source: any = {}) {
@@ -92,6 +93,7 @@ export namespace main {
 	        this.auth = source["auth"];
 	        this.password = source["password"];
 	        this.keyFile = source["keyFile"];
+	        this.vpn = source["vpn"];
 	        this.trust = source["trust"];
 	    }
 	}
@@ -261,6 +263,7 @@ export namespace main {
 	    host: string;
 	    home: string;
 	    info?: remote.Info;
+	    vpn: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ServerInfo(source);
@@ -274,6 +277,7 @@ export namespace main {
 	        this.host = source["host"];
 	        this.home = source["home"];
 	        this.info = this.convertValues(source["info"], remote.Info);
+	        this.vpn = source["vpn"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -312,6 +316,66 @@ export namespace main {
 	        this.fg = source["fg"];
 	        this.cols = source["cols"];
 	        this.rows = source["rows"];
+	    }
+	}
+	export class VPNInfo {
+	    id: string;
+	    name: string;
+	    type: string;
+	    summary: vpn.Summary;
+	    servers: string[];
+	    inUse: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new VPNInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.summary = this.convertValues(source["summary"], vpn.Summary);
+	        this.servers = source["servers"];
+	        this.inUse = source["inUse"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VPNInput {
+	    name: string;
+	    type: string;
+	    config: string;
+	    user: string;
+	    password: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VPNInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.config = source["config"];
+	        this.user = source["user"];
+	        this.password = source["password"];
 	    }
 	}
 
@@ -977,6 +1041,7 @@ export namespace store {
 	    user: string;
 	    auth: string;
 	    keyFile: string;
+	    vpn?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Server(source);
@@ -991,6 +1056,28 @@ export namespace store {
 	        this.user = source["user"];
 	        this.auth = source["auth"];
 	        this.keyFile = source["keyFile"];
+	        this.vpn = source["vpn"];
+	    }
+	}
+
+}
+
+export namespace vpn {
+	
+	export class Summary {
+	    target: string;
+	    address: string;
+	    routes: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Summary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target = source["target"];
+	        this.address = source["address"];
+	        this.routes = source["routes"];
 	    }
 	}
 

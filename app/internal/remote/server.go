@@ -3,6 +3,7 @@
 package remote
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -24,6 +25,8 @@ type Config struct {
 	User     string
 	Password string // パスワード。鍵ファイルを使うときは鍵のパスフレーズ
 	KeyFile  string // 空ならパスワードで入る
+	// Dial は、VPN を通すときの TCP のつなぎ方。nil なら PC から直接つなぐ
+	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 // HostKeyError は、サーバーの鍵が known_hosts に無いか、登録したものと違うときに返す
@@ -166,7 +169,7 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 		return nil, err
 	}
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
-	sc, err := ssh.Dial("tcp", addr, &ssh.ClientConfig{
+	sc, err := dialSSH(cfg, addr, &ssh.ClientConfig{
 		User:            cfg.User,
 		Auth:            auth,
 		HostKeyCallback: hk,
@@ -189,6 +192,25 @@ func Dial(cfg Config, knownHostsPath, trust string) (*Server, error) {
 	// 見張れなくても、ターミナルとファイルは使える
 	s.startMonitor()
 	return s, nil
+}
+
+func dialSSH(cfg Config, addr string, sc *ssh.ClientConfig) (*ssh.Client, error) {
+	if cfg.Dial == nil {
+		return ssh.Dial("tcp", addr, sc)
+	}
+	// ssh.Dial と同じく、Timeout は TCP でつなぐまでにかける
+	ctx, cancel := context.WithTimeout(context.Background(), sc.Timeout)
+	defer cancel()
+	nc, err := cfg.Dial(ctx, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(nc, addr, sc)
+	if err != nil {
+		nc.Close()
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
 }
 
 // Wait は接続が切れるまで待つ。

@@ -22,6 +22,7 @@ import (
 // phoneMethods は、スマホの画面から呼べるメソッド。PC のファイルや窓を使うもの、端末の管理は入れない
 var phoneMethods = map[string]bool{
 	"Connect": true, "Reconnect": true, "Probe": true, "SavedServers": true, "Servers": true,
+	"VPNs": true, "CheckVPN": true, "AddVPN": true, "ConnectVPN": true,
 	"ListDir": true, "NewEntry": true, "RenameEntry": true, "PasteEntry": true, "TrashEntry": true, "RestoreEntry": true, "Stat": true,
 	"OpenShell": true, "ShellReplay": true, "ShellCwd": true, "ShellInput": true, "ShellResize": true, "CloseShell": true, "OtherShells": true,
 	"Sessions": true, "EnableSudo": true, "DisableSudo": true,

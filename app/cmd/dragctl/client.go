@@ -97,6 +97,7 @@ type savedServer struct {
 	User    string `json:"user"`
 	Auth    string `json:"auth"`
 	KeyFile string `json:"keyFile"`
+	VPN     string `json:"vpn"`
 }
 
 // server は、ID (s1 など)・名前・user@host・ホストのどれかから、つないでいるサーバーの ID を探す
@@ -156,7 +157,7 @@ func (c *client) connect(name, password, trust string) (any, error) {
 		} `json:"hostKey"`
 	}
 	req := map[string]any{"name": hit.Name, "host": hit.Host, "port": hit.Port, "user": hit.User, "auth": hit.Auth,
-		"password": password, "keyFile": hit.KeyFile, "trust": trust}
+		"password": password, "keyFile": hit.KeyFile, "vpn": hit.VPN, "trust": trust}
 	if err := c.call(&r, "Connect", req); err != nil {
 		return nil, err
 	}

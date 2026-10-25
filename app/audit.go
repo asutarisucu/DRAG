@@ -33,6 +33,10 @@ func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
 		var req ConnectRequest
 		json.Unmarshal(raw[0], &req)
 		return []string{fmt.Sprintf("接続 %s@%s", req.User, req.Host)}
+	case "AddVPN":
+		var in VPNInput
+		json.Unmarshal(raw[0], &in)
+		return []string{fmt.Sprintf("VPN を追加 %s", in.Name)}
 	case "ServiceAction":
 		return []string{fmt.Sprintf("サービス %s %s", arg(2), arg(1))}
 	case "DockerAction":

@@ -1,0 +1,71 @@
+// Package vpn は、DRAG の中だけで VPN を張る。
+// Windows に仮想のアダプターや経路を足さず、アプリの中のネットワークスタック (gVisor) を通して
+// サーバーへの接続だけを VPN に流す。PC のほかのソフトの通信は変わらない
+package vpn
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/netip"
+
+	"github.com/asutarisucu/DRAG/app/internal/store"
+)
+
+// Tunnel は張った VPN 1つ
+type Tunnel interface {
+	// DialContext は VPN を通して TCP でつなぐ。host が名前なら、VPN の DNS か PC の DNS で引く
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
+	Summary() Summary
+	Close() error
+}
+
+// Summary は設定から読んだ要点。画面で VPN の説明に使う
+type Summary struct {
+	Target  string `json:"target"`  // つなぎ先
+	Address string `json:"address"` // VPN の中でのこの PC のアドレス。張るまでわからない種類では空
+	Routes  string `json:"routes"`  // VPN に通す範囲
+}
+
+// Check は、保存する前に設定を読めるか確かめ、要点を返す
+func Check(v store.VPN) (Summary, error) {
+	switch v.Type {
+	case "wg":
+		c, err := parseWireGuard(v.Config)
+		if err != nil {
+			return Summary{}, err
+		}
+		return c.summary(), nil
+	}
+	return Summary{}, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
+}
+
+// Open は VPN を張る。target はつなぐサーバーのアドレスで、張れたかを確かめるのに使う
+func Open(ctx context.Context, v store.VPN, target string) (Tunnel, error) {
+	switch v.Type {
+	case "wg":
+		return openWireGuard(ctx, v, target)
+	}
+	return nil, fmt.Errorf("この種類の VPN にはまだ対応していません: %s", v.Type)
+}
+
+// resolve は、VPN の DNS があればそれで、なければ PC の DNS で名前を引く
+func resolve(ctx context.Context, host string, vpnLookup func(context.Context, string) ([]string, error)) (netip.Addr, error) {
+	if ip, err := netip.ParseAddr(host); err == nil {
+		return ip, nil
+	}
+	lookup := net.DefaultResolver.LookupHost
+	if vpnLookup != nil {
+		lookup = vpnLookup
+	}
+	addrs, err := lookup(ctx, host)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	for _, a := range addrs {
+		if ip, err := netip.ParseAddr(a); err == nil {
+			return ip, nil
+		}
+	}
+	return netip.Addr{}, fmt.Errorf("%s のアドレスが見つかりません", host)
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { PhoneState, SetPhoneLAN, SetPhonePublic } from '../../wailsjs/go/main/App'
+import { DeleteVPN, PhoneState, SetPhoneLAN, SetPhonePublic, VPNs } from '../../wailsjs/go/main/App'
 import type { main } from '../../wailsjs/go/models'
 import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
@@ -100,7 +100,34 @@ function AutoCmds({ list, onChange }: { list: string[]; onChange: (l: string[]) 
   )
 }
 
-type Page = 'look' | 'term' | 'ops' | 'phone'
+type Page = 'look' | 'term' | 'ops' | 'phone' | 'vpn'
+
+// 保存した VPN。足すのはサーバーに接続するときで、ここでは見て消す
+function VpnPage() {
+  const { t } = useTranslation()
+  const [list, setList] = useState<main.VPNInfo[] | null>(null)
+  const [error, setError] = useState('')
+  const load = () => VPNs().then(l => setList(l ?? []))
+  useEffect(() => { load() }, [])
+  if (!list) return null
+  if (list.length === 0) return <div className="py-[13px] text-[12px] text-muted">{t('vpn.empty')}</div>
+  return (
+    <>
+      {error && <div className="py-2 text-[12px] text-err">{error}</div>}
+      {list.map(v => (
+        <Row key={v.id} label={v.name} desc={[`${t(`vpn.types.${v.type}`)} · ${v.summary.target}`, v.servers.length > 0 && t('vpn.usedBy', { names: v.servers.join(', ') })].filter(Boolean).join(' · ')}>
+          <button
+            className="h-7 flex-none rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover disabled:opacity-50"
+            disabled={v.inUse}
+            title={v.inUse ? t('vpn.inUse') : undefined}
+            onClick={() => DeleteVPN(v.id).then(() => { setError(''); load() }, e => setError(String(e)))}
+            data-vpn-remove={v.name}
+          >{t('vpn.remove')}</button>
+        </Row>
+      ))}
+    </>
+  )
+}
 
 // スマホの待ち受け。PC の設定フォルダに置き、Go の側で切り替える
 function PhonePage() {
@@ -160,8 +187,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const s = useSettings()
   const mobile = useMobile()
   const [page, setPage] = useState<Page>('look')
-  // スマホの待ち受けは PC アプリの設定なので、スマホの画面には出さない
-  const pages: [Page, IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear'], ...(isRemote ? [] : [['phone', 'phone'] as [Page, IconName]])]
+  // スマホの待ち受けと保存した VPN は PC アプリの設定なので、スマホの画面には出さない
+  const pages: [Page, IconName][] = [['look', 'window'], ['term', 'terminal'], ['ops', 'gear'], ...(isRemote ? [] : [['phone', 'phone'], ['vpn', 'shield']] as [Page, IconName][])]
 
   return (
     <Modal title={t('settings.title')} width={780} height={mobile ? 'calc(100dvh - 56px)' : undefined} onClose={onClose}>
@@ -229,6 +256,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </Row>
           </>}
           {page === 'phone' && <PhonePage />}
+          {page === 'vpn' && <VpnPage />}
           {page === 'term' && <>
             <Row label={t('settings.termScheme')}>
               <Seg value={s.term} options={[['dark', t('settings.dark')], ['light', t('settings.light')], ['solarized', 'Solarized']]} onPick={term => setSettings({ term })} />

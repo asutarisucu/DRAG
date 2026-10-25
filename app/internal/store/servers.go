@@ -21,6 +21,7 @@ type Server struct {
 	User    string `json:"user"`
 	Auth    string `json:"auth"` // "pass" か "key"
 	KeyFile string `json:"keyFile"`
+	VPN     string `json:"vpn,omitempty"` // 通す VPN の番号 (vpns.dat)。VPN なしなら空
 }
 
 // Servers は servers.json に保存済みのサーバーを持つ

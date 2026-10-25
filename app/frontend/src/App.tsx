@@ -164,10 +164,11 @@ export default function App() {
               key={s.id}
               className={`no-drag group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
               onClick={() => setActive(s.id)}
-              title={`${s.user}@${s.host}`}
+              title={`${s.user}@${s.host}` + (s.vpn ? ` · ${t('vpn.via', { name: s.vpn })}` : '')}
             >
               <span className={`h-2 w-2 flex-none rounded-full ${s.conn === 'ok' ? 'bg-ok shadow-[0_0_0_3px_rgba(63,207,142,.16)]' : s.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
               <span className="truncate text-[12.5px] font-semibold">{s.name}</span>
+              {!mobile && s.vpn && <span className="flex flex-none text-muted" data-tab-vpn><Icon name="shield" size={13} /></span>}
               {!mobile && <span className="font-mono text-[11px] text-faint">{s.host}</span>}
               {!mobile && (
                 <button
@@ -228,6 +229,11 @@ export default function App() {
                 <span className={`h-2 w-2 flex-none rounded-full ${cur.conn === 'ok' ? 'bg-ok' : cur.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
                 <span className="font-mono">{cur.user}@{cur.host}</span>
                 {cur.conn !== 'ok' && <span className="text-err">· {t('conn.lostShort')}</span>}
+              </span>
+            )}
+            {cur?.vpn && (
+              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap" title={t('vpn.via', { name: cur.vpn })} data-sb="vpn">
+                <Icon name="shield" size={13} />{t('vpn.status', { name: cur.vpn })}
               </span>
             )}
             {cur && !isRemote && <PhoneCount onClick={openPair} />}
