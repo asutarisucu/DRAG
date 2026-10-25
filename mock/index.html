@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DRAG モック</title>
+<link rel="icon" type="image/png" href="img/icon-64.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app" data-mtab="desktop">
   <header id="titlebar">
-    <div class="brand">DRAG</div>
+    <img class="brand-icon" src="img/icon-64.png" alt="DRAG" draggable="false">
     <nav id="server-tabs" role="tablist"></nav>
     <button id="add-server" class="icon-btn" title="サーバーに接続" data-ic="plus"></button>
     <button id="sudo-btn" class="sudo-btn" data-ic="lock"><span class="sudo-label">sudo</span><span class="sudo-switch"></span></button>
@@ -20,8 +21,8 @@
   <div id="workspace">
     <section id="welcome" hidden>
       <div class="welcome-card">
-        <div class="brand welcome-brand">DRAG</div>
-        <div class="muted">DRAG Runs As GUI</div>
+        <img class="welcome-logo logo-dark" src="img/logo-dark.png" alt="DRAG Runs As GUI" draggable="false">
+        <img class="welcome-logo logo-light" src="img/logo-light.png" alt="DRAG Runs As GUI" draggable="false">
         <button id="welcome-connect" class="btn primary" data-ic="plus">サーバーに接続</button>
         <div class="welcome-saved-wrap">
           <span class="field-label">保存済み</span>

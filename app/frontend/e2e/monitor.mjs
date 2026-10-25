@@ -81,14 +81,15 @@ const row = p => win.locator('.dir-row').filter({ has: page.locator('span.font-m
 const paths = () => win.locator('.dir-row span.font-mono').allTextContents();
 await row('/usr').click();
 const nav = win.locator('[data-dir-nav]');
-ok('左クリックでフォルダの中を数える', await waitFor(async () => (await nav.count()) === 1 && (await row('/usr/lib').count()) === 1 && (await paths()).every(p => p.startsWith('/usr/')), 20000), (await paths()).join(' | '));
+// 中では、開いたフォルダからの相対パスで出す
+ok('左クリックでフォルダの中を相対パスで出す', await waitFor(async () => (await nav.count()) === 1 && (await row('lib').count()) === 1 && (await paths()).every(p => !p.startsWith('/') && !p.startsWith('~')), 20000), (await paths()).join(' | '));
 ok('開いたフォルダと戻り先を出す', (await nav.textContent()).includes('‹ ディスク全体') && (await nav.textContent()).includes('/usr'), await nav.textContent());
-await row('/usr/lib').click();
-ok('さらに中へ入れる', await waitFor(async () => (await paths()).length > 0 && (await paths()).every(p => p.startsWith('/usr/lib/')), 20000), (await paths()).join(' | '));
+await row('lib').click();
+ok('さらに中へ入れる', await waitFor(async () => (await nav.textContent()).includes('/usr/lib') && (await paths()).length > 0 && (await row('lib').count()) === 0 && (await paths()).every(p => !p.startsWith('/')), 20000), (await paths()).join(' | '));
 ok('戻り先は前に開いたフォルダ', (await nav.locator('button').textContent()).includes('‹ /usr'));
 await page.screenshot({ path: `${OUT}/monitor-disk-in.png` });
 await nav.locator('button').click();
-ok('戻る', await waitFor(async () => (await row('/usr/lib').count()) === 1 && (await nav.textContent()).includes('ディスク全体')));
+ok('戻る', await waitFor(async () => (await row('lib').count()) === 1 && (await nav.textContent()).includes('ディスク全体')));
 await nav.locator('button').click();
 ok('ディスク全体に戻る', await waitFor(async () => (await nav.count()) === 0 && (await row('/var').count()) === 1));
 await page.click('[data-sudo]');

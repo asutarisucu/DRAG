@@ -24,6 +24,9 @@ import { openTool } from './tools'
 import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
+import iconUrl from './assets/icon-64.png'
+import logoDark from './assets/logo-dark.png'
+import logoLight from './assets/logo-light.png'
 
 // ファイルの区画の最小の幅。見出しの「ファイル」と5つのボタンが1行に入る幅
 const SIDEBAR_MIN = 200
@@ -154,7 +157,7 @@ export default function App() {
         className={`app-bar flex min-w-0 items-center gap-2 border-b border-line bg-chrome select-none ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}
         onDoubleClick={e => { if (!isRemote && !mobile && !(e.target as HTMLElement).closest('button, .no-drag')) WindowToggleMaximise() }}
       >
-        <span className="brand pr-2 pl-1.5 text-[13px]">DRAG</span>
+        <img src={iconUrl} alt="DRAG" draggable={false} className="mr-1 ml-1 h-[22px] w-[22px] flex-none" />
         <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
           {servers.filter(s => !mobile || s.id === active).map(s => (
             <div
@@ -459,8 +462,9 @@ function Welcome({ onConnect, onSettings }: { onConnect: (preset?: store.Server)
         <Icon name="gear" size={21} />
       </button>
       <div className="grid w-[min(560px,100%)] justify-items-center gap-2.5 text-center">
-        <div className="brand pl-[.2em] text-[40px] tracking-[.2em]">DRAG</div>
-        <div className="text-muted">{t('brandSub')}</div>
+        {/* ロゴの字は紺色なので、暗いテーマでは字を明るくしたものを出す */}
+        <img src={logoDark} alt={t('brandSub')} draggable={false} className="logo-dark w-[min(360px,100%)]" />
+        <img src={logoLight} alt={t('brandSub')} draggable={false} className="logo-light w-[min(360px,100%)]" />
         <button className="btn-primary mt-[18px] mb-2 flex h-10 items-center gap-1.5 rounded-lg px-[22px] text-[14px]" onClick={() => onConnect()}>
           <Icon name="plus" />{t('connect.openDialog')}
         </button>

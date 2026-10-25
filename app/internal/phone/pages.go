@@ -1,6 +1,8 @@
 package phone
 
 import (
+	_ "embed"
+	"encoding/base64"
 	"html/template"
 	"net/http"
 	"strings"
@@ -25,6 +27,13 @@ var pageText = map[pageKind]map[string][2]string{
 	},
 }
 
+// ロゴは登録していない端末にも出すので、画面のファイルを読ませずにページに埋め込む
+//
+//go:embed logo.png
+var logoPNG []byte
+
+var logoURL = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(logoPNG))
+
 var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <html lang="{{.Lang}}">
 <head>
@@ -34,12 +43,12 @@ var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <style>
 body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: #0c0f13; color: #e6ebf2; font: 15px/1.7 system-ui, sans-serif; }
 main { width: min(420px, calc(100% - 48px)); }
-.brand { font-weight: 800; letter-spacing: .2em; color: #5b9dff; font-size: 13px; }
+.logo { display: block; width: 200px; height: auto; margin-bottom: 14px; }
 h1 { font-size: 19px; margin: 10px 0 8px; }
 p { color: #9aa6b8; margin: 0; }
 </style>
 </head>
-<body><main><div class="brand">DRAG</div><h1>{{.Title}}</h1><p>{{.Body}}</p></main></body>
+<body><main><img class="logo" src="{{.Logo}}" alt="DRAG Runs As GUI"><h1>{{.Title}}</h1><p>{{.Body}}</p></main></body>
 </html>
 `))
 
@@ -52,5 +61,8 @@ func page(w http.ResponseWriter, r *http.Request, status int, k pageKind) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	pageTmpl.Execute(w, struct{ Lang, Title, Body string }{lang, t[0], t[1]})
+	pageTmpl.Execute(w, struct {
+		Lang, Title, Body string
+		Logo              template.URL
+	}{lang, t[0], t[1], logoURL})
 }

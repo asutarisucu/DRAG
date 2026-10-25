@@ -196,6 +196,8 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
   const cur = big?.dir === dir ? big : null
   const dirs = cur?.dirs ?? null
   const tilde = (p: string) => p === home ? '~' : p.startsWith(home + '/') ? '~' + p.slice(home.length) : p
+  // フォルダの中では、開いたフォルダからの相対パスで出す。開いたフォルダのパスは上の行に出ている
+  const label = (p: string) => dir && p.startsWith(dir + '/') ? p.slice(dir.length + 1) : tilde(p)
   const maxDir = dirs?.[0]?.size || 1
   return <>
     <Section title={t('mon.mounts')}>
@@ -223,7 +225,7 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
       )}
       {dirs?.length === 0 && <div className="mon-sub">{t('mon.noDirs')}</div>}
       {dirs?.map(d => (
-        <button key={d.path} className="dir-row" title={t('mon.dirHint')} onClick={() => setOpened(o => [...o, d.path])} onContextMenu={e => { e.preventDefault(); revealInTree(serverId, d.path, true) }}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{tilde(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>
+        <button key={d.path} className="dir-row" title={t('mon.dirHint')} onClick={() => setOpened(o => [...o, d.path])} onContextMenu={e => { e.preventDefault(); revealInTree(serverId, d.path, true) }}><span className="f-dir"><Icon name="folder" size={14} /></span><span className="truncate font-mono">{label(d.path)}</span><Meter value={d.size / maxDir * 100} alt /><span className="num">{fmtSize(d.size)}</span></button>
       ))}
     </Section>
   </>

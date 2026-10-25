@@ -1915,7 +1915,8 @@ const MON_DETAIL = {
   },
   disk(srv, main) {
     const mounts = el('div'), io = el('div', { class: 'mon-sub' }), dirs = el('div');
-    // 左クリックでそのフォルダの中を数え、右クリックでツリーに表示する。opened は開いた順のフォルダ
+    // 左クリックでそのフォルダの中を数え、右クリックでツリーに表示する。中では開いたフォルダからの相対パスで出す。
+    // opened は開いた順のフォルダ
     const opened = [];
     const showDirs = () => {
       const base = opened.at(-1) || srv.root, list = [];
@@ -1934,7 +1935,7 @@ const MON_DETAIL = {
           class: 'dir-row', title: 'クリックで中のフォルダの大きさを出す · 右クリックでツリーに表示',
           onclick: () => { opened.push(x.node); showDirs(); },
           oncontextmenu: e => { e.preventDefault(); revealInTree(srv, x.node.path); },
-        }, ic('folder', 'f-dir'), el('span', { class: 'mono' }, tilde(srv, x.node.path)), meter(x.size / max * 100, 'alt'), el('span', { class: 'num' }, fmtSize(x.size)))),
+        }, ic('folder', 'f-dir'), el('span', { class: 'mono' }, opened.length ? x.node.path.slice(base.path.length + 1) : tilde(srv, x.node.path)), meter(x.size / max * 100, 'alt'), el('span', { class: 'num' }, fmtSize(x.size)))),
         ...(top.length ? [] : [el('div', { class: 'mon-sub' }, 'フォルダがありません')]));
     };
     showDirs();

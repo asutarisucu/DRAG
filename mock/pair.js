@@ -35,7 +35,10 @@ try {
 
 const pc = { name: 'DESKTOP-01', url: 'https://203.0.113.50' };
 const card = document.getElementById('card');
-const brand = () => el('div', { class: 'brand pair-brand' }, 'DRAG');
+const brand = () => [
+  el('img', { class: 'pair-brand logo-dark', src: 'img/logo-dark.png', alt: 'DRAG Runs As GUI' }),
+  el('img', { class: 'pair-brand logo-light', src: 'img/logo-light.png', alt: 'DRAG Runs As GUI' }),
+];
 
 function guessDevice() {
   const ua = navigator.userAgent;
@@ -53,7 +56,7 @@ const views = {
     tick();
     const iv = setInterval(() => { left--; if (left <= 0) { clearInterval(iv); show('expired'); } else tick(); }, 1000);
     return [
-      brand(),
+      ...brand(),
       el('div', { class: 'pair-title' }, 'この端末を登録します'),
       el('div', { class: 'pair-server' }, ic('pc'), el('div', {}, el('div', {}, pc.name), el('div', { class: 'mono' }, pc.url))),
       el('label', { class: 'field' }, el('span', { class: 'field-label' }, '端末の名前'), name),
@@ -78,7 +81,7 @@ const views = {
   },
   unregistered() {
     return [
-      brand(),
+      ...brand(),
       el('div', { class: 'pair-mark info' }, ic('lock')),
       el('div', { class: 'pair-title' }, 'この端末は登録されていません'),
       el('div', { class: 'pair-text' }, 'PC アプリの「スマホを登録」に出る QR コードを、この端末で読み取ってください。'),

@@ -159,7 +159,7 @@ await mon.locator('.mon-head button:has-text("ディスク")').click();
 const homeRow = mon.locator('.dir-row').filter({ has: page.locator('span.font-mono', { hasText: /^~$/ }) });
 await waitFor(async () => (await homeRow.count()) === 1, 20000);
 await homeRow.click();
-const dirRow = mon.locator('.dir-row:has-text("~/tree-e2e/src")').first();
+const dirRow = mon.locator('.dir-row').filter({ has: page.locator('span.font-mono', { hasText: /^tree-e2e\/src$/ }) });
 ok('大きいフォルダに出る', await waitFor(async () => (await dirRow.count()) === 1, 20000));
 await dirRow.click({ button: 'right' });
 ok('ファイルの一覧に切り替える', await waitFor(async () => (await page.locator('aside button[title="すべて閉じる"]').isVisible())));

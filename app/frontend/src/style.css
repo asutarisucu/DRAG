@@ -146,11 +146,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .app-bar { --wails-draggable: drag; }
 .app-bar button, .app-bar .no-drag { --wails-draggable: no-drag; }
 
-.brand {
-  font-weight: 800; letter-spacing: .14em;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text; background-clip: text; color: transparent; user-select: none;
-}
+.logo-light, :root[data-theme="light"] .logo-dark { display: none; }
+:root[data-theme="light"] .logo-light { display: block; }
 
 .btn-primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent)); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, white), color-mix(in srgb, var(--accent) 88%, white)); }
