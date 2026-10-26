@@ -201,8 +201,14 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
   )
 }
 
-// 空のデスクトップでは、ファイルを窓の枠へドラッグする動きを繰り返して見せる
+// 空のデスクトップでは、ファイルを窓の枠へドラッグする動きを2回見せて、消す (動きは style.css)。
+// アプリを開いている間は、次に空になったデスクトップにはもう出さない
+let hintShown = false
+
 function EmptyHint() {
+  const [show] = useState(() => !hintShown)
+  useEffect(() => { hintShown = true }, [])
+  if (!show) return null
   return (
     <div className="empty-hint" aria-hidden="true">
       <span className="eh-frame" />
