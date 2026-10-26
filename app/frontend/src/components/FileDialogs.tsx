@@ -7,7 +7,7 @@ import { KIND_ICON, KIND_LABEL, type Kind } from '../fileKind'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 
-const btn = 'h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover'
+const btn = 'btn'
 
 export type ConflictAnswer = { choice: 'skip' | 'keep' | 'overwrite'; all: boolean }
 
@@ -28,7 +28,7 @@ export function ConflictDialog({ path, more, onAnswer }: { path: string; more: b
         <button className={btn} onClick={() => choose('skip')}>{t('upload.skip')}</button>
         <div className="flex-1" />
         <button className={btn} onClick={() => choose('keep')}>{t('upload.keep')}</button>
-        <button className="btn-primary h-8 rounded-lg px-3.5" onClick={() => choose('overwrite')} autoFocus>{t('upload.overwrite')}</button>
+        <button className="btn-primary" onClick={() => choose('overwrite')} autoFocus>{t('upload.overwrite')}</button>
       </div>
     </Modal>
   )
@@ -62,7 +62,7 @@ export function PropsDialog({ serverId, name, path, kind, props, onClose }: {
   ]
   return (
     <Modal title={t('props.title')} width={460} onClose={onClose}>
-      <div className="mb-3.5 flex items-center gap-2.5 text-[15px] font-semibold">
+      <div className="mb-3.5 flex items-center gap-2.5 text-[15px] font-medium text-strong">
         <Icon name={KIND_ICON[kind][0]} size={22} className={KIND_ICON[kind][1]} />
         <span className="break-all">{name || '/'}</span>
       </div>

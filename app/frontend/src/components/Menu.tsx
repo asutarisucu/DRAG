@@ -38,25 +38,27 @@ export function Menu({ x, y, items, title, onClose }: { x: number; y: number; it
 
   return <>
     {/* スマホでは後ろを暗くする。押すとメニューの外を押したことになって閉じる */}
-    {mobile && <div className="anim-fade fixed inset-0 z-[69] bg-black/45" />}
+    {mobile && <div className="anim-fade fixed inset-0 z-[69] bg-[var(--overlay)] backdrop-blur-[3px]" />}
     <div
       ref={ref}
       role="menu"
       className={mobile
-        ? 'anim-sheet fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-[70] max-h-[80dvh] overflow-y-auto rounded-2xl border border-line-strong bg-raised p-2 shadow-win'
-        : 'anim-pop fixed z-[70] min-w-[210px] rounded-[10px] border border-line-strong bg-raised p-[5px] shadow-win'}
+        ? 'menu-card anim-sheet fixed inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom))] z-[70] max-h-[80dvh] overflow-y-auto rounded-[20px] p-2'
+        : 'menu-card anim-pop fixed z-[70] min-w-[220px] rounded-[14px] p-1.5'}
       style={mobile ? undefined : pos}
       onPointerDown={() => { pressed.current = true }}
     >
       {mobile && title && <div className="truncate px-3 pt-2 pb-2.5 font-mono text-[13px] text-muted">{title}</div>}
+      {/* 項目は上から順に出す。--i はその順番 */}
       {list.map((it, i) => 'sep' in it
-        ? <div key={i} className="mx-1.5 my-1 h-px bg-line" />
+        ? <div key={i} className="menu-sep mx-1.5 my-1 h-px" style={{ ['--i' as string]: Math.min(i, 14) }} />
         : (
           <button
             key={i}
             role="menuitem"
             disabled={it.disabled}
-            className={`flex w-full items-center gap-2.5 rounded-md px-2.5 text-left enabled:hover:bg-accent-soft disabled:opacity-40 ${mobile ? 'h-12 text-[15px]' : 'h-8 text-[13px]'} ${it.danger ? 'text-err' : ''}`}
+            style={{ ['--i' as string]: Math.min(i, 14) }}
+            className={`menu-item flex w-full items-center gap-2.5 px-2.5 text-left transition-colors disabled:opacity-40 ${mobile ? 'h-12 rounded-xl text-[15px]' : 'h-8 rounded-lg text-[13px]'} ${it.danger ? 'text-err enabled:hover:bg-[color-mix(in_srgb,var(--err)_14%,transparent)]' : 'enabled:hover:bg-hover-strong enabled:hover:text-strong'}`}
             onClick={() => {
               if (!pressed.current) return
               onClose()

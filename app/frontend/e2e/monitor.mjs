@@ -48,7 +48,8 @@ ok('ネットワークの下りと上りが出る', /B\/s.*B\/s/.test(await text
 await page.click('[data-sb="cpu"]');
 const win = page.locator('[data-win]:has([data-mon])');
 await win.waitFor();
-ok('CPU の詳細で開く', await win.locator('[data-mon="cpu"]').count() === 1 && (await win.textContent()).includes('リソース監視 · CPU') && (await win.boundingBox()).height >= 450);
+// 開くときは縮めた形から広げるので、窓の高さは動きに左右されない offsetHeight で見る
+ok('CPU の詳細で開く', await win.locator('[data-mon="cpu"]').count() === 1 && (await win.textContent()).includes('リソース監視 · CPU') && (await win.evaluate(e => e.offsetHeight)) >= 450);
 ok('プロセスの一覧が出る', await waitFor(async () => (await win.locator('[data-procs] .prow:not(.phead)').count()) > 0 && (await win.locator('[data-procs]').textContent()).includes('sshd')));
 ok('コアごとの使用率とロードアベレージが出る', await win.locator('.core').count() > 0 && (await win.textContent()).includes('ロードアベレージ'));
 await page.screenshot({ path: `${OUT}/monitor-cpu.png` });

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DRAG モック v2</title>
+<link rel="icon" type="image/png" href="../img/icon-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>
+  // 元のモック (../index.html) と設定を分けて保存し、はじめはダークテーマとロゴの青にする。
+  // 紫は参考にした AuthKit のアクセントの色
+  window.MOCK_THEME = {
+    storageKey: 'drag-mock-v2.1-settings',
+    defaults: { theme: 'dark', accent: '#0a6cff' },
+    accents: [['#0a6cff', '青'], ['#027dea', '水色'], ['#663af3', '紫'], ['#269684', '緑'], ['#e46d4c', '橙'], ['#ec4f86', '桃']],
+  };
+</script>
+</head>
+<body>
+<div id="app" data-mtab="desktop">
+  <header id="titlebar">
+    <img class="brand-icon" src="img/icon-256.png" alt="DRAG" draggable="false">
+    <nav id="server-tabs" role="tablist"></nav>
+    <button id="add-server" class="icon-btn" title="サーバーに接続" data-ic="plus"></button>
+    <button id="sudo-btn" class="sudo-btn" data-ic="lock"><span class="sudo-label">sudo</span><span class="sudo-switch"></span></button>
+    <button id="pair-btn" class="btn small ghost" data-ic="qr"><span class="pair-label">スマホを登録</span></button>
+    <button id="m-settings" class="icon-btn m-only" title="設定" data-ic="gear"></button>
+  </header>
+
+  <div id="workspace">
+    <section id="welcome" hidden>
+      <div class="welcome-card">
+        <div class="welcome-brand">
+          <div class="welcome-mark">
+            <img src="img/icon-256.png" alt="" draggable="false">
+            <svg class="welcome-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8.2-6.1 1.3 3.6 6.6-2.7 1.5-3.6-6.6L5.6 18z"/></svg>
+          </div>
+          <img class="welcome-word logo-dark" src="img/wordmark-dark.png" alt="DRAG Runs As GUI" draggable="false">
+          <img class="welcome-word logo-light" src="img/wordmark-light.png" alt="DRAG Runs As GUI" draggable="false">
+        </div>
+        <button id="welcome-connect" class="btn primary" data-ic="plus">サーバーに接続</button>
+        <div class="welcome-saved-wrap">
+          <span class="field-label">保存済み</span>
+          <div id="welcome-saved" class="saved"></div>
+        </div>
+      </div>
+    </section>
+    <div id="conn-banner" hidden></div>
+    <nav id="activitybar">
+      <button class="act-btn active" data-view="files" title="ファイル" data-ic="files"></button>
+      <button class="act-btn" data-view="sessions" title="セッション" data-ic="layers"></button>
+      <div class="grow"></div>
+      <button class="act-btn" id="btn-settings" title="設定" data-ic="gear"></button>
+    </nav>
+
+    <aside id="sidebar">
+      <div class="m-seg">
+        <button data-view="files" class="active">ファイル</button>
+        <button data-view="sessions">セッション</button>
+      </div>
+      <section class="view" id="view-files">
+        <div class="view-head">
+          <span>ファイル</span>
+          <div class="grow"></div>
+          <button class="icon-btn" id="btn-newfile" title="新しいファイル" data-ic="filePlus"></button>
+          <button class="icon-btn" id="btn-newfolder" title="新しいフォルダー" data-ic="folderPlus"></button>
+          <button class="icon-btn" id="btn-upload" title="アップロード" data-ic="upload"></button>
+          <button class="icon-btn" id="btn-collapse" title="すべて閉じる" data-ic="collapse"></button>
+          <button class="icon-btn" id="btn-trash" title="ゴミ箱" data-ic="trash"></button>
+        </div>
+        <div id="tree" tabindex="0"></div>
+        <div id="tree-drop" hidden></div>
+        <input type="file" id="upload-input" multiple hidden>
+      </section>
+      <section class="view" id="view-sessions" hidden>
+        <div class="view-head"><span>セッション</span></div>
+        <div id="session-list"></div>
+      </section>
+    </aside>
+
+    <div id="sidebar-resizer" class="resizer v"></div>
+
+    <main id="main">
+      <section id="desktop">
+        <div id="windows">
+          <div id="desktop-empty" hidden>
+            <div class="empty-hint pc-only" aria-hidden="true">
+              <span class="eh-frame"></span>
+              <span class="eh-file" data-ic="log">latest.log</span>
+              <svg class="eh-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.1 1.3 3.6 6.6-2.7 1.5-3.6-6.6L5.6 18z"/></svg>
+            </div>
+            <span class="pc-only">ファイルやセッションをここへドラッグ</span>
+            <span class="m-only">ファイルの … から開けます</span>
+          </div>
+          <div id="snap-preview" hidden></div>
+        </div>
+        <footer id="taskbar">
+          <div id="launcher"></div>
+          <span class="task-sep"></span>
+          <div id="task-items"></div>
+          <button class="icon-btn pc-only" id="btn-tile" title="並べる" data-ic="grid"></button>
+        </footer>
+      </section>
+
+      <div id="panel-resizer" class="resizer h"></div>
+
+      <section id="terminal-panel">
+        <div class="panel-head">
+          <span class="panel-title">ターミナル</span>
+          <div id="fg-chip" draggable="true" hidden></div>
+          <div class="grow"></div>
+          <button class="icon-btn" id="btn-clear" title="クリア" data-ic="eraser"></button>
+        </div>
+        <div id="terminal-host"></div>
+        <div id="extra-keys"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer id="statusbar"></footer>
+
+  <nav id="mobile-nav">
+    <button data-mtab="files" data-ic="files"><span>ファイル</span></button>
+    <button data-mtab="desktop" data-ic="window"><span>デスクトップ</span></button>
+    <button data-mtab="terminal" data-ic="terminal"><span>ターミナル</span></button>
+  </nav>
+</div>
+
+<div id="toasts"></div>
+
+<button id="help-btn" title="モックで試せること">?</button>
+<aside id="help" hidden>
+  <h3>モックで試せること</h3>
+  <ul>
+    <li>ツリーのファイルをターミナルへドラッグ<span>パスを入力。フォルダなら cd</span></li>
+    <li>ツリーのファイルをデスクトップへドラッグ<span>種類に合ったウィンドウで開く</span></li>
+    <li><code>ssh db01</code> <code>screen -r mc</code> <code>docker exec -it web bash</code> <code>mysql</code><span>自動でウィンドウに移る</span></li>
+    <li><code>tail -f mc/logs/latest.log</code> <code>python3</code> <code>top</code><span>ターミナルの上のつまみをデスクトップへドラッグ</span></li>
+    <li>セッションのウィンドウをターミナルへドラッグ<span>ターミナルに戻る</span></li>
+    <li>ウィンドウを左右の端や上の端へドラッグ<span>半分の大きさや最大化</span></li>
+    <li>PC のファイルやフォルダを左のファイルツリーへドラッグ<span>落とした先のフォルダへアップロード。同じ名前があれば上書きするか聞く</span></li>
+    <li>リソース監視の項目をクリック<span>CPU やメモリを多く使っているプロセス、大きいフォルダ、接続中の相手を見る</span></li>
+    <li>下のタブをドラッグ<span>並べ替え。タブの × で閉じる</span></li>
+    <li>タスクバーの Docker<span>コンテナの起動・停止・シェル・ログ、イメージとボリューム。コンテナをデスクトップへドラッグするとシェルを開く</span></li>
+    <li>上の欄の sudo<span>ON にするとパスワードを聞く。何を入れても通る。ON の間はサービスの操作、ホームの外のファイル、root のファイルの変更ができる</span></li>
+    <li>ツリーの右クリック<span>切り取り・コピー・貼り付け・名前の変更・削除・パスのコピー・プロパティ。Ctrl+C / X / V、F2、Delete も使える。削除したものはゴミ箱から戻せる</span></li>
+    <li>ツリーの上の ↑<span>ホームの外へ移る (sudo モードのとき)</span></li>
+    <li>サービスの「ログ」<span>journalctl の出力を開く</span></li>
+    <li>圧縮ファイルの … から「解凍して閲覧」<span>中身の一覧を出し、テキストのファイルは開いて読める</span></li>
+    <li>一番下の欄の CPU・メモリ・ネットワーク<span>押すとリソース監視の詳細を開く</span></li>
+    <li>左の欄の一番下の歯車<span>テーマ、アクセントの色、ターミナルの配色、操作の設定</span></li>
+    <li>上の + から接続<span>router を選ぶと、systemd と Docker のないサーバーの表示になる</span></li>
+  </ul>
+  <div class="help-demos">
+    <button id="demo-drop" class="btn small">接続が切れたときの表示</button>
+    <a href="index.html?empty" target="_blank" rel="noopener">サーバーが1台もないときの表示</a>
+    <a href="phone.html" target="_blank" rel="noopener">スマホの画面で見る (QR を読んだ後の画面もここから)</a>
+    <a href="../index.html" target="_blank" rel="noopener">元のデザインと比べる</a>
+  </div>
+</aside>
+
+<script src="motion.js"></script>
+<script src="../app.js"></script>
+</body>
+</html>

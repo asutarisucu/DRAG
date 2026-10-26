@@ -420,14 +420,18 @@ const HELP_LINES = `このモックで使えるコマンド
 
 /* ---------- 状態 ---------- */
 
+// v2/ のデザインのモックは、HTML の MOCK_THEME で初期設定と色の候補と保存先を差し替える
+const MOCK_THEME = window.MOCK_THEME || {};
 const DEFAULT_SETTINGS = {
   lang: 'ja', theme: 'dark', accent: '#5b9dff', desk: 'gradient', term: 'dark', termSize: 13,
   sb: { uptime: true, cpu: true, mem: true, net: true },
   autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'],
   snap: true, followLog: true, uploadConflict: 'ask',
   phoneLan: true, phonePublic: true, publicPort: 443, cert: 'ip',
+  ...MOCK_THEME.defaults,
 };
-const ACCENTS = [['#5b9dff', '青'], ['#8b7bff', '紫'], ['#3fcf8e', '緑'], ['#f1a33c', '橙'], ['#ff6b9d', '桃'], ['#2fc3d9', '水色']];
+const ACCENTS = MOCK_THEME.accents || [['#5b9dff', '青'], ['#8b7bff', '紫'], ['#3fcf8e', '緑'], ['#f1a33c', '橙'], ['#ff6b9d', '桃'], ['#2fc3d9', '水色']];
+const SETTINGS_KEY = MOCK_THEME.storageKey || 'drag-mock-settings';
 
 const state = {
   list: [], active: null, view: 'files', settings: loadSettings(), sbRefs: null,
@@ -3698,12 +3702,12 @@ function openPair() {
 
 function loadSettings() {
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem('drag-mock-settings') || '{}'); } catch { /* 読めなければ初期設定で動かす */ }
+  try { saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); } catch { /* 読めなければ初期設定で動かす */ }
   const d = structuredClone(DEFAULT_SETTINGS);
   return { ...d, ...saved, sb: { ...d.sb, ...(saved.sb || {}) } };
 }
 function saveSettings() {
-  try { localStorage.setItem('drag-mock-settings', JSON.stringify(state.settings)); } catch { /* 保存できなくても画面は動かす */ }
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch { /* 保存できなくても画面は動かす */ }
 }
 function applySettings() {
   const s = state.settings, r = document.documentElement;

@@ -50,7 +50,7 @@ await page.click('nav button[title="ファイル"]');
 const label = async (types) => {
   const dt = await page.evaluateHandle(ts => { const d = new DataTransfer(); for (const t of ts) d.setData(t, '1'); return d; }, types);
   await page.dispatchEvent('[data-desktop]', 'dragover', { dataTransfer: dt });
-  const text = await page.locator('[data-desktop] .shadow-win.rounded-lg').last().textContent({ timeout: 500 }).catch(() => '');
+  const text = await page.locator('[data-desktop] .drop-tag').last().textContent({ timeout: 500 }).catch(() => '');
   await page.dispatchEvent('[data-desktop]', 'dragleave', { dataTransfer: dt });
   return text;
 };

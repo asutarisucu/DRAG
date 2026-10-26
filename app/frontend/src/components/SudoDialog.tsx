@@ -4,8 +4,8 @@ import { EnableSudo } from '../../wailsjs/go/main/App'
 import { setSudo, useSudoAsk } from '../sudo'
 import { Modal } from './Modal'
 
-const input = 'field h-8 w-full rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none'
-const btn = 'h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover'
+const input = 'field h-[34px] w-full px-2.5'
+const btn = 'btn'
 
 // sudo モードを ON にするときにパスワードを聞く。パスワードが違うと分かるまで sudo は2秒ほどかかる
 export function SudoDialog({ who }: { who: (serverId: string) => string }) {
@@ -37,14 +37,14 @@ function SudoForm({ who, serverId, reason, resolve }: { who: string; serverId: s
       <form onSubmit={submit}>
         {reason && <p className="mt-0 mb-3.5">{reason}</p>}
         <label>
-          <span className="mb-1.5 block text-[12px] text-muted">{t('sudo.password', { who })}</span>
+          <span className="mb-1.5 block text-[12px] font-medium text-soft">{t('sudo.password', { who })}</span>
           <input className={input} type="password" autoFocus value={pass} disabled={busy} onChange={e => setPass(e.target.value)} />
         </label>
         <div className={`mt-2 min-h-[18px] text-[12px] ${error ? 'text-err' : 'text-muted'}`}>{error || (busy ? t('sudo.checking') : '')}</div>
         <div className="mt-3.5 flex items-center gap-2">
           <div className="flex-1" />
           <button type="button" className={btn} disabled={busy} onClick={() => resolve(false)}>{t('connect.cancel')}</button>
-          <button type="submit" className="btn-primary h-8 rounded-lg px-3.5" disabled={busy}>{t('sudo.turnOn')}</button>
+          <button type="submit" className="btn-primary" disabled={busy}>{t('sudo.turnOn')}</button>
         </div>
       </form>
     </Modal>

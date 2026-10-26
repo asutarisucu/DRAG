@@ -8,7 +8,7 @@ export type TermSize = { cols: number; rows: number }
 
 // ターミナルの配色。背景と文字は style.css の --term-bg と --term-fg と同じ。ダークは 16 色を xterm.js のままにする
 const SCHEMES: Record<Settings['term'], ITheme> = {
-  dark: { background: '#0a0d11', foreground: '#cfd6e0' },
+  dark: { background: '#04050c', foreground: '#c7d3ea' },
   light: {
     background: '#fbfbfd', foreground: '#2b3240',
     black: '#2b3240', red: '#c8302b', green: '#18875a', yellow: '#946400', blue: '#1f6feb', magenta: '#8250df', cyan: '#17809f', white: '#8a93a3',

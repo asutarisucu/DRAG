@@ -1,7 +1,7 @@
 # DRAG の PC アプリ
 
 Wails v2 (Go) と React + TypeScript + Tailwind CSS で作っています。
-画面の形は `mock/` のモックに合わせます。
+画面の形と動きは `mock/` のモックに、見た目は `mock/v2/` のモックに合わせます。
 
 ## ビルド
 

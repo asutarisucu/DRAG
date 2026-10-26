@@ -20,9 +20,9 @@ export const VPN_TYPES: { type: string; file: boolean }[] = [
 
 export type VpnCheck = { sum: vpn.Summary | null; error: string }
 
-const input = 'field h-8 rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none'
-const label = 'mb-1.5 block text-[12px] text-muted'
-const smallBtn = 'flex h-7 flex-none items-center gap-1.5 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover'
+const input = 'field h-[34px] px-2.5'
+const label = 'mb-1.5 block text-[12px] font-medium text-soft'
+const smallBtn = 'btn sm'
 
 // pem は、読み込んだ証明書を PEM にする。DER (.cer) なら base64 にして包む
 async function pem(f: File): Promise<string> {
@@ -100,7 +100,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef, e
   const error = !typing && check.error && <span className="min-w-0 text-[12px] text-err" data-vpn-err>{check.error}</span>
 
   return (
-    <div className="col-span-3 grid gap-2.5 rounded-[10px] border border-line-strong bg-panel-2 p-3" data-vpn-new>
+    <div className="anim-pop col-span-3 grid gap-2.5 rounded-2xl bg-glass p-4 shadow-[var(--edge-glow)]" data-vpn-new>
       <div className="flex items-center gap-2">
         <select className={`${input} w-[170px] flex-none`} value={value.type} onChange={e => set('type', e.target.value)} aria-label={t('vpn.type')} disabled={!!edit}>
           {VPN_TYPES.map(x => <option key={x.type} value={x.type}>{t(`vpn.types.${x.type}`)}</option>)}
@@ -123,7 +123,7 @@ export function VpnForm({ value, onChange, check, onCheck, configRef, userRef, e
         ? <>
           <textarea
             ref={configRef}
-            className="field min-h-[120px] w-full resize-y rounded-lg border border-line-strong bg-field px-2.5 py-2 font-mono text-[12px] leading-normal whitespace-pre text-text outline-none"
+            className="field min-h-[120px] w-full resize-y px-2.5 py-2 font-mono text-[12px] leading-normal whitespace-pre"
             rows={7} wrap="off" spellCheck={false} value={value.config} onChange={e => set('config', e.target.value)}
             placeholder={t(value.type === 'ovpn' ? 'vpn.configPhOvpn' : 'vpn.configPh')} aria-label={t('vpn.config')}
           />
@@ -205,8 +205,8 @@ export function VpnEdit({ vpn, onClose, onSaved }: { vpn: main.VPNInfo; onClose:
           ? <VpnForm value={value} onChange={setValue} check={check} onCheck={setCheck} configRef={configRef} userRef={userRef} edit={{ tailnet: vpn.summary.target }} />
           : check.error && <span className="text-[12px] text-err">{check.error}</span>}
         <div className="flex items-center justify-end gap-2">
-          <button type="button" className="h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover" onClick={onClose}>{t('vpn.cancel')}</button>
-          <button type="submit" className="btn-primary h-8 rounded-lg px-3.5 disabled:opacity-50" disabled={!value}>{t('vpn.save')}</button>
+          <button type="button" className="btn" onClick={onClose}>{t('vpn.cancel')}</button>
+          <button type="submit" className="btn-primary" disabled={!value}>{t('vpn.save')}</button>
         </div>
       </form>
     </Modal>

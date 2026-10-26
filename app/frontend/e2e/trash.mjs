@@ -68,7 +68,7 @@ await page.screenshot({ path: `${OUT}/trash-window.png` });
 // 元に戻すと、ツリーで選ばれる
 await aRow.locator('button:has-text("元に戻す")').click();
 ok('元に戻す', await waitFor(async () => sh(`ls /home/asuta/${DIR}`).split('\n').includes('a.txt') && !(await names()).includes('a.txt')));
-ok('戻したものをツリーで選ぶ', await waitFor(async () => (await row('a.txt').getAttribute('class')).includes('bg-accent-soft')));
+ok('戻したものをツリーで選ぶ', await waitFor(async () => (await row('a.txt').getAttribute('class')).split(' ').includes('selected')));
 ok('戻したと出る', (await win.locator('[role=status]').textContent()).includes('a.txt を元に戻しました'));
 
 // 1つだけ完全に削除する

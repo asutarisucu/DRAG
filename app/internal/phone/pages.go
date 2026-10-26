@@ -41,11 +41,11 @@ var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DRAG</title>
 <style>
-body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: #0c0f13; color: #e6ebf2; font: 15px/1.7 system-ui, sans-serif; }
-main { width: min(420px, calc(100% - 48px)); }
+body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: radial-gradient(ellipse 90% 50% at 50% 0, rgba(124, 145, 182, .2), transparent 70%), #05060f; color: #c7d3ea; font: 15px/1.7 system-ui, sans-serif; }
+main { box-sizing: border-box; width: min(420px, calc(100% - 32px)); padding: 28px 26px; border-radius: 16px; background: rgba(186, 214, 247, .03); box-shadow: inset 0 0 0 1px rgba(186, 215, 247, .12), inset 0 1px 1px rgba(216, 236, 248, .2), inset 0 24px 48px rgba(168, 216, 245, .06), 0 24px 32px rgba(6, 6, 14, .7); }
 .logo { display: block; width: 200px; height: auto; margin-bottom: 14px; }
-h1 { font-size: 19px; margin: 10px 0 8px; }
-p { color: #9aa6b8; margin: 0; }
+h1 { color: #d8ecf8; font-size: 19px; font-weight: 600; margin: 10px 0 8px; }
+p { color: #9da7ba; margin: 0; }
 </style>
 </head>
 <body><main><img class="logo" src="{{.Logo}}" alt="DRAG Runs As GUI"><h1>{{.Title}}</h1><p>{{.Body}}</p></main></body>

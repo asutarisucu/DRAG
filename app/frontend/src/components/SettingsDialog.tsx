@@ -13,27 +13,27 @@ import { VpnEdit } from './VpnForm'
 
 function Seg<T extends string>({ value, options, onPick }: { value: T; options: [T, string][]; onPick: (v: T) => void }) {
   return (
-    <div className="flex gap-0.5 rounded-lg border border-line bg-field p-0.5">
+    <div className="seg">
       {options.map(([v, label]) => (
-        <button key={v} className={`h-6 rounded-md px-2.5 text-[12px] whitespace-nowrap ${v === value ? 'bg-raised text-text shadow-[0_0_0_1px_var(--border-strong)]' : 'text-muted hover:text-text'}`} onClick={() => onPick(v)}>{label}</button>
+        <button key={v} className={v === value ? 'active' : ''} onClick={() => onPick(v)}>{label}</button>
       ))}
     </div>
   )
 }
 
-// アクセントの色の候補。mock/app.js の ACCENTS と同じ
-const ACCENTS: [string, string][] = [['#5b9dff', 'blue'], ['#8b7bff', 'purple'], ['#3fcf8e', 'green'], ['#f1a33c', 'orange'], ['#ff6b9d', 'pink'], ['#2fc3d9', 'cyan']]
+// アクセントの色の候補。mock/v2/index.html の MOCK_THEME.accents と同じ。紫は参考にした AuthKit のアクセントの色
+const ACCENTS: [string, string][] = [['#0a6cff', 'blue'], ['#027dea', 'cyan'], ['#663af3', 'purple'], ['#269684', 'green'], ['#e46d4c', 'orange'], ['#ec4f86', 'pink']]
 
 function Accent({ value, onPick }: { value: string; onPick: (c: string) => void }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
       {ACCENTS.map(([c, name]) => (
         <button
           key={c}
           title={t(`settings.accents.${name}`)}
           data-accent={c}
-          className={`h-6 w-6 rounded-full border-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,.25)] ${value.toLowerCase() === c ? 'border-text' : 'border-transparent'}`}
+          className={`swatch ${value.toLowerCase() === c ? 'active' : ''}`}
           style={{ background: c }}
           onClick={() => onPick(c)}
         />
@@ -45,7 +45,7 @@ function Accent({ value, onPick }: { value: string; onPick: (c: string) => void 
 
 function Row({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-[18px] border-b border-line py-[13px]">
+    <div className="flex items-center justify-between gap-[18px] border-b border-line-soft py-3.5">
       <div>
         <div>{label}</div>
         {desc && <div className="mt-0.5 text-[11.5px] text-muted">{desc}</div>}
@@ -57,14 +57,7 @@ function Row({ label, desc, children }: { label: string; desc?: string; children
 
 function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <button
-      role="switch"
-      aria-checked={on}
-      className={`relative h-[22px] w-[38px] flex-none rounded-full transition-colors ${on ? 'bg-accent' : 'bg-line-strong'}`}
-      onClick={() => onChange(!on)}
-    >
-      <span className={`absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white transition-transform ${on ? 'translate-x-4' : ''}`} />
-    </button>
+    <button role="switch" aria-checked={on} className="switch" onClick={() => onChange(!on)} />
   )
 }
 
@@ -73,19 +66,19 @@ function AutoCmds({ list, onChange }: { list: string[]; onChange: (l: string[]) 
   const { t } = useTranslation()
   const [v, setV] = useState('')
   return (
-    <div className="border-b border-line pt-1 pb-3.5">
+    <div className="border-b border-line-soft pt-1 pb-3.5">
       <div className="mb-2 flex flex-wrap gap-1.5">
         {list.map(c => (
-          <span key={c} className="inline-flex h-6 items-center gap-1 rounded-full border border-line-strong bg-panel-2 pr-1 pl-2.5 font-mono text-[12px]">
+          <span key={c} className="anim-pop inline-flex h-7 items-center gap-1 rounded-full bg-hover pr-1 pl-3 font-mono text-[12px] text-strong shadow-[var(--edge)]">
             {c}
-            <button className="grid h-4 w-4 place-items-center rounded-full text-muted hover:text-text" title={t('settings.autoRemove')} onClick={() => onChange(list.filter(x => x !== c))}>
+            <button className="icon-btn h-5 w-5 hover:!text-err" title={t('settings.autoRemove')} onClick={() => onChange(list.filter(x => x !== c))}>
               <Icon name="x" size={11} />
             </button>
           </span>
         ))}
       </div>
       <input
-        className="field h-8 w-full rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+        className="field h-[34px] w-full px-2.5"
         placeholder={t('settings.autoAdd')}
         spellCheck={false}
         value={v}
@@ -124,7 +117,7 @@ function VpnPage() {
         <div key={v.id} onContextMenu={e => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, vpn: v }) }} data-vpn-row={v.name}>
           <Row label={v.name} desc={[`${t(`vpn.types.${v.type}`)} · ${v.summary.target}`, v.servers.length > 0 && t('vpn.usedBy', { names: v.servers.join(', ') })].filter(Boolean).join(' · ')}>
             <button
-              className="h-7 flex-none rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover disabled:opacity-50"
+              className="btn sm"
               disabled={v.inUse}
               title={v.inUse ? t('vpn.inUse') : undefined}
               onClick={() => remove(v)}
@@ -180,7 +173,7 @@ function PhonePage() {
       </Row>
       <Row label={t('settings.publicPort')} desc={t('settings.publicPortDesc')}>
         <input
-          className="field h-8 w-[100px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+          className="field h-[34px] w-[100px] px-2.5"
           inputMode="numeric"
           value={port}
           onChange={e => setPort(e.target.value.replace(/\D/g, ''))}
@@ -206,20 +199,20 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title={t('settings.title')} width={780} height={mobile ? 'calc(100dvh - 56px)' : undefined} onClose={onClose}>
-      <div className={mobile ? 'grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3' : 'grid h-[440px] flex-none grid-cols-[160px_minmax(0,1fr)] gap-6'}>
+      <div className={mobile ? 'grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3' : 'grid h-[440px] flex-none grid-cols-[170px_minmax(0,1fr)] gap-6'}>
         <div className={`flex gap-0.5 ${mobile ? 'flex-row flex-wrap' : 'flex-col'}`}>
           {pages.map(([k, icon]) => (
-            <button key={k} className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-left ${page === k ? 'bg-accent-soft text-text' : 'text-muted hover:text-text'}`} onClick={() => setPage(k)}>
+            <button key={k} className={`flex h-9 items-center gap-2.5 rounded-full px-3 text-left transition-colors ${page === k ? 'bg-hover-strong font-medium text-strong shadow-[var(--edge)]' : 'text-muted hover:bg-hover hover:text-strong'}`} onClick={() => setPage(k)}>
               <Icon name={icon} />{t(`settings.${k}`)}
             </button>
           ))}
           {!mobile && <div className="flex-1" />}
-          <button className="h-7 self-center rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, accent: DEFAULTS.accent, desk: DEFAULTS.desk, term: DEFAULTS.term, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog, sb: DEFAULTS.sb })}>
+          <button className="btn sm self-center" onClick={() => setSettings({ lang: DEFAULTS.lang, theme: DEFAULTS.theme, accent: DEFAULTS.accent, desk: DEFAULTS.desk, term: DEFAULTS.term, termSize: DEFAULTS.termSize, uploadConflict: DEFAULTS.uploadConflict, autoOn: DEFAULTS.autoOn, autoCmds: DEFAULTS.autoCmds, snap: DEFAULTS.snap, followLog: DEFAULTS.followLog, sb: DEFAULTS.sb })}>
             {t('settings.reset')}
           </button>
         </div>
         <div className="min-h-0 overflow-y-auto">
-          <h3 className="mt-0 mb-1 text-[15px]">{t(`settings.${page}`)}</h3>
+          <h3 className="mt-0 mb-1 text-[16px] font-semibold text-strong">{t(`settings.${page}`)}</h3>
           {page === 'look' && <>
             <Row label={t('settings.lang')}>
               <Seg value={s.lang} options={[['ja', '日本語'], ['en', 'English']]} onPick={lang => setSettings({ lang })} />
@@ -258,7 +251,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </Row>
             <Row label={t('settings.uploadConflict')}>
               <select
-                className="field h-8 min-w-[140px] rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none"
+                className="field h-[34px] min-w-[140px] px-2.5"
                 value={s.uploadConflict}
                 onChange={e => setSettings({ uploadConflict: e.target.value as typeof s.uploadConflict })}
               >
@@ -282,7 +275,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               </div>
             </Row>
             {/* 配色の見本。色は style.css の --term-* */}
-            <div className="mt-3.5 rounded-[10px] border border-line bg-term px-3.5 py-2.5 font-mono leading-[1.45] whitespace-pre-wrap text-term-fg" style={{ fontSize: s.termSize }} data-term-preview>
+            <div className="mt-3.5 rounded-xl bg-term px-3.5 py-3 font-mono leading-[1.5] whitespace-pre-wrap text-term-fg shadow-[inset_0_0_0_1px_var(--term-line)]" style={{ fontSize: s.termSize }} data-term-preview>
               <div><span className="text-term-prompt">user@server:~$ </span><span className="text-term-strong">ls</span></div>
               <div><span className="font-semibold text-term-dir">backups</span>  <span className="font-semibold text-term-dir">mc</span>  notes.txt  <span className="text-term-hl">mc-2026-10-24.tar.gz</span></div>
               <div><span className="text-term-dim">[09:41:07 WARN]: </span><span className="text-term-warn">Can't keep up! Is the server overloaded?</span></div>

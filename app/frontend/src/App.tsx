@@ -24,9 +24,11 @@ import { openTool } from './tools'
 import { isRemote, onLink } from './remote'
 import { requireSudo, setSudo, sudoOn, turnOffSudo, useSudo } from './sudo'
 import { toast } from './toasts'
+import { slideX, slideY, useSlide } from './motion'
 import iconUrl from './assets/icon-64.png'
-import logoDark from './assets/logo-dark.png'
-import logoLight from './assets/logo-light.png'
+import markUrl from './assets/icon-256.png'
+import wordDark from './assets/wordmark-dark.png'
+import wordLight from './assets/wordmark-light.png'
 
 // ファイルの区画の最小の幅。見出しの「ファイル」と5つのボタンが1行に入る幅
 const SIDEBAR_MIN = 200
@@ -149,30 +151,33 @@ export default function App() {
   // スマホの幅では、上はいま見ているサーバーの名前だけにし、下の欄の代わりに区画を切り替えるタブを置く
   const mobile = useMobile()
   const mtab = useMTab()
-  const rows = mobile ? (cur ? 'grid-rows-[48px_minmax(0,1fr)_60px]' : 'grid-rows-[48px_minmax(0,1fr)]') : 'grid-rows-[42px_minmax(0,1fr)_24px]'
+  const rows = mobile ? (cur ? 'grid-rows-[50px_minmax(0,1fr)_64px]' : 'grid-rows-[50px_minmax(0,1fr)]') : 'grid-rows-[46px_minmax(0,1fr)_26px]'
+  const tabs = useRef<HTMLDivElement>(null)
+  useSlide(tabs, mobile ? undefined : active, slideX('::before'))
 
   return (
     <div className={`grid h-dvh ${rows}`}>
       <header
-        className={`app-bar flex min-w-0 items-center gap-2 border-b border-line bg-chrome select-none ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'shadow-[inset_0_-2px_0_var(--warn)]' : ''}`}
+        className={`app-bar relative flex min-w-0 items-center gap-2 bg-chrome shadow-[inset_0_-1px_0_var(--border-soft)] select-none ${mobile ? 'px-2.5' : 'px-2'} ${sudo ? 'sudo-line' : ''}`}
         onDoubleClick={e => { if (!isRemote && !mobile && !(e.target as HTMLElement).closest('button, .no-drag')) WindowToggleMaximise() }}
       >
-        <img src={iconUrl} alt="DRAG" draggable={false} className="mr-1 ml-1 h-[22px] w-[22px] flex-none" />
-        <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+        <img src={iconUrl} alt="DRAG" draggable={false} className="brand-icon mr-1.5 ml-1 h-6 w-6 flex-none" />
+        <div ref={tabs} className="flex min-w-0 gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none]">
           {servers.filter(s => !mobile || s.id === active).map(s => (
             <div
               key={s.id}
-              className={`no-drag group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 rounded-lg border pr-1 pl-2.5 select-none ${mobile ? 'border-transparent pl-1 text-text' : s.id === active ? 'border-line-strong bg-panel-2 text-text' : 'border-transparent text-muted hover:text-text'}`}
+              data-slide={s.id}
+              className={`no-drag group flex h-[30px] min-w-0 flex-none cursor-pointer items-center gap-2 pr-[5px] select-none ${mobile ? 'pl-1.5 text-strong' : `server-tab pl-3 ${s.id === active ? 'active text-strong' : 'text-muted hover:bg-hover hover:text-text'}`}`}
               onClick={() => setActive(s.id)}
               title={`${s.user}@${s.host}` + (s.vpn ? ` · ${t('vpn.via', { name: s.vpn })}` : '')}
             >
-              <span className={`h-2 w-2 flex-none rounded-full ${s.conn === 'ok' ? 'bg-ok shadow-[0_0_0_3px_rgba(63,207,142,.16)]' : s.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
-              <span className="truncate text-[12.5px] font-semibold">{s.name}</span>
+              <span className={`live-dot h-[7px] w-[7px] flex-none rounded-full ${s.conn === 'ok' ? `ok bg-ok ${s.id === active ? 'ping' : ''}` : s.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
+              <span className="truncate text-[12.5px] font-medium">{s.name}</span>
               {!mobile && s.vpn && <span className="flex flex-none text-muted" data-tab-vpn><Icon name="shield" size={13} /></span>}
               {!mobile && <span className="font-mono text-[11px] text-faint">{s.host}</span>}
               {!mobile && (
                 <button
-                  className={`grid h-[22px] w-[22px] place-items-center rounded-[5px] text-muted group-hover:opacity-80 hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] ${s.id === active ? 'opacity-80' : 'opacity-0'}`}
+                  className={`icon-btn h-[22px] w-[22px] group-hover:scale-100 group-hover:opacity-80 hover:!text-err ${s.id === active ? 'opacity-80' : 'scale-75 opacity-0'}`}
                   title={t('tabs.close')}
                   onClick={e => { e.stopPropagation(); close(s.id) }}
                 ><Icon name="x" size={13} /></button>
@@ -181,32 +186,30 @@ export default function App() {
           ))}
         </div>
         {servers.length > 0 && !mobile && (
-          <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('tabs.add')} onClick={() => setConnecting({})}>
+          <button className="icon-btn h-7 w-7" title={t('tabs.add')} onClick={() => setConnecting({})}>
             <Icon name="plus" />
           </button>
         )}
         {!mobile && <div className="flex-1 self-stretch" />}
         {cur && (
           <button
-            className={`inline-flex h-7 flex-none items-center gap-1.5 rounded-lg border pr-2 pl-[9px] text-[12px] ${mobile ? 'ml-auto h-[30px]' : ''} ${sudo ? 'border-warn bg-[color-mix(in_srgb,var(--warn)_16%,transparent)] text-warn' : 'border-line-strong text-muted hover:text-text'}`}
+            className={`sudo-btn inline-flex h-[30px] flex-none items-center gap-[7px] pr-2 pl-3 text-[12px] ${mobile ? 'ml-auto h-8' : ''} ${sudo ? 'on' : ''}`}
             title={sudo ? t('sudo.on') : t('sudo.off')}
             data-sudo={sudo ? 'on' : 'off'}
             onClick={() => sudo ? turnOffSudo(cur.id) : requireSudo(cur.id)}
           >
             <Icon name="lock" size={14} />
-            <span className="font-mono font-semibold">sudo</span>
-            <span className={`relative h-[15px] w-[26px] rounded-full transition-colors ${sudo ? 'bg-warn' : 'bg-line-strong'}`}>
-              <span className={`absolute top-0.5 left-0.5 h-[11px] w-[11px] rounded-full bg-white transition-transform ${sudo ? 'translate-x-[11px]' : ''}`} />
-            </span>
+            <span className="font-mono font-medium">sudo</span>
+            <span className="sudo-knob" />
           </button>
         )}
         {cur && !isRemote && !mobile && (
-          <button className="inline-flex h-7 flex-none items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" onClick={openPair}>
+          <button className="btn sm ghost" onClick={openPair}>
             <Icon name="qr" size={15} />{t('pair.open')}
           </button>
         )}
         {mobile && cur && (
-          <button className="grid h-[30px] w-[30px] flex-none place-items-center rounded-md text-muted hover:text-text" title={t('activity.settings')} onClick={() => setSettingsOpen(true)}>
+          <button className="icon-btn h-[30px] w-[30px]" title={t('activity.settings')} onClick={() => setSettingsOpen(true)}>
             <Icon name="gear" />
           </button>
         )}
@@ -223,16 +226,16 @@ export default function App() {
       {mobile
         ? cur && <MobileNav tab={mtab} />
         : (
-          <footer className="flex min-w-0 items-center gap-1 border-t border-line bg-chrome px-2 text-[11.5px] text-muted">
+          <footer className="flex min-w-0 items-center gap-0.5 bg-chrome px-2 text-[11.5px] text-muted shadow-[inset_0_1px_0_var(--border-soft)]">
             {cur && (
-              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap" data-sb="conn">
-                <span className={`h-2 w-2 flex-none rounded-full ${cur.conn === 'ok' ? 'bg-ok' : cur.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
+              <span className="flex h-[22px] items-center gap-1.5 px-2 whitespace-nowrap" data-sb="conn">
+                <span className={`live-dot h-[7px] w-[7px] flex-none rounded-full ${cur.conn === 'ok' ? 'ok ping bg-ok' : cur.conn === 'reconnecting' ? 'bg-warn' : 'bg-err'}`} />
                 <span className="font-mono">{cur.user}@{cur.host}</span>
                 {cur.conn !== 'ok' && <span className="text-err">· {t('conn.lostShort')}</span>}
               </span>
             )}
             {cur?.vpn && (
-              <span className="flex h-[22px] items-center gap-1.5 px-1.5 whitespace-nowrap" title={t('vpn.via', { name: cur.vpn })} data-sb="vpn">
+              <span className="flex h-[22px] items-center gap-1.5 px-2 whitespace-nowrap" title={t('vpn.via', { name: cur.vpn })} data-sb="vpn">
                 <Icon name="shield" size={13} />{t('vpn.status', { name: cur.vpn })}
               </span>
             )}
@@ -264,7 +267,7 @@ function WindowButtons() {
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
-  const btn = 'grid h-full w-[46px] place-items-center text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
+  const btn = 'grid h-full w-[46px] place-items-center text-muted transition-colors hover:bg-hover-strong hover:text-strong'
   return (
     <div className="-mr-2 flex flex-none self-stretch" data-winbtns>
       <button className={btn} title={t('desktop.minimize')} onClick={() => WindowMinimise()}><Icon name="min" size={14} /></button>
@@ -279,10 +282,10 @@ function MobileNav({ tab }: { tab: MTab }) {
   const { t } = useTranslation()
   const items: [MTab, IconName, string][] = [['files', 'files', t('mobile.files')], ['desktop', 'window', t('mobile.desktop')], ['terminal', 'terminal', t('mobile.terminal')]]
   return (
-    <nav className="grid grid-cols-3 border-t border-line bg-chrome pb-[env(safe-area-inset-bottom)]">
+    <nav className="taskbar grid grid-cols-3 pb-[env(safe-area-inset-bottom)] shadow-[inset_0_1px_0_var(--border-soft)]">
       {items.map(([k, icon, label]) => (
-        <button key={k} data-mtab={k} className={`grid content-center justify-items-center gap-[3px] text-[11px] ${tab === k ? 'text-accent' : 'text-faint'}`} onClick={() => setMTab(k)}>
-          <Icon name={icon} size={21} />{label}
+        <button key={k} data-mtab={k} className={`mnav grid content-center justify-items-center gap-1 text-[11px] transition-colors ${tab === k ? 'active font-medium text-strong' : 'text-faint'}`} onClick={() => setMTab(k)}>
+          <span className="mnav-ic"><Icon name={icon} size={21} /></span>{label}
         </button>
       ))}
     </nav>
@@ -302,21 +305,21 @@ function StatusMetrics({ serverId }: { serverId: string }) {
   const ms = useMetrics(serverId)
   const m = ms.at(-1)
   if (!m) return null
-  const item = 'flex h-[22px] items-center gap-1.5 rounded px-1.5 whitespace-nowrap hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text'
+  const item = 'sb-item flex h-[22px] items-center gap-1.5 px-2 whitespace-nowrap'
   const gauge = (key: 'cpu' | 'mem', label: string, values: number[], text: string, cls = '') => (
     <button className={`${item} ${cls}`} data-sb={key} title={t('mon.detailOf', { name: label })} onClick={() => openTool(serverId, 'monitor', key)}>
-      {label}<Spark values={values} max={100} className="sb" /><span className="num">{text}</span>
+      {label}<Spark values={values} max={100} className="sb" /><span className="num text-text">{text}</span>
     </button>
   )
   return <>
-    {sb.uptime && <span className={item.replace(/hover:\S+/g, '')} data-sb="uptime" title={t('mon.uptimeHint', { when: bootedAt(m.uptime) })}><Icon name="clock" size={13} />{fmtUptime(m.uptime, t)}</span>}
+    {sb.uptime && <span className={item} data-sb="uptime" title={t('mon.uptimeHint', { when: bootedAt(m.uptime) })}><Icon name="clock" size={13} />{fmtUptime(m.uptime, t)}</span>}
     {sb.cpu && gauge('cpu', 'CPU', ms.map(x => x.cpu), `${m.cpu.toFixed(0)}%`)}
     {/* メモリは使っている量と全体の量を出す。グラフは割合 */}
     {sb.mem && gauge('mem', t('mon.mem'), ms.map(x => pct(x.memUsed, x.memTotal)), `${fmtGB(m.memUsed)} / ${fmtGB(m.memTotal)} GB`, 'sb-mem')}
     {sb.net && (
       <button className={item} data-sb="net" title={t('mon.detailOf', { name: t('mon.net') })} onClick={() => openTool(serverId, 'monitor', 'net')}>
-        <span className="text-ok" title={t('mon.down')}><Icon name="down" size={13} /></span><span className="num">{fmtRate(m.rx)}</span>
-        <span className="text-accent" title={t('mon.up')}><Icon name="up" size={13} /></span><span className="num">{fmtRate(m.tx)}</span>
+        <span className="text-accent-2" title={t('mon.down')}><Icon name="down" size={13} /></span><span className="num text-text">{fmtRate(m.rx)}</span>
+        <span className="text-accent-text" title={t('mon.up')}><Icon name="up" size={13} /></span><span className="num text-text">{fmtRate(m.tx)}</span>
       </button>
     )}
   </>
@@ -327,7 +330,7 @@ function PhoneCount({ onClick }: { onClick: () => void }) {
   const { t } = useTranslation()
   const { devices } = usePhoneDevices()
   return (
-    <button className="flex h-[22px] items-center gap-1.5 rounded px-1.5 whitespace-nowrap hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t('pair.open')} onClick={onClick}>
+    <button className="sb-item flex h-[22px] items-center gap-1.5 px-2 whitespace-nowrap" title={t('pair.open')} onClick={onClick}>
       <Icon name="phone" size={13} />{t('pair.count', { n: devices.length })}
     </button>
   )
@@ -374,30 +377,32 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
   const mobile = useMobile()
   const mtab = useMTab()
   const pane = (k: MTab) => mobile ? (mtab === k ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden') : 'contents'
+  const acts = useRef<HTMLElement>(null)
+  useSlide(acts, collapsed ? undefined : view, slideY)
   return (
     <div
       className={`absolute inset-0 ${mobile ? 'flex flex-col' : 'grid'} ${visible ? '' : 'invisible'}`}
-      style={mobile ? undefined : { gridTemplateColumns: collapsed ? '48px 0 0 minmax(0,1fr)' : `48px ${Math.max(SIDEBAR_MIN, st.sidebarW)}px 4px minmax(0,1fr)` }}
+      style={mobile ? undefined : { gridTemplateColumns: collapsed ? '52px 0 0 minmax(0,1fr)' : `52px ${Math.max(SIDEBAR_MIN, st.sidebarW)}px 4px minmax(0,1fr)` }}
       data-server={s.id}
     >
       {!mobile && (
-        <nav className="flex flex-col items-center gap-1 border-r border-line bg-chrome pt-1.5 pb-1.5">
-          <ActButton icon="files" title={t('activity.files')} active={view === 'files' && !collapsed} onClick={() => pick('files')} />
-          <ActButton icon="layers" title={t('activity.sessions')} active={view === 'sessions' && !collapsed} onClick={() => pick('sessions')} />
+        <nav ref={acts} className="flex flex-col items-center gap-1.5 bg-chrome py-2 shadow-[inset_-1px_0_0_var(--border-soft)]">
+          <ActButton icon="files" title={t('activity.files')} slide="files" active={view === 'files' && !collapsed} onClick={() => pick('files')} />
+          <ActButton icon="layers" title={t('activity.sessions')} slide="sessions" active={view === 'sessions' && !collapsed} onClick={() => pick('sessions')} />
           <div className="flex-1" />
-          <ActButton icon="gear" title={t('activity.settings')} onClick={onSettings} />
+          <ActButton icon="gear" title={t('activity.settings')} gear onClick={onSettings} />
         </nav>
       )}
-      <aside className={mobile ? (mtab === 'files' ? 'flex min-h-0 flex-1 flex-col bg-panel' : 'hidden') : `flex min-w-0 flex-col overflow-hidden border-r border-line bg-panel ${collapsed ? 'invisible' : ''}`}>
+      <aside className={mobile ? (mtab === 'files' ? 'flex min-h-0 flex-1 flex-col bg-panel' : 'hidden') : `flex min-w-0 flex-col overflow-hidden bg-panel shadow-[inset_-1px_0_0_var(--border-soft)] ${collapsed ? 'invisible' : ''}`}>
         {mobile
           ? (
-            <div className="mx-3 mt-2.5 mb-0.5 flex gap-1 rounded-[10px] border border-line bg-field p-[3px]">
+            <div className="seg mx-3 mt-2.5 mb-1 !flex">
               {(['files', 'sessions'] as const).map(v => (
-                <button key={v} className={`h-8 flex-1 rounded-lg ${view === v ? 'bg-raised text-text' : 'text-muted'}`} onClick={() => setView(v)}>{t(`activity.${v}`)}</button>
+                <button key={v} className={`!h-[34px] flex-1 !text-[13px] ${view === v ? 'active' : ''}`} onClick={() => setView(v)}>{t(`activity.${v}`)}</button>
               ))}
             </div>
           )
-          : view === 'sessions' && <div className="flex h-9 flex-none items-center pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">{t('sessions.title')}</div>}
+          : view === 'sessions' && <div className="eyebrow flex h-[42px] flex-none items-center pr-1.5 pl-4">{t('sessions.title')}</div>}
         {/* ツリーの開き具合を残すため、隠すだけにする */}
         <div className={`relative flex min-h-0 flex-1 flex-col ${view === 'files' ? '' : 'hidden'}`}>
           <FileTree serverId={s.id} root={s.home} generation={s.gen} />
@@ -409,7 +414,7 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
       {!mobile && (collapsed ? <div /> : <Resizer dir="v" value={Math.max(SIDEBAR_MIN, st.sidebarW)} min={SIDEBAR_MIN} max={520} onChange={sidebarW => setSettings({ sidebarW })} />)}
       <main
         className={mobile ? (mtab === 'files' ? 'hidden' : 'flex min-h-0 flex-1 flex-col') : 'grid min-h-0 min-w-0'}
-        style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 4px ${st.terminalH}px` }}
+        style={mobile ? undefined : { gridTemplateRows: `minmax(0,1fr) 6px ${st.terminalH}px` }}
       >
         <div className={pane('desktop')}><Desktop serverId={s.id} home={s.home} generation={s.gen} /></div>
         {!mobile && <Resizer dir="h" value={st.terminalH} min={120} max={Math.max(160, window.innerHeight - 260)} onChange={terminalH => setSettings({ terminalH })} invert />}
@@ -425,15 +430,15 @@ function Workspace({ server: s, visible, onSettings, onReconnect, onClose }: {
 // 接続が切れたときの表示。後ろの作業区画は暗くして触れないようにする
 function ConnBanner({ server: s, onReconnect, onClose }: { server: Server; onReconnect: () => void; onClose: () => void }) {
   const { t } = useTranslation()
-  const small = 'h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover'
+  const small = 'btn sm'
   return (
-    <div className="absolute inset-0 z-40 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] backdrop-grayscale-[.6]">
-      <div className="absolute top-3.5 left-1/2 flex w-[min(560px,calc(100%-24px))] -translate-x-1/2 items-center gap-3 rounded-xl border border-[color-mix(in_srgb,var(--err)_55%,transparent)] bg-raised px-3.5 py-3 shadow-win" role="alert">
+    <div className="anim-fade absolute inset-0 z-40 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] backdrop-blur-[1px] backdrop-grayscale-[.7]">
+      <div className="anim-banner absolute top-3.5 left-1/2 flex w-[min(560px,calc(100%-24px))] -translate-x-1/2 items-center gap-3 rounded-2xl bg-raised px-4 py-3 shadow-[var(--edge-glow),inset_0_0_0_1px_color-mix(in_srgb,var(--err)_40%,transparent),var(--drop),0_0_30px_-10px_color-mix(in_srgb,var(--err)_50%,transparent)]" role="alert">
         {s.conn === 'reconnecting'
-          ? <span className="h-4 w-4 flex-none animate-spin rounded-full border-2 border-warn border-t-transparent" />
+          ? <span className="spin-arc h-4 w-4 flex-none" />
           : <Icon name="link" className="text-err" />}
         <div className="min-w-0 flex-1">
-          <div className="font-semibold">{t('conn.lost', { name: s.name })}</div>
+          <div className="font-medium text-strong">{t('conn.lost', { name: s.name })}</div>
           <div className="text-[12px] text-muted">
             {s.error || (s.conn === 'reconnecting' ? t('conn.reconnecting') : t('conn.retryIn', { wait: s.wait, n: s.retry }))}
           </div>
@@ -446,43 +451,54 @@ function ConnBanner({ server: s, onReconnect, onClose }: { server: Server; onRec
   )
 }
 
-function ActButton({ icon, title, active = false, onClick }: { icon: IconName; title: string; active?: boolean; onClick?: () => void }) {
+// 左の欄のボタン。slide は選んだときの印を滑らせるための名前
+function ActButton({ icon, title, active = false, slide, gear = false, onClick }: { icon: IconName; title: string; active?: boolean; slide?: string; gear?: boolean; onClick?: () => void }) {
   return (
     <button
-      className={`relative grid h-10 w-10 place-items-center rounded-lg ${active ? 'text-text before:absolute before:top-[9px] before:bottom-[9px] before:-left-1 before:w-0.5 before:rounded-sm before:bg-accent' : 'text-faint hover:text-text'}`}
+      data-slide={slide}
+      className={`act-btn grid h-[38px] w-[38px] place-items-center ${active ? 'active' : ''} ${gear ? 'gear' : ''}`}
       title={title}
       onClick={onClick}
     >
-      <Icon name={icon} size={21} />
+      <Icon name={icon} size={19} />
     </button>
   )
 }
 
+// サーバーが1台もないときの画面。起動したとき、カーソルがアイコンをつかんで運んで置き、字が左から現れる
 function Welcome({ onConnect, onSettings }: { onConnect: (preset?: store.Server) => void; onSettings: () => void }) {
   const { t } = useTranslation()
+  const mobile = useMobile()
   const [saved, setSaved] = useState<store.Server[]>([])
   useEffect(() => { SavedServers().then(list => setSaved(list ?? [])) }, [])
+  const delay = (s: number) => ({ ['--delay' as string]: `${s}s` })
   return (
-    <section className="desk-bg absolute inset-0 grid place-items-center p-6">
-      <button className="absolute bottom-3 left-2 grid h-10 w-10 place-items-center rounded-lg text-faint hover:text-text" title={t('activity.settings')} onClick={onSettings}>
-        <Icon name="gear" size={21} />
+    <section className="welcome absolute inset-0 grid place-items-center p-6">
+      <button className="icon-btn absolute bottom-3 left-2 z-[1] h-10 w-10" title={t('activity.settings')} onClick={onSettings}>
+        <Icon name="gear" size={20} />
       </button>
-      <div className="grid w-[min(560px,100%)] justify-items-center gap-2.5 text-center">
-        {/* ロゴの字は紺色なので、暗いテーマでは字を明るくしたものを出す */}
-        <img src={logoDark} alt={t('brandSub')} draggable={false} className="logo-dark w-[min(360px,100%)]" />
-        <img src={logoLight} alt={t('brandSub')} draggable={false} className="logo-light w-[min(360px,100%)]" />
-        <button className="btn-primary mt-[18px] mb-2 flex h-10 items-center gap-1.5 rounded-lg px-[22px] text-[14px]" onClick={() => onConnect()}>
+      <div className="relative z-[1] grid w-[min(600px,100%)] justify-items-center gap-2.5 text-center">
+        <div className={`flex items-center select-none ${mobile ? 'gap-3.5' : 'gap-[22px]'}`}>
+          <div className={`welcome-mark ${mobile ? 'h-[72px] w-[72px]' : 'h-[104px] w-[104px]'}`}>
+            <img src={markUrl} alt="" draggable={false} />
+            <svg className="welcome-cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8.2-6.1 1.3 3.6 6.6-2.7 1.5-3.6-6.6L5.6 18z" /></svg>
+          </div>
+          {/* ロゴの字は紺色なので、暗いテーマでは字を明るくしたものを出す */}
+          <img src={wordDark} alt={t('brandSub')} draggable={false} className={`welcome-word logo-dark w-auto ${mobile ? 'h-12' : 'h-[70px]'}`} />
+          <img src={wordLight} alt={t('brandSub')} draggable={false} className={`welcome-word logo-light w-auto ${mobile ? 'h-12' : 'h-[70px]'}`} />
+        </div>
+        <button className="btn-primary rise-in mt-[30px] mb-3 !h-[42px] !px-[26px] text-[14px]" style={delay(1.05)} onClick={() => onConnect()}>
           <Icon name="plus" />{t('connect.openDialog')}
         </button>
         {saved.length > 0 && (
-          <div className="mt-2.5 w-full text-left">
-            <span className="mb-1.5 block text-[12px] text-muted">{t('connect.saved')}</span>
-            <div className="grid grid-cols-3 gap-2">
-              {saved.map(s => (
-                <button key={s.id} className="flex min-w-0 items-center gap-2.5 rounded-[10px] border border-line-strong bg-panel-2 p-2.5 text-left hover:border-faint" onClick={() => onConnect(s)}>
-                  <Icon name="server" className="text-muted" />
+          <div className="rise-in mt-[18px] w-full text-left" style={delay(1.2)}>
+            <span className="eyebrow eyebrow-lines mb-3.5">{t('connect.saved')}</span>
+            <div className={`grid gap-2.5 ${mobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
+              {saved.map((s, i) => (
+                <button key={s.id} className="glass-card rise-in flex min-w-0 items-center gap-2.5 py-3 pr-3.5 pl-3" style={delay(1.3 + Math.min(i, 4) * .06)} onClick={() => onConnect(s)}>
+                  <span className="saved-ic"><Icon name="server" /></span>
                   <div className="min-w-0">
-                    <div className="font-semibold">{s.name}</div>
+                    <div className="font-medium text-strong">{s.name}</div>
                     <div className="truncate font-mono text-[11px] text-muted">{s.user}@{s.host}</div>
                   </div>
                 </button>

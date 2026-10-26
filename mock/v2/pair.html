@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DRAG 端末の登録 v2</title>
+<link rel="icon" type="image/png" href="../img/icon-64.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500&display=swap">
+<link rel="stylesheet" href="style.css">
+<script>window.MOCK_THEME = { storageKey: 'drag-mock-v2.1-settings' };</script>
+<style>
+  body { overflow: auto; }
+  .pair-page {
+    min-height: 100dvh; display: grid; place-items: center; padding: 24px 20px;
+    background:
+      radial-gradient(90% 50% at 50% -5%, color-mix(in srgb, var(--spot) 45%, transparent), transparent 70%),
+      radial-gradient(110% 90% at 50% 40%, transparent 35%, var(--desk) 85%),
+      linear-gradient(var(--grid-line) 1px, transparent 1px) 50% 0 / 64px 64px,
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 50% 0 / 64px 64px,
+      var(--desk);
+  }
+  .pair-card {
+    width: min(380px, 100%); display: grid; gap: 16px; padding: 28px 24px; border-radius: 16px; background: rgba(5, 6, 15, .97);
+    box-shadow: inset 0 1px 1px rgba(216, 236, 248, .2), inset 0 24px 48px rgba(168, 216, 245, .06), inset 0 0 0 1px rgba(186, 215, 247, .12), 0 16px 32px rgba(0, 0, 0, .3);
+    animation: rise .5s var(--ease);
+  }
+  :root[data-theme="light"] .pair-card { background: rgba(255, 255, 255, .97); box-shadow: var(--edge-glow), var(--drop-focus); }
+  .pair-brand { justify-self: center; width: 220px; }
+  .pair-mark { justify-self: center; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; animation: pop-in .5s .15s var(--spring) both; }
+  .pair-mark .ic svg { width: 28px; height: 28px; }
+  .pair-mark.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); box-shadow: 0 0 24px -4px color-mix(in srgb, var(--ok) 50%, transparent); }
+  .pair-mark.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); box-shadow: 0 0 24px -4px color-mix(in srgb, var(--warn) 50%, transparent); }
+  .pair-mark.info { background: var(--hover-strong); color: var(--text-strong); box-shadow: var(--edge); }
+  .pair-title { text-align: center; font-size: 18px; font-weight: 600; color: var(--text-strong); }
+  .pair-text { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.7; }
+  .pair-server { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--glass); box-shadow: var(--edge-glow); }
+  .pair-server .mono { font-size: 12px; color: var(--muted); }
+  .pair-card .btn { height: 44px; font-size: 15px; text-decoration: none; }
+  .pair-foot { text-align: center; font-size: 12px; color: var(--faint); }
+  .pair-card .input { height: 42px; font-size: 16px; }
+</style>
+</head>
+<body>
+<main class="pair-page"><div class="pair-card" id="card"></div></main>
+<script src="../pair.js"></script>
+</body>
+</html>

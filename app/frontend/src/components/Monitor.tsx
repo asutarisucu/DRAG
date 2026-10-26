@@ -54,7 +54,7 @@ export function MonitorView({ win, serverId, home }: { win: Win; serverId: strin
         {VIEWS.map(k => {
           const c = card(k, ms, t)
           return (
-            <button key={k} className="mon-card" data-card={k} title={t('mon.detailOf', { name: t(`mon.${k}`) })} onClick={() => show(k)}>
+            <button key={k} className="glass-card mon-card" data-card={k} title={t('mon.detailOf', { name: t(`mon.${k}`) })} onClick={() => show(k)}>
               <div className="mon-label">{t(`mon.${k}`)}<span className="mon-more">{t('mon.detail')}<Icon name="chevron" size={11} /></span></div>
               <div className="mon-value">{c.val}</div>
               <div className="mon-sub">{c.sub}</div>
@@ -82,7 +82,7 @@ function Detail({ view, serverId, home, ms, onShow }: { view: View; serverId: st
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-mon={view}>
       <div className="mon-head">
-        <button className="h-6 flex-none rounded-md px-2 text-[12px] text-muted hover:text-text" onClick={() => onShow('')}>‹ {t('mon.overview')}</button>
+        <button className="btn sm ghost !h-[26px]" onClick={() => onShow('')}>‹ {t('mon.overview')}</button>
         <div className="seg">
           {VIEWS.map(k => <button key={k} className={k === view ? 'active' : ''} onClick={() => onShow(k)}>{t(`mon.${k}`)}</button>)}
         </div>
@@ -209,7 +209,7 @@ function DiskDetail({ serverId, home, m }: { serverId: string; home: string; m: 
     <Section>
       {dir && (
         <div className="mb-1.5 flex min-w-0 items-center gap-2" data-dir-nav>
-          <button className="h-6 max-w-[45%] flex-none truncate rounded-md px-2 text-[12px] text-muted hover:text-text" onClick={() => setOpened(o => o.slice(0, -1))}>
+          <button className="btn sm ghost !h-[26px] max-w-[45%] truncate" onClick={() => setOpened(o => o.slice(0, -1))}>
             ‹ {opened.length > 1 ? tilde(opened.at(-2)!) : t('mon.wholeDisk')}
           </button>
           <span className="min-w-0 truncate font-mono text-[12px] font-semibold">{tilde(dir)}</span>

@@ -7,7 +7,7 @@ import { toast } from '../toasts'
 import { Icon } from './Icon'
 import { Modal } from './Modal'
 
-const smallBtn = 'h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover'
+const smallBtn = 'btn sm'
 const errText = (e: unknown) => String(e).replace(/^Error: /, '')
 
 // 登録した端末とログインの履歴。登録やログインがあると読み直す
@@ -85,7 +85,7 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           {error
-            ? <div className="grid h-[222px] w-[222px] place-items-center rounded-xl border border-line p-4 text-[12.5px] text-err">{error}</div>
+            ? <div className="grid h-[222px] w-[222px] place-items-center rounded-2xl p-4 text-[12.5px] text-err shadow-[var(--edge)]">{error}</div>
             : (
               <svg
                 viewBox={`0 0 ${pair?.size ?? 37} ${pair?.size ?? 37}`}
@@ -99,18 +99,18 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
           <div className="font-mono text-[11.5px] break-all text-muted">{pair ? pair.url.replace(/\/pair\?.*/, '') : ''}</div>
           <div className="text-[12px] text-muted">
             {pair && left > 0 && t('pair.left', { time: `${Math.floor(left / 60)}:${pad2(left % 60)}` })}
-            {pair && left === 0 && <>{t('pair.expired')} <button className="text-accent hover:underline" onClick={regen}>{t('pair.regen')}</button></>}
+            {pair && left === 0 && <>{t('pair.expired')} <button className="text-accent-text hover:underline" onClick={regen}>{t('pair.regen')}</button></>}
           </div>
         </div>
         <div className="min-w-0">
-          <span className="mb-1.5 block text-[12px] text-muted">{t('pair.devices')}</span>
-          <div className="mb-3.5 grid gap-1.5">
+          <span className="mb-1.5 block text-[12px] font-medium text-soft">{t('pair.devices')}</span>
+          <div className="mb-3.5 grid gap-2">
             {devices.length === 0 && <div className="text-[12px] text-muted">{t('pair.none')}</div>}
             {devices.map(d => (
-              <div key={d.id} className="flex items-center gap-2.5 rounded-[10px] border border-line bg-panel-2 px-2.5 py-[9px]" data-device={d.id}>
+              <div key={d.id} className="glass-card anim-pop flex items-center gap-2.5 px-3 py-[11px]" data-device={d.id}>
                 <Icon name="phone" className="text-muted" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{d.name}</div>
+                  <div className="font-medium text-strong">{d.name}</div>
                   <div className="text-[12px] text-muted">{t('pair.lastLogin', { when: when(d.lastSeen), ip: d.lastIP, route: t(`pair.routes.${d.route}`) })}</div>
                 </div>
                 <button className={smallBtn} onClick={() => RevokePhone(d.id)}>{t('pair.revoke')}</button>

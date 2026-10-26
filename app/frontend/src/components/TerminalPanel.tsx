@@ -253,7 +253,7 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
   return (
     <section
       data-terminal={serverId}
-      className={`relative flex min-h-0 flex-col bg-term ${mobile ? 'flex-1' : 'border-t border-line'}`}
+      className={`relative flex min-h-0 flex-col bg-term ${mobile ? 'flex-1' : 'term-card mx-2 mb-2'}`}
       onDragOver={e => {
         const types = e.dataTransfer.types
         if (types.includes('application/x-drag-session')) setDropLabel(t('desktop.openHere'))
@@ -279,13 +279,13 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
         }
       }}
     >
-      <div className="flex h-[34px] flex-none items-center gap-2.5 border-b border-line bg-panel pr-2 pl-3.5">
-        <span className="text-[11px] font-semibold tracking-[.08em] text-muted">{t('terminal.title')}</span>
+      <div className="flex h-[38px] flex-none items-center gap-2.5 bg-term-head pr-2 pl-4 shadow-[inset_0_-1px_0_var(--term-line)]">
+        <span className="eyebrow term-title">{t('terminal.title')}</span>
         {fg && (
           <div
             draggable
             role="button"
-            className="inline-flex h-6 min-w-0 cursor-grab items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--accent)_45%,transparent)] bg-accent-soft pr-3 pl-1.5 select-none active:cursor-grabbing"
+            className="fg-chip inline-flex h-[26px] min-w-0 cursor-grab items-center gap-2 pr-3 pl-1.5 select-none active:cursor-grabbing"
             onDragStart={e => {
               e.dataTransfer.setData('application/x-drag-fg', serverId)
               e.dataTransfer.effectAllowed = 'move'
@@ -296,19 +296,19 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
             }}
             title={fg}
           >
-            <Icon name="grip" className="text-accent" />
+            <Icon name="grip" className="grip text-term-dir" />
             <span className="max-w-[260px] truncate font-mono text-[12px]">{fg}</span>
-            <span className="text-[11px] whitespace-nowrap text-muted">{mobile ? t('desktop.chipHintMobile') : t('desktop.chipHint')}</span>
+            <span className="text-[11px] whitespace-nowrap text-term-dim">{mobile ? t('desktop.chipHintMobile') : t('desktop.chipHint')}</span>
           </div>
         )}
         <div className="flex-1" />
-        <button className="grid h-[26px] w-[26px] flex-none place-items-center rounded-md text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text" title={t('terminal.clear')} onClick={() => termRef.current?.clear()}><Icon name="eraser" /></button>
+        <button className="icon-btn h-[26px] w-[26px] !text-term-dim hover:!bg-[color-mix(in_srgb,var(--term-fg)_10%,transparent)] hover:!text-term-strong" title={t('terminal.clear')} onClick={() => termRef.current?.clear()}><Icon name="eraser" /></button>
       </div>
       <div ref={host} className="min-h-0 flex-1" />
       {mobile && <ExtraKeys ctrl={ctrl} onCtrl={() => setCtrl(!ctrl)} onKey={seq => termRef.current?.input(seq, false)} arrow={k => (termRef.current?.modes.applicationCursorKeysMode ? '\x1bO' : '\x1b[') + k} />}
       {dropLabel && (
-        <div className="pointer-events-none absolute inset-2 z-10 grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold text-text">
-          <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{dropLabel}</span>
+        <div className="drop-zone pointer-events-none absolute inset-2 z-10 grid place-items-center">
+          <span className="drop-tag">{dropLabel}</span>
         </div>
       )}
     </section>
@@ -323,12 +323,12 @@ function ExtraKeys({ ctrl, onCtrl, onKey, arrow }: { ctrl: boolean; onCtrl: () =
     ['|', () => onKey('|')], ['/', () => onKey('/')], ['~', () => onKey('~')], ['-', () => onKey('-')],
   ]
   return (
-    <div className="flex flex-none gap-1.5 overflow-x-auto border-t border-line bg-panel px-2 py-1.5 [scrollbar-width:none]">
+    <div className="flex flex-none gap-1.5 overflow-x-auto bg-term-head px-2 py-[7px] shadow-[inset_0_1px_0_var(--term-line)] [scrollbar-width:none]">
       {keys.map(([label, fn]) => (
         <button
           key={label}
           data-key={label}
-          className={`h-9 min-w-[42px] flex-none rounded-lg border px-2.5 font-mono text-[13px] ${label === 'Ctrl' && ctrl ? 'border-accent bg-accent text-white' : 'border-line-strong bg-raised'}`}
+          className={`xkey h-9 min-w-[42px] flex-none px-3 font-mono text-[13px] ${label === 'Ctrl' && ctrl ? 'on' : ''}`}
           onPointerDown={e => e.preventDefault()}
           onClick={fn}
         >{label}</button>

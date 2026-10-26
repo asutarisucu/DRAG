@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AddVPN, CheckVPN, Connect, ConnectVPN, Disconnect, Probe, SavedServers, VPNs } from '../../wailsjs/go/main/App'
 import { main, remote, store } from '../../wailsjs/go/models'
+import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
 import { Icon } from './Icon'
 import { Menu } from './Menu'
@@ -11,11 +12,14 @@ import { VPN_TYPES, VpnEdit, VpnForm, type VpnCheck } from './VpnForm'
 // vpn は通している VPN の名前。VPN なしなら空
 export type Connected = { id: string; home: string; name: string; user: string; host: string; info: remote.Info; vpn?: string }
 
-const input = 'field h-8 w-full rounded-lg border border-line-strong bg-field px-2.5 text-text outline-none'
-const label = 'mb-1.5 block text-[12px] text-muted'
-const btn = 'h-8 rounded-lg border border-line-strong bg-raised px-3.5 hover:bg-btn-hover'
+const input = 'field h-[34px] w-full px-2.5'
+const label = 'mb-1.5 block text-[12px] font-medium text-soft'
+const btn = 'btn'
 
 type Step = 'wait' | 'run' | 'done' | 'fail'
+
+// 保存済みのサーバーを入力欄の中身にする。パスワードは保存しないので空にする
+const formOf = (s: store.Server) => ({ name: s.name, user: s.user, port: String(s.port), host: s.host, auth: s.auth || 'pass', password: '', keyFile: s.keyFile, vpn: s.vpn ?? '' })
 
 // プローブの結果を「Linux · x86_64 · Ubuntu 24.04 · systemd · screen」の形にする
 export function describeInfo(info: remote.Info, t: (k: string) => string) {
@@ -38,8 +42,11 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   onConnected: (c: Connected) => void
 }) {
   const { t } = useTranslation()
+  const mobile = useMobile()
   const [saved, setSaved] = useState<store.Server[]>([])
-  const [f, setF] = useState({ name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '', vpn: '' })
+  // 保存済みから開いたときは、はじめからその中身を入れておく。
+  // effect で入れると、入るより先にパスワードを打ったときに、打った側の古い中身で上書きされる
+  const [f, setF] = useState(() => preset ? formOf(preset) : { name: '', user: '', port: '22', host: '', auth: 'pass', password: '', keyFile: '', vpn: '' })
   const [vpns, setVpns] = useState<main.VPNInfo[]>([])
   // 選んでいる保存済みの VPN は、右クリックで編集できる。スマホからは編集しない
   const [vpnMenu, setVpnMenu] = useState<{ x: number; y: number; vpn: main.VPNInfo } | null>(null)
@@ -61,14 +68,14 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
   const aborted = useRef(false)
 
   const pick = (s: store.Server) => {
-    setF({ name: s.name, user: s.user, port: String(s.port), host: s.host, auth: s.auth || 'pass', password: '', keyFile: s.keyFile, vpn: s.vpn ?? '' })
+    setF(formOf(s))
     setTimeout(() => passRef.current?.focus())
   }
 
   useEffect(() => {
     SavedServers().then(list => setSaved(list ?? []))
     VPNs().then(list => setVpns(list ?? []))
-    if (preset) pick(preset)
+    if (preset) passRef.current?.focus()
     else hostRef.current?.focus()
   }, [preset])
 
@@ -178,10 +185,10 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
         <div className="mt-[18px] flex items-center gap-2">
           <div className="flex-1" />
           {done
-            ? <button className="btn-primary h-8 rounded-lg px-3.5" onClick={() => onConnected(done)} autoFocus>{t('connect.openServer')}</button>
+            ? <button className="btn-primary" onClick={() => onConnected(done)} autoFocus>{t('connect.openServer')}</button>
             : <>
               {(vpnStep[0] === 'fail' || ssh[0] === 'fail' || probe[0] === 'fail') && <button className={btn} onClick={() => setPhase('form')}>{t('connect.back')}</button>}
-              {hostKey && !hostKey.mismatch && <button className="btn-primary h-8 rounded-lg px-3.5" onClick={() => run(hostKey.fingerprint, via)}>{t('connect.trust')}</button>}
+              {hostKey && !hostKey.mismatch && <button className="btn-primary" onClick={() => run(hostKey.fingerprint, via)}>{t('connect.trust')}</button>}
               <button className={btn} onClick={close}>{t('connect.abort')}</button>
             </>}
         </div>
@@ -194,18 +201,19 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
       <form onSubmit={submit}>
         {saved.length > 0 && <>
           <span className={label}>{t('connect.saved')}</span>
-          <div className="mb-[18px] grid grid-cols-3 gap-2">
+          <div className={`mb-5 grid gap-2.5 ${mobile ? 'grid-cols-1' : 'grid-cols-3'}`}>
             {saved.map(s => (
               <button
                 type="button"
                 key={s.id}
-                className={`flex min-w-0 items-center gap-2.5 rounded-[10px] border p-2.5 text-left ${f.host === s.host && f.user === s.user && f.port === String(s.port) ? 'border-accent bg-accent-soft' : 'border-line-strong bg-panel-2 hover:border-faint'}`}
+                className={`glass-card flex min-w-0 items-center gap-2.5 py-3 pr-3.5 pl-3 ${f.host === s.host && f.user === s.user && f.port === String(s.port) ? 'active' : ''}`}
                 onClick={() => pick(s)}
               >
-                <Icon name="server" className="text-muted" />
+                <span className="saved-ic"><Icon name="server" /></span>
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="font-semibold">{s.name}</span>
+                  {/* VPN の名前が入りきらないときは、名前の下の行へ送る */}
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+                    <span className="font-medium whitespace-nowrap text-strong">{s.name}</span>
                     {vpnName(s.vpn) && <span className="flex min-w-0 items-center gap-[3px] truncate text-[11px] text-muted" title={t('vpn.via', { name: vpnName(s.vpn) })} data-saved-vpn><Icon name="shield" size={12} />{vpnName(s.vpn)}</span>}
                   </div>
                   <div className="truncate font-mono text-[11px] text-muted">{s.user}@{s.host}</div>
@@ -214,7 +222,7 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
             ))}
           </div>
         </>}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3.5">
           <label><span className={label}>{t('connect.name')}</span><input className={input} value={f.name} onChange={set('name')} /></label>
           <label><span className={label}>{t('connect.user')}</span><input className={input} value={f.user} onChange={set('user')} spellCheck={false} /></label>
           <label><span className={label}>{t('connect.port')}</span><input className={input} value={f.port} onChange={set('port')} inputMode="numeric" /></label>
@@ -250,10 +258,10 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
             </>
             : <label className="col-span-2"><span className={label}>{t('connect.password')}</span><input ref={passRef} className={input} type="password" value={f.password} onChange={set('password')} /></label>}
         </div>
-        <div className="mt-[18px] flex items-center gap-2">
+        <div className="mt-[22px] flex items-center gap-2">
           <div className="flex-1" />
           <button type="button" className={btn} onClick={close}>{t('connect.cancel')}</button>
-          <button type="submit" className="btn-primary h-8 rounded-lg px-3.5">{t('connect.submit')}</button>
+          <button type="submit" className="btn-primary">{t('connect.submit')}</button>
         </div>
       </form>
       {vpnMenu && <Menu x={vpnMenu.x} y={vpnMenu.y} title={vpnMenu.vpn.name} onClose={() => setVpnMenu(null)} items={[
@@ -265,19 +273,12 @@ export function ConnectDialog({ preset, onClose, onConnected }: {
 }
 
 function StepRow({ state, label: text, detail }: { state: Step; label: string; detail: string }) {
-  const ic = {
-    wait: 'border-line-strong',
-    run: 'border-accent border-t-transparent animate-spin',
-    done: 'border-ok bg-ok',
-    fail: 'border-err bg-err',
-  }[state]
+  // 回る弧はアクセントの光、終わった手順は弾んでチェックが出る。印は CSS の .step-ic で描く
   return (
-    <li className={`grid grid-cols-[22px_minmax(0,1fr)] gap-3 py-[9px] ${state === 'wait' ? 'text-faint' : 'text-text'}`}>
-      <span className={`relative mt-px grid h-[18px] w-[18px] place-items-center rounded-full border-2 text-[11px] font-extrabold text-[#0b1a12] ${ic}`}>
-        {state === 'done' ? '✓' : state === 'fail' ? '!' : ''}
-      </span>
+    <li className={`grid grid-cols-[22px_minmax(0,1fr)] gap-3 py-2.5 transition-colors ${state === 'wait' ? 'text-faint' : 'text-strong'}`} data-step={state}>
+      <span className={`step-ic mt-px ${state}`} />
       <div className="min-w-0">
-        <div className="font-semibold">{text}</div>
+        <div className="font-medium">{text}</div>
         {detail && <div className={`font-mono text-[12px] break-all ${state === 'fail' ? 'text-err' : 'text-muted'}`}>{detail}</div>}
       </div>
     </li>
@@ -287,8 +288,8 @@ function StepRow({ state, label: text, detail }: { state: Step; label: string; d
 function HostKeyCheck({ hostKey, host }: { hostKey: main.HostKey; host: string }) {
   const { t } = useTranslation()
   return (
-    <li className={`my-1 ml-[34px] list-none rounded-[10px] border p-3.5 ${hostKey.mismatch ? 'border-err' : 'border-line-strong bg-panel-2'}`}>
-      <div className={`mb-1.5 flex items-center gap-2 font-semibold ${hostKey.mismatch ? 'text-err' : ''}`}>
+    <li className={`my-1 ml-[34px] list-none rounded-2xl p-4 ${hostKey.mismatch ? 'shadow-[inset_0_0_0_1px_var(--err)]' : 'bg-glass shadow-[var(--edge-glow)]'}`}>
+      <div className={`mb-1.5 flex items-center gap-2 font-medium ${hostKey.mismatch ? 'text-err' : 'text-strong'}`}>
         <Icon name="lock" />{hostKey.mismatch ? t('connect.mismatchTitle') : t('connect.newKeyTitle')}
       </div>
       <p className="mt-0 mb-3 text-[12.5px] text-muted">{hostKey.mismatch ? t('connect.mismatchText') : t('connect.newKeyText')}</p>

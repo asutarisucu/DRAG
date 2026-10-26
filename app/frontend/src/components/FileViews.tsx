@@ -12,9 +12,9 @@ import { Icon } from './Icon'
 import { Modal } from './Modal'
 
 const errText = (e: unknown) => String(e).replace(/^Error: /, '')
-const toolbar = 'flex h-[34px] flex-none items-center gap-2 border-b border-line bg-panel pr-2 pl-2.5 text-[12px]'
+const toolbar = 'flex h-[38px] flex-none items-center gap-2 bg-[var(--win-bg)] pr-2 pl-3.5 text-[12px] shadow-[inset_0_-1px_0_var(--border-soft)]'
 const pathCls = 'min-w-0 truncate font-mono text-[11.5px] text-muted'
-const smallBtn = 'h-7 rounded-lg border border-line-strong bg-raised px-2.5 text-[12px] hover:bg-btn-hover disabled:opacity-45'
+const smallBtn = 'btn sm'
 const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
 function Failed({ text }: { text: string }) {
@@ -26,7 +26,7 @@ function Gutter({ lines, scrollTop }: { lines: number; scrollTop: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => { if (ref.current) ref.current.scrollTop = scrollTop }, [scrollTop])
   return (
-    <div ref={ref} className="w-11 flex-none overflow-hidden border-r border-[color-mix(in_srgb,var(--term-fg)_15%,transparent)] py-2 pr-2.5 text-right font-mono text-[12.5px] leading-[1.5] whitespace-pre text-term-dim select-none">
+    <div ref={ref} className="w-11 flex-none overflow-hidden border-r border-term-line py-2 pr-2.5 text-right font-mono text-[12.5px] leading-[1.5] whitespace-pre text-term-dim select-none">
       {Array.from({ length: lines }, (_, i) => i + 1).join('\n')}
     </div>
   )
@@ -106,7 +106,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
         <div className="flex-1" />
         <span className={`text-[11.5px] whitespace-nowrap ${status ? 'text-ok' : 'text-muted'}`}>{status ? t('editor.saved') : error || t('editor.lines', { n: lines })}</span>
         {locked
-          ? <button className={`${smallBtn} inline-flex items-center gap-1 border-[color-mix(in_srgb,var(--warn)_50%,transparent)] text-warn`} title={t('sudo.readOnlyHint')} onClick={() => requireSudo(serverId)}><Icon name="lock" size={13} />{t('sudo.readOnly')}</button>
+          ? <button className={`${smallBtn} !text-warn !shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--warn)_50%,transparent)]`} title={t('sudo.readOnlyHint')} onClick={() => requireSudo(serverId)}><Icon name="lock" size={13} />{t('sudo.readOnly')}</button>
           : <button className={smallBtn} disabled={text === null} onClick={() => save()}>{t('editor.save')}</button>}
       </div>
       <div className="flex min-h-0 flex-1 bg-term">
@@ -140,7 +140,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
           <p className="mt-0">{t('editor.changed', { path })}</p>
           <div className="mt-[18px] flex justify-end gap-2">
             <button className={smallBtn} onClick={() => answer.current(false)}>{t('editor.cancel')}</button>
-            <button className="btn-primary h-7 rounded-lg px-2.5 text-[12px]" onClick={() => answer.current(true)}>{t('editor.overwrite')}</button>
+            <button className="btn-primary sm" onClick={() => answer.current(true)}>{t('editor.overwrite')}</button>
           </div>
         </Modal>
       )}
@@ -151,7 +151,7 @@ export function EditorView({ win, serverId, home }: { win: Win; serverId: string
             <button className={smallBtn} onClick={() => answer.current(true)}>{t('editor.discard')}</button>
             <div className="flex-1" />
             <button className={smallBtn} onClick={() => answer.current(false)}>{t('editor.cancel')}</button>
-            <button className="btn-primary h-7 rounded-lg px-2.5 text-[12px]" onClick={() => answer.current('save')}>{t('editor.saveClose')}</button>
+            <button className="btn-primary sm" onClick={() => answer.current('save')}>{t('editor.saveClose')}</button>
           </div>
         </Modal>
       )}
@@ -272,7 +272,7 @@ export function LogView({ win, serverId, home }: { win: Win; serverId: string; h
       <div className={toolbar}>
         <span className={pathCls}>{stream ? (stream[1] === 'journal' ? `journalctl -u ${stream[2]} -f` : `docker logs -f ${stream[2]}`) : path.startsWith(home + '/') ? '~' + path.slice(home.length) : path}</span>
         <div className="flex-1" />
-        <input className="field h-6 w-[130px] rounded-md border border-line-strong bg-field px-2 text-[12px] text-text outline-none" placeholder={t('log.filter')} spellCheck={false} value={filter} onChange={e => setFilter(e.target.value)} />
+        <input className="field h-[26px] w-[130px] px-2 text-[12px]" placeholder={t('log.filter')} spellCheck={false} value={filter} onChange={e => setFilter(e.target.value)} />
         <label className="inline-flex cursor-pointer items-center gap-1.5 text-muted select-none">
           <input type="checkbox" className="accent-[var(--accent)]" checked={follow} onChange={e => setFollow(e.target.checked)} />{t('log.follow')}
         </label>
@@ -391,8 +391,8 @@ export function ArchiveView({ win, serverId, home }: { win: Win; serverId: strin
       if (c.dir) {
         const isOpen = open[c.path] ?? d === 0
         rows.push(
-          <div key={c.path} style={pad} className="flex h-[26px] cursor-pointer items-center gap-1.5 pr-3 text-[12.5px] select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)]" onClick={() => setOpen(o => ({ ...o, [c.path]: !isOpen }))}>
-            <span className={`text-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}><Icon name="chevron" size={13} /></span>
+          <div key={c.path} style={pad} className="flex h-7 cursor-pointer items-center gap-1.5 rounded-md pr-3 text-[12.5px] transition-colors select-none hover:bg-hover" onClick={() => setOpen(o => ({ ...o, [c.path]: !isOpen }))}>
+            <span className={`tree-chev ${isOpen ? 'rotate-90' : ''}`}><Icon name="chevron" size={13} /></span>
             <Icon name="folder" size={15} className="f-dir" />
             <span className="min-w-0 flex-1 truncate">{c.name}</span>
           </div>,
@@ -404,7 +404,7 @@ export function ArchiveView({ win, serverId, home }: { win: Win; serverId: strin
       const [icon, color] = KIND_ICON[k]
       const readable = k !== 'bin' && k !== 'img' && k !== 'arc'
       rows.push(
-        <div key={c.path} style={pad} data-entry={c.path} className={`flex h-[26px] items-center gap-1.5 pr-3 text-[12.5px] select-none ${readable ? 'cursor-pointer hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)]' : 'cursor-default text-muted'}`} onClick={readable ? () => show(info.id, c.path) : undefined}>
+        <div key={c.path} style={pad} data-entry={c.path} className={`flex h-7 items-center gap-1.5 rounded-md pr-3 text-[12.5px] transition-colors select-none ${readable ? 'cursor-pointer hover:bg-hover' : 'cursor-default text-muted'}`} onClick={readable ? () => show(info.id, c.path) : undefined}>
           <span className="w-[13px] flex-none" />
           <Icon name={icon} size={15} className={color} />
           <span className="min-w-0 flex-1 truncate">{c.name}</span>

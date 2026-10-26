@@ -13,6 +13,7 @@ import { TrashView } from './TrashView'
 import { openContainerShell, openTool, TOOLS } from '../tools'
 import { onForeground } from '../shellBus'
 import { useMobile } from '../mobile'
+import { enterTask, slideMark, slideX, useSlide } from '../motion'
 import { useSettings } from '../settings'
 import { terminalOf } from '../terminals'
 import { toast } from '../toasts'
@@ -163,7 +164,12 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
           }
         }}
       >
-        {wins.length === 0 && <div className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center text-faint select-none">{mobile ? t('desktop.emptyMobile') : t('desktop.empty')}</div>}
+        {wins.length === 0 && (
+          <div className="pointer-events-none absolute inset-0 grid place-content-center justify-items-center gap-4 px-6 text-center text-muted select-none">
+            {!mobile && <EmptyHint />}
+            {mobile ? t('desktop.emptyMobile') : t('desktop.empty')}
+          </div>
+        )}
         {wins.map(w => (
           <Window key={w.id} win={w} focused={w.id === focused} host={host} onSnapPreview={setSnap} onMinimize={() => minimize(w)} onClose={() => close(w)}>
             {w.kind === 'editor' ? <EditorView win={w} serverId={serverId} home={home} />
@@ -182,15 +188,27 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
                     />}
           </Window>
         ))}
-        {preview && <div className="pointer-events-none absolute z-[2147483000] rounded-xl border border-[color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] backdrop-blur-[3px]" style={preview} />}
+        {preview && <div className="snap-preview pointer-events-none absolute z-[2147483000]" style={preview} />}
+        {/* 落とせる場所は、点線の枠が回る。何が起きるかは真ん中の札に出す */}
         {dropOn && (
-          <div className="pointer-events-none absolute inset-2 z-[2147483001] grid place-items-center rounded-xl border-2 border-dashed border-[color-mix(in_srgb,var(--accent)_75%,transparent)] bg-[color-mix(in_srgb,var(--accent)_9%,transparent)] text-[13px] font-semibold">
-            <span className="rounded-lg bg-raised px-3 py-1.5 shadow-win">{dropOn}</span>
+          <div className="drop-zone pointer-events-none absolute inset-2 z-[2147483001] grid place-items-center">
+            <span className="drop-tag">{dropOn}</span>
           </div>
         )}
       </div>
       <Taskbar serverId={serverId} wins={wins} focused={focused} onNewTerminal={newTerminal} onTile={tile} onClose={close} onMinimize={minimize} />
     </section>
+  )
+}
+
+// 空のデスクトップでは、ファイルを窓の枠へドラッグする動きを繰り返して見せる
+function EmptyHint() {
+  return (
+    <div className="empty-hint" aria-hidden="true">
+      <span className="eh-frame" />
+      <span className="eh-file"><Icon name="log" size={14} />latest.log</span>
+      <svg className="eh-cursor" viewBox="0 0 24 24"><path d="M5 3l14 8.2-6.1 1.3 3.6 6.6-2.7 1.5-3.6-6.6L5.6 18z" /></svg>
+    </div>
   )
 }
 
@@ -207,6 +225,11 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
   const mobile = useMobile()
   const box = useRef<HTMLDivElement>(null)
   const dragged = useRef(false)
+  // 選んでいる項目の下地と下の印を、前の項目から滑らせる
+  useSlide(box, wins.find(w => w.id === focused && !w.min)?.id, (el, from, to) => {
+    slideX('::before')(el, from, to)
+    slideMark(el, from, to)
+  })
   // 前面のウィンドウの項目が見えるようにスクロールする
   useEffect(() => {
     if (focused) box.current?.querySelector(`[data-task="${focused}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -267,39 +290,41 @@ function Taskbar({ serverId, wins, focused, onNewTerminal, onTile, onClose, onMi
   }
 
   return (
-    <footer className={`flex flex-none items-center gap-1 border-line bg-[color-mix(in_srgb,var(--chrome)_90%,transparent)] px-2 backdrop-blur-md ${mobile ? 'order-first h-[46px] border-b' : 'h-[42px] border-t'}`}>
-      <button className="grid h-8 w-[34px] place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t('desktop.newTerminal')} onClick={onNewTerminal}>
+    <footer className={`taskbar flex flex-none items-center gap-1 px-2.5 ${mobile ? 'order-first h-[50px] shadow-[inset_0_-1px_0_var(--border-soft)]' : 'h-12 shadow-[inset_0_1px_0_var(--border-soft)]'}`}>
+      <button className="launch-btn" title={t('desktop.newTerminal')} onClick={onNewTerminal}>
         <Icon name="terminal" size={18} />
       </button>
       {TOOLS.map(([k, icon]) => (
-        <button key={k} data-tool={k} className="grid h-8 w-[34px] place-items-center rounded-[7px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_6%,transparent)] hover:text-text" title={t(`tools.${k}`)} onClick={() => openTool(serverId, k)}>
+        <button key={k} data-tool={k} className="launch-btn" title={t(`tools.${k}`)} onClick={() => openTool(serverId, k)}>
           <Icon name={icon} size={18} />
         </button>
       ))}
-      <span className="mx-1.5 h-[22px] w-px flex-none bg-line-strong" />
-      <div ref={box} className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]">
+      <span className="mx-1.5 h-[22px] w-px flex-none bg-line" />
+      <div ref={box} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none]">
         {wins.map((w, i) => {
           const active = w.id === focused && !w.min
           return (
             <div
               key={w.id}
+              ref={enterTask}
               role="button"
               title={w.title}
               data-task={w.id}
-              className={`group relative flex h-8 max-w-[220px] flex-none cursor-pointer items-center gap-[7px] rounded-[7px] pr-[5px] pl-3 select-none transition-[background,color] after:absolute after:bottom-0.5 after:left-1/2 after:h-[3px] after:-translate-x-1/2 after:rounded-sm ${active ? 'bg-[color-mix(in_srgb,var(--text)_8%,transparent)] text-text after:w-4 after:bg-accent' : 'text-muted after:w-1.5 after:bg-faint hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] hover:text-text'} ${w.min ? 'opacity-60' : ''}`}
+              data-slide={w.id}
+              className={`task-item group flex h-[34px] max-w-[220px] flex-none cursor-pointer items-center gap-[7px] pr-[5px] pl-[13px] select-none ${active ? 'active' : ''} ${w.min ? 'minimized' : ''}`}
               onClick={() => click(w)}
               onPointerDown={e => onDown(e, i)}
             >
               <Icon name={w.icon} />
               <span className="truncate text-[12px]">{w.title}</span>
-              <button className="grid h-5 w-5 flex-none place-items-center rounded-[5px] text-muted opacity-45 group-hover:opacity-90 hover:bg-[color-mix(in_srgb,var(--text)_12%,transparent)] hover:text-text" title={t('desktop.close')} onClick={e => { e.stopPropagation(); onClose(w) }}>
+              <button className={`icon-btn h-5 w-5 group-hover:opacity-90 hover:!text-err ${active ? 'opacity-90' : 'opacity-45'}`} title={t('desktop.close')} onClick={e => { e.stopPropagation(); onClose(w) }}>
                 <Icon name="x" size={12} />
               </button>
             </div>
           )
         })}
       </div>
-      {!mobile && <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:text-text" title={t('desktop.tile')} onClick={onTile}><Icon name="grid" /></button>}
+      {!mobile && <button className="icon-btn h-7 w-7" title={t('desktop.tile')} onClick={onTile}><Icon name="grid" /></button>}
     </footer>
   )
 }

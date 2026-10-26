@@ -45,7 +45,7 @@ await page.click('[role=dialog] button:has-text("開く")');
 await page.waitForSelector('.tree-row');
 const waitFor = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 200) { if (await fn().catch(() => false)) return true; await page.waitForTimeout(200); } return false; };
 const at = p => page.locator(`.tree-row[data-path="${p}"]`);
-const selected = async p => (await at(p).getAttribute('class').catch(() => '')).includes('bg-accent-soft');
+const selected = async p => (await at(p).getAttribute('class').catch(() => '')).split(' ').includes('selected');
 
 // ファイルの区画をいちばん狭くしても、見出しの「ファイル」は1行に入りきる
 const resizer = page.locator('.cursor-col-resize').first();

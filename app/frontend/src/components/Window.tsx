@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { setMTab, useMobile } from '../mobile'
 import { useSettings } from '../settings'
+import { enterWindow } from '../motion'
 import { terminalOf } from '../terminals'
 import { focusWin, updateWin, type Rect, type Win } from '../windows'
 import { Icon } from './Icon'
@@ -28,11 +29,12 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
   const mobile = useMobile()
   const el = useRef<HTMLDivElement>(null)
 
-  // 開くとき・最小化・元に戻すときの動き (mock/ と同じ)。最小化は、タスクバーの項目へ縮めてから隠す
+  // 開くとき・最小化・元に戻すときの動き (mock/ と同じ)。開くときはぼかしから浮かび上がらせ、
+  // 最小化は、タスクバーの項目へ縮めてから隠す
   const [hidden, setHidden] = useState(win.min)
   const wasMin = useRef(win.min)
   useEffect(() => {
-    if (!mobile) el.current?.animate([{ opacity: 0, transform: 'scale(.97) translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 170, easing: 'cubic-bezier(.2,.8,.2,1)' })
+    if (!mobile && el.current) enterWindow(el.current)
   }, [])
   useEffect(() => {
     if (wasMin.current === win.min) return
@@ -135,12 +137,12 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
   }
 
   if (mobile) {
-    const mbtn = 'grid h-[34px] w-10 place-items-center rounded-md text-muted hover:bg-raised hover:text-text'
+    const mbtn = 'icon-btn h-9 w-10'
     return (
       <div data-win={win.id} className={`absolute inset-0 flex-col bg-[var(--win-bg)] ${focused && !win.min ? 'flex' : 'hidden'}`} style={{ zIndex: win.z }}>
-        <div className="flex h-[42px] flex-none items-center gap-2 border-b border-line bg-gradient-to-b from-[var(--bar-f1)] to-[var(--bar-f2)] pr-1 pl-3 select-none">
-          <Icon name={win.icon} className="text-accent" />
-          <span className={`min-w-0 flex-1 truncate text-[13px] ${win.ended ? 'text-faint' : ''}`}>{win.title}</span>
+        <div className="win-bar flex h-[44px] flex-none items-center gap-2 pr-1 pl-3 select-none">
+          <Icon name={win.icon} className="text-accent-text" />
+          <span className={`min-w-0 flex-1 truncate text-[13px] font-medium ${win.ended ? 'text-faint' : 'text-strong'}`}>{win.title}</span>
           {win.kind === 'session' && !win.ended && (
             <button className={mbtn} title={t('desktop.toTerminal')} onClick={() => { terminalOf(win.serverId)?.takeBack(win.id); setMTab('terminal') }}>
               <Icon name="download" size={16} />
@@ -154,33 +156,34 @@ export function Window({ win, focused, host, onSnapPreview, onMinimize, onClose,
   }
 
   const r = win.max ? { x: 0, y: 0, w: undefined, h: undefined } : win.rect
-  const btn = 'grid h-[26px] w-8 place-items-center rounded-md text-muted hover:bg-raised hover:text-text'
+  // 窓のボタンは Windows と同じく右に並べる
+  const btn = 'win-btn h-[26px] w-8'
   return (
     <div
       ref={el}
       data-win={win.id}
-      className={`absolute flex min-h-[150px] min-w-[260px] flex-col overflow-hidden border bg-[var(--win-bg)] shadow-win ${win.max ? 'inset-0 rounded-none' : 'rounded-[10px]'} ${focused ? 'border-[color-mix(in_srgb,var(--accent)_50%,transparent)]' : 'border-line-strong'} ${hidden ? 'hidden' : ''}`}
+      className={`win absolute flex min-h-[150px] min-w-[260px] flex-col overflow-hidden ${win.max ? 'max inset-0' : ''} ${focused ? 'focused' : ''} ${hidden ? 'hidden' : ''}`}
       style={{ left: r.x, top: r.y, width: r.w, height: r.h, zIndex: win.z }}
       onPointerDownCapture={() => { if (!focused) focusWin(win.id) }}
     >
       <div
-        className={`flex h-[34px] flex-none touch-none items-center gap-2 border-b border-line pr-1 pl-2.5 select-none ${focused ? 'bg-gradient-to-b from-[var(--bar-f1)] to-[var(--bar-f2)]' : 'bg-gradient-to-b from-[var(--bar-1)] to-[var(--bar-2)]'}`}
+        className="win-bar flex h-[38px] flex-none touch-none items-center gap-2 pr-[5px] pl-3.5 select-none"
         onPointerDown={onBarDown}
         onDoubleClick={e => { if (!(e.target as HTMLElement).closest('button')) toggleMax() }}
       >
-        <Icon name={win.icon} className={focused ? 'text-accent' : 'text-muted'} />
-        <span className={`min-w-0 flex-1 truncate text-[12.5px] ${win.ended ? 'text-faint' : ''}`}>{win.title}</span>
-        <div className="flex">
+        <Icon name={win.icon} className="win-icon" />
+        <span className={`win-title min-w-0 flex-1 truncate text-[12.5px] ${win.ended ? '!font-normal !text-faint' : ''}`}>{win.title}</span>
+        <div className="flex gap-0.5">
           <button className={btn} title={t('desktop.minimize')} onClick={onMinimize}><Icon name="min" size={14} /></button>
           <button className={btn} title={win.max ? t('desktop.restore') : t('desktop.maximize')} onClick={toggleMax}><Icon name={win.max ? 'restore' : 'max'} size={14} /></button>
-          <button className={`${btn} hover:!bg-[#c42b1c] hover:!text-white`} title={t('desktop.close')} onClick={onClose}><Icon name="x" size={14} /></button>
+          <button className={`${btn} close`} title={t('desktop.close')} onClick={onClose}><Icon name="x" size={14} /></button>
         </div>
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       {!win.max && <>
-        <div className="absolute top-0 -right-[3px] bottom-0 z-[3] w-2 cursor-ew-resize" onPointerDown={onResizeDown(true, false)} />
-        <div className="absolute right-0 -bottom-[3px] left-0 z-[3] h-2 cursor-ns-resize" onPointerDown={onResizeDown(false, true)} />
-        <div className="absolute -right-[3px] -bottom-[3px] z-[3] h-4 w-4 cursor-nwse-resize" onPointerDown={onResizeDown(true, true)} />
+        <div className="absolute top-0 -right-[3px] bottom-0 z-[7] w-2 cursor-ew-resize" onPointerDown={onResizeDown(true, false)} />
+        <div className="absolute right-0 -bottom-[3px] left-0 z-[7] h-2 cursor-ns-resize" onPointerDown={onResizeDown(false, true)} />
+        <div className="absolute -right-[3px] -bottom-[3px] z-[7] h-4 w-4 cursor-nwse-resize" onPointerDown={onResizeDown(true, true)} />
       </>}
     </div>
   )

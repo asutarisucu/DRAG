@@ -20,7 +20,7 @@ export type Settings = {
   sb: { uptime: boolean; cpu: boolean; mem: boolean; net: boolean }
 }
 
-export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', accent: '#5b9dff', desk: 'gradient', term: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
+export const DEFAULTS: Settings = { lang: 'ja', theme: 'dark', accent: '#0a6cff', desk: 'gradient', term: 'dark', termSize: 13, sidebarW: 260, terminalH: 230, uploadConflict: 'ask',
   autoOn: true, autoCmds: ['ssh', 'docker exec', 'docker attach', 'screen', 'tmux', 'mysql', 'psql'], snap: true, followLog: true,
   sb: { uptime: true, cpu: true, mem: true, net: true },
 }
@@ -29,6 +29,8 @@ const KEY = 'drag-settings'
 function load(): Settings {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}')
+    // 前のデザインの初期の青は、ロゴの青に置き換える
+    if (saved.accent === '#5b9dff') delete saved.accent
     return { ...DEFAULTS, ...saved, sb: { ...DEFAULTS.sb, ...saved.sb } }
   } catch {
     return { ...DEFAULTS }

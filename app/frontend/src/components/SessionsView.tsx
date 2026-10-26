@@ -29,7 +29,7 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
   const [others, setOthers] = useState<main.ShellInfo[]>([])
   const wins = useWins(serverId)
   const mobile = useMobile()
-  const pad = mobile ? 'py-2.5 px-4' : 'py-1.5 px-3.5'
+  const pad = mobile ? 'py-2.5 px-3' : 'py-[7px] px-2'
 
   useEffect(() => {
     if (!visible) return
@@ -43,8 +43,8 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
   }, [serverId, visible])
 
   const group = (label: string, items: React.ReactNode[]) => [
-    <div key={label} className="px-3.5 pt-3 pb-1 text-[11px] font-semibold tracking-[.06em] text-faint">{label}</div>,
-    ...(items.length ? items : [<div key={label + ':none'} className="px-3.5 py-1 text-[12px] text-faint">{t('sessions.none')}</div>]),
+    <div key={label} className="eyebrow s-group px-2 pt-4 pb-2">{label}</div>,
+    ...(items.length ? items : [<div key={label + ':none'} className="px-2 py-1 text-[12px] text-faint">{t('sessions.none')}</div>]),
   ]
   const item = (s: remote.Session) => {
     const where = wins.some(w => sameSession(s, w.sessionKey)) ? t('sessions.inWindow') : sameSession(s, terminalKey) ? t('sessions.inTerminal') : ''
@@ -53,18 +53,18 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
         key={s.kind + s.user + s.name}
         draggable={!mobile}
         data-session={`${s.kind}:${s.user ? s.user + '/' : ''}${s.name}`}
-        className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`}
+        className={`flex cursor-pointer items-center gap-2.5 rounded-[10px] transition-colors select-none hover:bg-hover ${pad}`}
         onClick={() => onOpen(s)}
         onDragStart={e => e.dataTransfer.setData('application/x-drag-session', JSON.stringify({ kind: s.kind, name: s.name, user: s.user }))}
       >
-        <Icon name="layers" className="text-accent-2" />
+        <span className="s-ic"><Icon name="layers" /></span>
         <div className="min-w-0">
-          <div className="truncate font-mono text-[12.5px]">{s.name}</div>
+          <div className="truncate font-mono text-[12.5px] text-strong">{s.name}</div>
           <div className="text-[11.5px] text-muted">
             {[s.user ? t('sessions.ownedBy', { user: s.user }) : '', s.kind === 'tmux' ? t('sessions.windowsCount', { n: s.desc }) : '', s.lastUsed ? t('sessions.lastUsed', { when: when(s.lastUsed) }) : s.kind === 'screen' ? s.desc : ''].filter(Boolean).join(' · ')}
           </div>
         </div>
-        {where && <span className="ml-auto flex-none rounded-full bg-accent-soft px-2 py-px text-[10.5px] text-accent">{where}</span>}
+        {where && <span className="tag-pill">{where}</span>}
       </div>
     )
   }
@@ -85,27 +85,27 @@ export function SessionsView({ serverId, visible, terminalKey, onOpen }: {
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
   }
   return (
-    <div className="min-h-0 flex-1 overflow-auto pb-5">
+    <div className="min-h-0 flex-1 overflow-auto px-2 pb-5">
       {list && [
         // ほかのユーザーの screen は、自分のものの後ろに並べる (見えるのは root か sudo モードのときだけ)
         ...group('screen', [...list.filter(s => s.kind === 'screen' && !s.user), ...list.filter(s => s.kind === 'screen' && s.user)].map(item)),
         ...group('tmux', list.filter(s => s.kind === 'tmux').map(item)),
         ...group(t('sessions.windows'), [...own.map(w => (
-          <div key={w.id} className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`} onClick={() => { focusWin(w.id); setMTab('desktop') }}>
-            <Icon name={w.icon} className="text-accent-2" />
+          <div key={w.id} className={`flex cursor-pointer items-center gap-2.5 rounded-[10px] transition-colors select-none hover:bg-hover ${pad}`} onClick={() => { focusWin(w.id); setMTab('desktop') }}>
+            <span className="s-ic"><Icon name={w.icon} /></span>
             <div className="min-w-0">
-              <div className="truncate font-mono text-[12.5px]">{w.title}</div>
+              <div className="truncate font-mono text-[12.5px] text-strong">{w.title}</div>
               <div className="text-[11.5px] text-muted">{w.kind === 'terminal' ? t('sessions.shell') : w.title}</div>
             </div>
           </div>
         )), ...others.map(sh => (
-          <div key={sh.id} data-other-shell={sh.id} className={`flex cursor-pointer items-center gap-2.5 select-none hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${pad}`} onClick={() => openOther(sh)}>
-            <Icon name="terminal" className="text-accent-2" />
+          <div key={sh.id} data-other-shell={sh.id} className={`flex cursor-pointer items-center gap-2.5 rounded-[10px] transition-colors select-none hover:bg-hover ${pad}`} onClick={() => openOther(sh)}>
+            <span className="s-ic"><Icon name="terminal" /></span>
             <div className="min-w-0">
-              <div className="truncate font-mono text-[12.5px]">{sh.fg || t('sessions.shell')}</div>
+              <div className="truncate font-mono text-[12.5px] text-strong">{sh.fg || t('sessions.shell')}</div>
               <div className="text-[11.5px] text-muted">{t('sessions.openOn', { owner: sh.owner })}</div>
             </div>
-            {wins.some(w => w.shellId === sh.id) && <span className="ml-auto flex-none rounded-full bg-accent-soft px-2 py-px text-[10.5px] text-accent">{t('sessions.inWindow')}</span>}
+            {wins.some(w => w.shellId === sh.id) && <span className="tag-pill">{t('sessions.inWindow')}</span>}
           </div>
         ))]),
       ]}

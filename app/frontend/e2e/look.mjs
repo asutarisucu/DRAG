@@ -57,18 +57,19 @@ ok('ボタンは帯の右上の角まで', Math.abs(wb.x + wb.width - (hb.x + hb
 
 // アクセントの色
 await openSettings();
-ok('はじめは青', (await root()).accent === '#5b9dff' && (await dlg.locator('[data-accent="#5b9dff"]').getAttribute('class')).includes('border-text'));
-await dlg.locator('[data-accent="#8b7bff"]').click();
-ok('候補を選ぶと変わる', (await root()).accent === '#8b7bff' && (await dlg.locator('[data-accent="#8b7bff"]').getAttribute('class')).includes('border-text'));
+ok('はじめはロゴの青', (await root()).accent === '#0a6cff' && (await dlg.locator('[data-accent="#0a6cff"]').getAttribute('class')).includes('active'));
+await dlg.locator('[data-accent="#663af3"]').click();
+ok('候補を選ぶと変わる', (await root()).accent === '#663af3' && (await dlg.locator('[data-accent="#663af3"]').getAttribute('class')).includes('active'));
 await dlg.locator('button:has-text("操作")').first().click();
-ok('ON のスイッチの色も変わる', (await style('[role=dialog] [role=switch][aria-checked=true]', 'backgroundColor')) === 'rgb(139, 123, 255)');
+ok('ON のスイッチの色も変わる', (await style('[role=dialog] [role=switch][aria-checked=true]', 'backgroundColor')) === 'rgb(102, 58, 243)');
 await dlg.locator('button:has-text("外観")').first().click();
 await dlg.locator('input[type=color]').fill('#e04040');
 ok('好きな色を選べる', (await root()).accent === '#e04040');
 
 // デスクトップの背景
 const bg = () => style('[data-desktop] .desk-bg, .desk-bg', 'backgroundImage');
-ok('はじめはグラデーション', (await bg()).split('radial-gradient').length - 1 === 3);
+// 上の真ん中の光と端を暗くする2つの radial-gradient と、方眼の2つの linear-gradient
+ok('はじめはグラデーション', (await bg()).split('radial-gradient').length - 1 === 2 && (await bg()).split('linear-gradient').length - 1 === 2);
 await dlg.locator('button:has-text("ドット")').click();
 ok('ドット', (await root()).desk === 'dots' && (await bg()).split('radial-gradient').length - 1 === 1);
 await dlg.locator('button:has-text("無地")').click();
@@ -79,7 +80,7 @@ await page.screenshot({ path: `${OUT}/look-accent.png` });
 await dlg.locator('button:has-text("ターミナル")').first().click();
 const preview = '[role=dialog] [data-term-preview]';
 await page.waitForSelector(preview);
-ok('はじめはダーク', (await root()).term === 'dark' && (await style(preview, 'backgroundColor')) === 'rgb(10, 13, 17)');
+ok('はじめはダーク', (await root()).term === 'dark' && (await style(preview, 'backgroundColor')) === 'rgb(4, 5, 12)');
 await dlg.locator('button:has-text("Solarized")').click();
 ok('Solarized の見本', (await root()).term === 'solarized' && (await style(preview, 'backgroundColor')) === 'rgb(0, 43, 54)');
 ok('ターミナルの文字の色が変わる', await page.waitForFunction(() => getComputedStyle(document.querySelector('[data-terminal] .xterm-rows')).color === 'rgb(147, 161, 161)', null, { timeout: 3000 }).then(() => true, () => false));
@@ -98,7 +99,7 @@ ok('読み込み直しても残る', kept.accent === '#e04040' && kept.desk === 
 await openSettings();
 await dlg.locator('button:has-text("初期設定に戻す")').click();
 const reset = await root();
-ok('初期設定に戻す', reset.accent === '#5b9dff' && reset.desk === 'gradient' && reset.term === 'dark', JSON.stringify(reset));
+ok('初期設定に戻す', reset.accent === '#0a6cff' && reset.desk === 'gradient' && reset.term === 'dark', JSON.stringify(reset));
 await page.keyboard.press('Escape');
 
 await page.evaluate(() => localStorage.removeItem('drag-settings'));

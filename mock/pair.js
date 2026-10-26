@@ -26,9 +26,9 @@ const ic = name => {
   return s;
 };
 
-// 本体のモックで選んだテーマと色を使う
+// 本体のモックで選んだテーマと色を使う。v2/ のモックは保存先を MOCK_THEME で差し替える
 try {
-  const s = JSON.parse(localStorage.getItem('drag-mock-settings') || '{}');
+  const s = JSON.parse(localStorage.getItem(window.MOCK_THEME?.storageKey || 'drag-mock-settings') || '{}');
   if (s.theme) document.documentElement.dataset.theme = s.theme;
   if (s.accent) document.documentElement.style.setProperty('--accent', s.accent);
 } catch { /* 読めなければ初期の見た目 */ }

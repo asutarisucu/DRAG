@@ -6,6 +6,7 @@ import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { pathArg, terminalOf } from '../terminals'
 import { useSettings } from '../settings'
 import { setMTab, useMobile } from '../mobile'
+import { enterRow } from '../motion'
 import { isRemote } from '../remote'
 import i18n from '../i18n'
 import { isDenied, useSudo, withSudo } from '../sudo'
@@ -403,7 +404,7 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   // スマホでは常に出し、PC ではマウスを乗せた行にだけ出す
   const moreButton = (n: Node) => (
     <button
-      className={mobile ? 'grid h-9 w-9 flex-none place-items-center rounded-md text-muted' : `${navBtn} invisible group-hover:visible`}
+      className={mobile ? 'icon-btn h-9 w-9' : `${navBtn} invisible group-hover:visible`}
       title={t('menu.more')}
       onClick={ev => {
         ev.stopPropagation()
@@ -457,34 +458,35 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       move(dragging.current, dir)
     },
   })
-  const dropOn = 'bg-[rgba(63,207,142,.14)] shadow-[inset_0_0_0_1px_var(--ok)]'
+  const dropOn = 'drop-on'
 
   const pending = (path: string, depth: number) => uploads.filter(u => u.dir === path).map(u => (
     <div key={'up:' + u.key} className={`relative flex items-center gap-[5px] pr-1 whitespace-nowrap text-muted ${rowSize}`} style={{ paddingLeft: indent(depth) }}>
       <span className="w-[13px] flex-none" />
       <span className={u.isDir ? 'f-dir' : 'f-file'}><Icon name={u.isDir ? 'folder' : 'file'} size={15} /></span>
       <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">{u.name}</span>
-      <div className="h-1 w-16 flex-none overflow-hidden rounded-sm bg-line"><i className="block h-full bg-gradient-to-r from-ok to-[#7fe6b8]" style={{ width: `${u.p * 100}%` }} /></div>
+      <div className="h-1 w-16 flex-none overflow-hidden rounded-sm bg-hover-strong"><i className="up-bar block h-full rounded-sm" style={{ width: `${u.p * 100}%` }} /></div>
       <span className="pl-2 font-mono text-[11px] text-faint">{Math.round(u.p * 100)}%</span>
     </div>
   ))
 
-  const rowSize = mobile ? 'h-10 text-[14.5px]' : 'h-6 text-[13px]'
-  const indent = (depth: number) => mobile ? `calc(14px + ${depth} * 16px)` : `calc(10px + ${depth} * 14px)`
+  const rowSize = mobile ? 'h-[42px] text-[14.5px]' : 'h-[27px] text-[13px]'
+  const indent = (depth: number) => mobile ? `calc(12px + ${depth} * 16px)` : `calc(8px + ${depth} * 14px)`
   const rows = (path: string, depth: number): React.ReactNode[] => {
     const d = dirs[path]
     if (!d || (d.loading && !d.entries)) return pending(path, depth)
     if (d.error) return [<Note key={path + ':err'} depth={depth} text={t('files.error', { error: d.error })} err />]
     if (d.entries!.length === 0 && !uploads.some(u => u.dir === path)) return [<Note key={path + ':empty'} depth={depth} text={t('files.empty')} />]
-    return [...d.entries!.flatMap(e => {
+    return [...d.entries!.flatMap((e, idx) => {
       const [icon, color] = KIND_ICON[fileKind(e.name, e.dir)]
       const isOpen = !!open[e.path]
       const cut = clip?.move && clip.path === e.path
       return [
         <div
           key={e.path}
-          className={`tree-row group relative flex cursor-pointer items-center gap-[5px] pr-1 whitespace-nowrap select-none ${rowSize} ${flash === e.path ? 'flash' : ''} hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)] ${dropDir && dropDir === (e.dir ? e.path : path) ? dropOn : selected === e.path ? 'bg-accent-soft shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--accent)_35%,transparent)]' : ''} ${cut ? 'opacity-50' : ''}`}
-          style={{ paddingLeft: indent(depth), ['--d' as string]: depth }}
+          ref={enterRow}
+          className={`tree-row group relative flex cursor-pointer items-center gap-1.5 pr-1 whitespace-nowrap select-none ${rowSize} ${flash === e.path ? 'flash' : ''} ${dropDir && dropDir === (e.dir ? e.path : path) ? dropOn : selected === e.path ? 'selected' : ''} ${cut ? 'opacity-50' : ''}`}
+          style={{ paddingLeft: indent(depth), ['--d' as string]: depth, ['--i' as string]: idx }}
           data-d={depth}
           data-path={e.path}
           {...dropProps(e.dir ? e.path : path)}
@@ -508,9 +510,9 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
           title={e.path}
         >
           {e.dir
-            ? <span className={`text-faint transition-transform ${isOpen ? 'rotate-90' : ''}`}><Icon name="chevron" size={13} /></span>
+            ? <span className={`tree-chev ${isOpen ? 'rotate-90' : ''}`}><Icon name="chevron" size={13} /></span>
             : <span className="w-[13px] flex-none" />}
-          <span className={color}><Icon name={icon} size={15} /></span>
+          <span className={`ficon ${color}`}><Icon name={icon} size={16} /></span>
           {renaming === e.path
             ? <RenameInput name={e.name} dir={e.dir} onDone={name => rename(nodeOf(e.path), name)} />
             : <span className="min-w-0 flex-1 overflow-hidden text-ellipsis">{e.name}</span>}
@@ -529,8 +531,8 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
   return (
     <>
       {!mobile && (
-        <div className="flex h-9 flex-none items-center gap-0.5 pr-1.5 pl-3.5 text-[11px] font-semibold tracking-[.08em] text-muted">
-          <span className="min-w-0 flex-1 truncate">{t('files.title')}</span>
+        <div className="flex h-[42px] flex-none items-center gap-0.5 pr-1.5 pl-4">
+          <span className="eyebrow min-w-0 flex-1 truncate">{t('files.title')}</span>
           <button className={headBtn} title={t('menu.newFile')} onClick={() => create(here(), false)}><Icon name="filePlus" /></button>
           <button className={headBtn} title={t('menu.newFolder')} onClick={() => create(here(), true)}><Icon name="folderPlus" /></button>
           {!isRemote && <button className={headBtn} title={t('files.upload')} onClick={() => pickUpload(here())}><Icon name="upload" /></button>}
@@ -541,13 +543,13 @@ export function FileTree({ serverId, root, generation }: { serverId: string; roo
       <div
         ref={box}
         tabIndex={0}
-        className={`min-h-0 flex-1 overflow-auto pb-5 outline-none ${osDrag ? 'os-drag' : ''}`}
+        className={`min-h-0 flex-1 overflow-auto px-2 pb-5 outline-none ${osDrag ? 'os-drag' : ''}`}
         onKeyDown={onKey}
         onContextMenu={ev => contextMenu(ev, nodeOf(top))}
         {...dropProps(top)}
       >
         <div
-          className={`group mb-0.5 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-[38px] pr-1 pl-4' : 'h-[26px] px-2.5'} ${dropDir === top ? dropOn : selected === top ? 'bg-accent-soft' : ''}`}
+          className={`tree-top group mb-1 flex items-center gap-1.5 font-mono text-[11.5px] text-muted ${mobile ? 'h-9 pr-1 pl-3' : 'h-7 px-2'} ${dropDir === top ? dropOn : selected === top ? 'selected' : ''}`}
           title={top + '\n' + t('upload.dropHint')}
           data-tree-top={top}
           {...dropProps(top)}
@@ -594,7 +596,7 @@ function RenameInput({ name, dir, onDone }: { name: string; dir: boolean; onDone
       ref={ref}
       defaultValue={name}
       spellCheck={false}
-      className="h-5 min-w-0 flex-1 rounded border border-accent bg-field px-1 text-[13px] text-text outline-none"
+      className="h-[22px] min-w-0 flex-1 rounded-md bg-field px-1.5 text-[13px] text-strong shadow-[inset_0_0_0_1px_var(--accent-line),0_0_0_3px_var(--accent-soft)] outline-none"
       onClick={e => e.stopPropagation()}
       onKeyDown={e => {
         e.stopPropagation()
@@ -606,13 +608,13 @@ function RenameInput({ name, dir, onDone }: { name: string; dir: boolean; onDone
   )
 }
 
-const headBtn = 'grid h-[26px] w-[26px] place-items-center rounded-md text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
-const navBtn = 'grid h-[22px] w-[22px] flex-none place-items-center rounded-[5px] text-muted hover:bg-[color-mix(in_srgb,var(--text)_8%,transparent)] hover:text-text'
+const headBtn = 'icon-btn h-[26px] w-[26px] opacity-80 hover:opacity-100'
+const navBtn = 'icon-btn h-[22px] w-[22px]'
 
 function Note({ depth, text, err = false }: { depth: number; text: string; err?: boolean }) {
   const mobile = useMobile()
   return (
-    <div className={`truncate text-[12px] ${mobile ? 'h-10 leading-10' : 'h-6 leading-6'} ${err ? 'text-err' : 'text-faint'}`} style={{ paddingLeft: mobile ? `calc(34px + ${depth} * 16px)` : `calc(28px + ${depth} * 14px)` }}>
+    <div className={`truncate text-[12px] ${mobile ? 'h-[42px] leading-[42px]' : 'h-[27px] leading-[27px]'} ${err ? 'text-err' : 'text-faint'}`} style={{ paddingLeft: mobile ? `calc(32px + ${depth} * 16px)` : `calc(28px + ${depth} * 14px)` }}>
       {text}
     </div>
   )
