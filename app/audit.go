@@ -11,7 +11,8 @@ import (
 )
 
 // スマホからの操作の記録。ログインの履歴と同じところに残し、PC の「スマホを登録」の窓で見る。
-// 値を読むだけの呼び出しは残さない。パスワードは残さない
+// 値を読むだけの呼び出しは残さない。パスワードは残さない。
+// シェルに打った行は、シェル自身が前面にいて、コマンドとして読むときだけ残す
 
 // lineBufs は、スマホからシェルに打っている途中の行。Enter で1行として残す
 var lineBufs = struct {
@@ -19,11 +20,19 @@ var lineBufs = struct {
 	m map[string][]rune
 }{m: map[string][]rune{}}
 
-// audit は、記録に残す呼び出しなら中身の文を返す。残さないものは空
-func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
+// audit は、記録に残す呼び出しなら中身の文を返す。残さないものは空。
+// シェルに打った行は、打った先をシェルに送る前に確かめるので、呼び出しより前に呼ぶ
+func (a *App) audit(dev phone.Device, method string, raw []json.RawMessage) []string {
+	// 引数の数は、このあと呼ぶときに確かめる。ここでは足りなくても読まずに進む
+	decode := func(i int, v any) {
+		if i < len(raw) {
+			json.Unmarshal(raw[i], v)
+		}
+	}
 	arg := func(i int) string {
 		var v any
-		if i >= len(raw) || json.Unmarshal(raw[i], &v) != nil {
+		decode(i, &v)
+		if v == nil {
 			return ""
 		}
 		return fmt.Sprint(v)
@@ -31,11 +40,11 @@ func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
 	switch method {
 	case "Connect":
 		var req ConnectRequest
-		json.Unmarshal(raw[0], &req)
+		decode(0, &req)
 		return []string{fmt.Sprintf("接続 %s@%s", req.User, req.Host)}
 	case "AddVPN":
 		var in VPNInput
-		json.Unmarshal(raw[0], &in)
+		decode(0, &in)
 		return []string{fmt.Sprintf("VPN を追加 %s", in.Name)}
 	case "ServiceAction":
 		return []string{fmt.Sprintf("サービス %s %s", arg(2), arg(1))}
@@ -55,15 +64,11 @@ func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
 		return []string{fmt.Sprintf("ゴミ箱へ %s", arg(1))}
 	case "RestoreEntry":
 		var it remote.TrashItem
-		if len(raw) > 1 {
-			json.Unmarshal(raw[1], &it)
-		}
+		decode(1, &it)
 		return []string{fmt.Sprintf("元に戻す %s", it.From)}
 	case "TrashDelete":
 		var names []string
-		if len(raw) > 1 {
-			json.Unmarshal(raw[1], &names)
-		}
+		decode(1, &names)
 		if len(names) == 0 {
 			return []string{"ゴミ箱を空にする"}
 		}
@@ -75,7 +80,16 @@ func audit(dev phone.Device, method string, raw []json.RawMessage) []string {
 	case "DisableSudo":
 		return []string{"sudo モードを OFF"}
 	case "ShellInput":
-		return typedLines(dev.ID+"/"+arg(0), arg(1))
+		lines := typedLines(dev.ID+"/"+arg(0), arg(1))
+		if len(lines) == 0 {
+			return nil
+		}
+		// sudo や ssh のパスワードの問い合わせに打った行は、問い合わせたコマンドが前面にいるので残さない。
+		// まとめて何行も送ったときは、2行目からを読むのがシェルか分からないので、1行目だけを残す
+		if sh := a.shell(arg(0)); sh == nil || !sh.AtPrompt() {
+			return nil
+		}
+		return lines[:1]
 	}
 	return nil
 }
@@ -92,7 +106,7 @@ func typedLines(key, data string) []string {
 		switch r := rs[i]; {
 		case r == '\r' || r == '\n':
 			if l := strings.TrimSpace(string(buf)); l != "" {
-				done = append(done, "入力 "+l)
+				done = append(done, "コマンド "+l)
 			}
 			buf = buf[:0]
 		case r == 0x7f || r == '\b':

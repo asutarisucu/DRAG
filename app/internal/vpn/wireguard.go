@@ -83,7 +83,10 @@ func parseWireGuard(conf string) (*wgConfig, error) {
 				}
 			}
 		case section == "interface" && k == "mtu":
-			c.mtu, err = strconv.Atoi(v)
+			// wireguard-go は最初の MTU を確かめずに使い、範囲の外だと暗号にするところで panic する
+			if c.mtu, err = strconv.Atoi(v); err == nil && (c.mtu < 576 || c.mtu > device.MaxContentSize) {
+				err = fmt.Errorf("MTU は 576 から %d までです", device.MaxContentSize)
+			}
 		case section == "peer" && k == "publickey":
 			peer.key, err = wgKey(v)
 		case section == "peer" && k == "presharedkey":
@@ -100,7 +103,9 @@ func parseWireGuard(conf string) (*wgConfig, error) {
 			}
 		case section == "peer" && k == "persistentkeepalive":
 			if v != "off" {
-				peer.keepalive, err = strconv.Atoi(v)
+				if peer.keepalive, err = strconv.Atoi(v); err == nil && (peer.keepalive < 0 || peer.keepalive > 65535) {
+					err = errors.New("PersistentKeepalive は 0 から 65535 までです")
+				}
 			}
 		}
 		if err != nil {

@@ -134,6 +134,19 @@ func (s *Server) command(script, stdin string) (string, string) {
 	}
 }
 
+// argLines は、標準入力でスクリプトに渡す値を1行に1つずつ並べる。スクリプトは IFS= read -r で1行ずつ読むので、
+// 改行を含む値は途中で切れて、残りが次の値になる。リモートのファイル名には改行を入れられるので、改行と NUL を含む値は断る
+func argLines(vals ...string) (string, error) {
+	var b strings.Builder
+	for _, v := range vals {
+		if strings.ContainsAny(v, "\n\x00") {
+			return "", fmt.Errorf("改行を含む名前は扱えません: %q", v)
+		}
+		b.WriteString(v + "\n")
+	}
+	return b.String(), nil
+}
+
 func (s *Server) runPlain(cmd string) error {
 	_, err := s.outputPlain(cmd)
 	return err

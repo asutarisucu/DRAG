@@ -10,6 +10,8 @@ export function AddVPN(arg1:main.VPNInput):Promise<main.VPNInfo>;
 
 export function AgentPair(arg1:string):Promise<main.AgentPairing>;
 
+export function AnswerAgent(arg1:string,arg2:boolean):Promise<void>;
+
 export function ArchiveClose(arg1:string):Promise<void>;
 
 export function ArchiveOpen(arg1:string,arg2:string):Promise<main.ArchiveInfo>;
@@ -115,6 +117,8 @@ export function ServiceAction(arg1:string,arg2:string,arg3:string):Promise<void>
 export function Services(arg1:string):Promise<Array<remote.Service>>;
 
 export function Sessions(arg1:string):Promise<Array<remote.Session>>;
+
+export function SetAgentAsk(arg1:boolean):Promise<main.PhoneState>;
 
 export function SetLanguage(arg1:string):Promise<void>;
 

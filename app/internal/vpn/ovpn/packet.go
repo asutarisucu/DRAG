@@ -103,6 +103,10 @@ type wrapper struct {
 
 	ke, ka, keIn, kaIn []byte // tls-crypt
 	crypt              bool
+
+	// 受けた replay_packet_id の時刻と番号。取り込んだ制御パケットを送り直されても受けない
+	recvTime uint32
+	recvWin  replayWindow
 }
 
 func newWrapper(c *Config) (*wrapper, error) {
@@ -171,6 +175,23 @@ func (w *wrapper) wrap(p *ctrlPacket) []byte {
 
 var errAuth = errors.New("制御チャネルのパケットの認証が合いません")
 
+var errCtrlReplay = errors.New("同じ制御チャネルのパケットをもう一度受けました")
+
+// replayed は、認証の合った制御パケットの replay_packet_id (番号と時刻) が、前に受けたものかを見る。
+// OpenVPN v2.6.23 の packet_id.c の packet_id_test と同じく、時刻が進めば番号を数え直し、戻れば断る
+func (w *wrapper) replayed(rid []byte) bool {
+	id, t := binary.BigEndian.Uint32(rid[:4]), binary.BigEndian.Uint32(rid[4:8])
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	switch {
+	case t < w.recvTime:
+		return true
+	case t > w.recvTime:
+		w.recvTime, w.recvWin = t, replayWindow{}
+	}
+	return !w.recvWin.accept(id)
+}
+
 // unwrap は受けた制御パケットの包みを外して読む
 func (w *wrapper) unwrap(b []byte) (*ctrlPacket, error) {
 	if len(b) < 9 {
@@ -195,6 +216,9 @@ func (w *wrapper) unwrap(b []byte) (*ctrlPacket, error) {
 		if !hmac.Equal(m.Sum(nil), tag) {
 			return nil, errAuth
 		}
+		if w.replayed(rid) {
+			return nil, errCtrlReplay
+		}
 		rest = body
 	case w.hmacRecv != nil:
 		if len(rest) < w.hmacLen+8 {
@@ -207,6 +231,9 @@ func (w *wrapper) unwrap(b []byte) (*ctrlPacket, error) {
 		m.Write(body)
 		if !hmac.Equal(m.Sum(nil), mac) {
 			return nil, errAuth
+		}
+		if w.replayed(rid) {
+			return nil, errCtrlReplay
 		}
 		rest = body
 	}

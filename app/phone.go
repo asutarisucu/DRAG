@@ -45,12 +45,15 @@ type PhoneSettings struct {
 	// 直接公開。ルーターで PublicPort を PC へ転送しておく
 	Public     bool `json:"public"`
 	PublicPort int  `json:"publicPort"`
+	// AgentAsk なら、AI エージェントが登録 URL と待ち受けの ON を求めたとき、PC の画面で許してから通す。既定は ON。
+	// 出先からエージェントに登録 URL を出してもらうときは OFF にする
+	AgentAsk bool `json:"agentAsk"`
 }
 
 func phoneSettingsPath() string { return filepath.Join(configDir(), "phone.json") }
 
 func loadPhoneSettings() PhoneSettings {
-	ps := PhoneSettings{LAN: true, Port: defaultPhonePort, PublicPort: defaultPublicPort}
+	ps := PhoneSettings{LAN: true, Port: defaultPhonePort, PublicPort: defaultPublicPort, AgentAsk: true}
 	if b, err := os.ReadFile(phoneSettingsPath()); err == nil {
 		json.Unmarshal(b, &ps)
 	}
@@ -110,8 +113,8 @@ func (a *App) phoneCall(dev phone.Device, method string, raw []json.RawMessage) 
 	if !phoneMethods[method] {
 		return nil, fmt.Errorf("スマホからは使えません: %s", method)
 	}
-	// 打っている途中の行は、呼び出しの前に組み立てておく
-	lines := audit(dev, method, raw)
+	// シェルに打った行は、シェルに送る前に組み立てて確かめる
+	lines := a.audit(dev, method, raw)
 	res, err := invoke(&App{core: a.core, dev: dev.ID}, method, raw)
 	if err != nil {
 		return nil, err
@@ -168,8 +171,13 @@ func (a *App) PhoneState() PhoneState {
 	return PhoneState{Settings: loadPhoneSettings(), Status: a.phone.Status(phone.RouteLAN), Public: a.phone.Status(phone.RoutePublic)}
 }
 
-// SetPhoneLAN は LAN での待ち受けを切り替え、設定に書く
+// SetPhoneLAN は LAN での待ち受けを切り替え、設定に書く。エージェントが ON にするときは、PC の画面で許されてから
 func (a *App) SetPhoneLAN(on bool) (PhoneState, error) {
+	if on && a.dev == agentDev {
+		if err := a.askPC(phone.RouteLAN, ""); err != nil {
+			return a.PhoneState(), err
+		}
+	}
 	ps := loadPhoneSettings()
 	ps.LAN = on
 	if err := savePhoneSettings(ps); err != nil {
@@ -185,10 +193,15 @@ func (a *App) SetPhoneLAN(on bool) (PhoneState, error) {
 }
 
 // SetPhonePublic は直接公開を切り替え、設定に書く。ON にすると IP アドレスの証明書を取り始める。
-// グローバル IP は Cloudflare (1.1.1.1) に聞いて調べる
+// グローバル IP は Cloudflare (1.1.1.1) に聞いて調べる。エージェントが ON にするときは、PC の画面で許されてから
 func (a *App) SetPhonePublic(on bool, port int) (PhoneState, error) {
 	if port <= 0 || port > 65535 {
 		return a.PhoneState(), errors.New("ポートは 1 から 65535 までです")
+	}
+	if on && a.dev == agentDev {
+		if err := a.askPC(phone.RoutePublic, ""); err != nil {
+			return a.PhoneState(), err
+		}
 	}
 	ps := loadPhoneSettings()
 	ps.Public, ps.PublicPort = on, port
@@ -204,12 +217,28 @@ func (a *App) SetPhonePublic(on bool, port int) (PhoneState, error) {
 	return a.PhoneState(), err
 }
 
-// Pairing は、スマホで読む QR コード。Path は 1 マス 1 単位の SVG のパスで、Size は余白を含む一辺
+// SetAgentAsk は、エージェントの要求を PC の画面で許してから通すかを切り替え、設定に書く。
+// エージェントが自分で切り替えられないよう、PC の画面からだけ呼べる (agentMethods と phoneMethods にも入れない)
+func (a *App) SetAgentAsk(on bool) (PhoneState, error) {
+	if a.dev != "" {
+		return PhoneState{}, errors.New("PC の画面からだけ切り替えられます")
+	}
+	ps := loadPhoneSettings()
+	ps.AgentAsk = on
+	if err := savePhoneSettings(ps); err != nil {
+		return a.PhoneState(), err
+	}
+	return a.PhoneState(), nil
+}
+
+// Pairing は、スマホで読む QR コード。Path は 1 マス 1 単位の SVG のパスで、Size は余白を含む一辺。
+// Fingerprint は LAN 内の自己署名の証明書の指紋で、スマホで警告が出たときに見比べる
 type Pairing struct {
-	URL     string `json:"url"`
-	Expires int64  `json:"expires"` // Unix ミリ秒
-	Path    string `json:"path"`
-	Size    int    `json:"size"`
+	URL         string `json:"url"`
+	Expires     int64  `json:"expires"` // Unix ミリ秒
+	Path        string `json:"path"`
+	Size        int    `json:"size"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 // NewPairing は経路 route ("lan" か "public") の使い捨てのトークンを作り、その URL の QR コードを返す
@@ -232,7 +261,7 @@ func (a *App) NewPairing(route string) (Pairing, error) {
 			}
 		}
 	}
-	return Pairing{URL: u, Expires: exp.UnixMilli(), Path: b.String(), Size: code.Size + 2*quiet}, nil
+	return Pairing{URL: u, Expires: exp.UnixMilli(), Path: b.String(), Size: code.Size + 2*quiet, Fingerprint: a.phone.Status(route).Fingerprint}, nil
 }
 
 func (a *App) PhoneDevices() []phone.Device { return a.phone.Devices() }

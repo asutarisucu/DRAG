@@ -10,6 +10,10 @@ export function AgentPair(arg1) {
   return window['go']['main']['App']['AgentPair'](arg1);
 }
 
+export function AnswerAgent(arg1, arg2) {
+  return window['go']['main']['App']['AnswerAgent'](arg1, arg2);
+}
+
 export function ArchiveClose(arg1) {
   return window['go']['main']['App']['ArchiveClose'](arg1);
 }
@@ -220,6 +224,10 @@ export function Services(arg1) {
 
 export function Sessions(arg1) {
   return window['go']['main']['App']['Sessions'](arg1);
+}
+
+export function SetAgentAsk(arg1) {
+  return window['go']['main']['App']['SetAgentAsk'](arg1);
 }
 
 export function SetLanguage(arg1) {

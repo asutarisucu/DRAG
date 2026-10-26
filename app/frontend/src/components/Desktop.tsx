@@ -4,7 +4,7 @@ import { CloseShell, OpenShell } from '../../wailsjs/go/main/App'
 import { openFile } from '../openFile'
 import { openSessionWindow } from '../openSession'
 import { attachCommand } from '../sessions'
-import { sendInput } from '../shellInput'
+import { typeLine } from '../shellInput'
 import { ArchiveView, EditorView, ImageView, LogView } from './FileViews'
 import { DockerView } from './DockerView'
 import { MonitorView } from './Monitor'
@@ -71,7 +71,7 @@ export function Desktop({ serverId, home, generation }: { serverId: string; home
         updateWin(w.id, { shellId: id, lost: false, replayFromIdle: false })
         if (w.kind === 'session' && w.sessionKey) {
           const i = w.sessionKey.indexOf(':')
-          sendInput(id, attachCommand({ kind: w.sessionKey.slice(0, i), name: w.sessionKey.slice(i + 1) }) + '\r')
+          typeLine(id, attachCommand({ kind: w.sessionKey.slice(0, i), name: w.sessionKey.slice(i + 1) }), true)
         }
       }, e => toast(String(e), 'warn'))
     }

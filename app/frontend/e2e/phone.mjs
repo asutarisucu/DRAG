@@ -77,6 +77,7 @@ await phone.waitForSelector('text=この端末を登録しました', { timeout:
 ok('URL からトークンが消える', phone.url() === PHONE + '/', phone.url());
 ok('PC の一覧に端末が出る', await waitFor(async () => (await deviceIds()).length === known.size + 1));
 ok('PC に登録を知らせる', await waitFor(async () => (await pc.locator('[role=status]:has-text("スマホを登録しました")').count()) > 0));
+ok('LAN の証明書の指紋を出す', /^([0-9A-F]{2} ){31}[0-9A-F]{2}$/.test((await pc.locator('[data-fingerprint] .font-mono').textContent()) ?? ''));
 ok('QR コードを作り直す', await waitFor(async () => (await pc.$eval('svg[data-qr]', e => e.dataset.qr)) !== url));
 // 同じ QR コードはもう使えない
 const other = await browser.newContext({ ignoreHTTPSErrors: true, locale: 'ja-JP' });
@@ -93,7 +94,14 @@ ok('ファイルツリーが出る', await waitFor(async () => (await phone.loca
 await phone.tap('nav [data-mtab="terminal"]');
 await phone.locator('[data-terminal] .xterm-screen').tap();
 await phone.keyboard.type('echo OP-$((40+2))\n');
-ok('スマホで打ったコマンドが履歴に残る', await waitFor(async () => (await pc.$$eval('[role=dialog] [data-kind="op"]', l => l.map(r => r.textContent).join(' / '))).includes('入力 echo OP-$((40+2))')));
+const ops = () => pc.$$eval('[role=dialog] [data-kind="op"]', l => l.map(r => r.textContent).join(' / '));
+ok('スマホで打ったコマンドが履歴に残る', await waitFor(async () => (await ops()).includes('コマンド echo OP-$((40+2))')));
+// sudo がパスワードを聞いている間に打ったものは残さない
+await phone.keyboard.type('sudo -k true\n');
+await phone.waitForTimeout(1500);
+await phone.keyboard.type('drag\n');
+await phone.waitForTimeout(1500);
+ok('パスワードの問い合わせに打ったものは残さない', (await ops()).includes('コマンド sudo -k true') && !(await ops()).includes('コマンド drag'), await ops());
 await phone.screenshot({ path: `${OUT}/phone-desktop-layout.png` });
 
 // 端末を無効にすると、スマホの画面は切れる

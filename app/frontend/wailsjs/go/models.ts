@@ -177,6 +177,7 @@ export namespace main {
 	    expires: number;
 	    path: string;
 	    size: number;
+	    fingerprint: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Pairing(source);
@@ -188,6 +189,7 @@ export namespace main {
 	        this.expires = source["expires"];
 	        this.path = source["path"];
 	        this.size = source["size"];
+	        this.fingerprint = source["fingerprint"];
 	    }
 	}
 	export class PhoneSettings {
@@ -195,6 +197,7 @@ export namespace main {
 	    port: number;
 	    public: boolean;
 	    publicPort: number;
+	    agentAsk: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PhoneSettings(source);
@@ -206,6 +209,7 @@ export namespace main {
 	        this.port = source["port"];
 	        this.public = source["public"];
 	        this.publicPort = source["publicPort"];
+	        this.agentAsk = source["agentAsk"];
 	    }
 	}
 	export class PhoneState {
@@ -510,6 +514,7 @@ export namespace phone {
 	    error: string;
 	    certUntil: number;
 	    pending: boolean;
+	    fingerprint: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Status(source);
@@ -522,6 +527,7 @@ export namespace phone {
 	        this.error = source["error"];
 	        this.certUntil = source["certUntil"];
 	        this.pending = source["pending"];
+	        this.fingerprint = source["fingerprint"];
 	    }
 	}
 

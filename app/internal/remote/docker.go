@@ -119,7 +119,11 @@ func (s *Server) DockerAction(verb, target string) error {
 	if !ok {
 		return fmt.Errorf("できない操作です: %s", verb)
 	}
-	cmd, stdin := s.command(`IFS= read -r t; exec docker `+args+` -- "$t"`, target+"\n")
+	in, err := argLines(target)
+	if err != nil {
+		return err
+	}
+	cmd, stdin := s.command(`IFS= read -r t; exec docker `+args+` -- "$t"`, in)
 	out, err := s.combined(cmd, stdin)
 	if err == nil {
 		return nil
@@ -160,7 +164,11 @@ type DockerMount struct {
 
 // DockerMounts はコンテナのマウント
 func (s *Server) DockerMounts(name string) ([]DockerMount, error) {
-	cmd, stdin := s.command(`IFS= read -r c; exec docker inspect --format "{{json .Mounts}}" -- "$c"`, name+"\n")
+	in, err := argLines(name)
+	if err != nil {
+		return nil, err
+	}
+	cmd, stdin := s.command(`IFS= read -r c; exec docker inspect --format "{{json .Mounts}}" -- "$c"`, in)
 	out, err := s.combined(cmd, stdin)
 	if err != nil {
 		if denied(out) {
@@ -208,7 +216,11 @@ func (s *Server) DockerLogStream(name string, onData func([]byte), onEnd func(er
 	if !s.canUseDocker() && !s.Sudo() {
 		return nil, ErrDenied
 	}
-	return s.stream(`IFS= read -r c; exec docker logs --tail 300 -f -- "$c" 2>&1`, name+"\n", onData, onEnd)
+	in, err := argLines(name)
+	if err != nil {
+		return nil, err
+	}
+	return s.stream(`IFS= read -r c; exec docker logs --tail 300 -f -- "$c" 2>&1`, in, onData, onEnd)
 }
 
 // canUseDocker は、sudo なしで docker の CLI を使えるか。root か docker のグループ

@@ -57,6 +57,12 @@ func openDevices(dir string) *devices {
 	}
 	if b, err := os.ReadFile(filepath.Join(dir, "logins.json")); err == nil {
 		json.Unmarshal(b, &d.logins)
+		// 前の版は、スマホでシェルに打った行を、パスワードの問い合わせに打ったものまで「入力 」で残していた
+		n := len(d.logins)
+		d.logins = slices.DeleteFunc(d.logins, func(l Login) bool { return l.Kind == "op" && strings.HasPrefix(l.What, "入力 ") })
+		if len(d.logins) != n {
+			d.save("logins.json", d.logins)
+		}
 	}
 	return d
 }
@@ -136,6 +142,13 @@ func (d *devices) remove(id string) error {
 	}
 	d.list = slices.Delete(d.list, i, i+1)
 	return d.save("devices.json", d.list)
+}
+
+// has は、端末がまだ登録されているか
+func (d *devices) has(id string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return slices.ContainsFunc(d.list, func(x Device) bool { return x.ID == id })
 }
 
 func (d *devices) all() []Device {

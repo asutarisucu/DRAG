@@ -2,7 +2,7 @@ import i18n from './i18n'
 import { OpenShell } from '../wailsjs/go/main/App'
 import type { IconName } from './components/Icon'
 import { setMTab } from './mobile'
-import { sendInput } from './shellInput'
+import { typeLine } from './shellInput'
 import { sudoOn } from './sudo'
 import { toast } from './toasts'
 import { focusWin, openWin, updateWin, winsOf, type Win } from './windows'
@@ -39,7 +39,7 @@ export async function openContainerShell(serverId: string, name: string, pos?: {
   try {
     const id = await OpenShell(serverId, 100, 30, '')
     openWin({ serverId, kind: 'session', title: cmd, icon: 'box', shellId: id, detachable: false, replayFromIdle: false, rect: { ...pos, w: 600, h: 340 } }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
-    sendInput(id, cmd + '\r')
+    typeLine(id, cmd, true)
   } catch (e) {
     toast(String(e).replace(/^Error: /, ''), 'warn')
   }

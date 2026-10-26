@@ -47,6 +47,7 @@ type core struct {
 	fs       *fileState
 	tunnels  tunnels
 	tsLogins tsLogins
+	asks     agentAsks
 }
 
 // openShell は開いているシェル1つと、それを開いた端末。ほかの端末から続きを操作するときに一覧に出す
@@ -75,6 +76,7 @@ func NewApp() *App {
 		shells:   map[string]*openShell{},
 		tunnels:  tunnels{m: map[string]*tunnel{}},
 		tsLogins: tsLogins{m: map[string]*tsvpn.Node{}},
+		asks:     agentAsks{m: map[string]chan bool{}},
 	}}
 }
 
@@ -139,6 +141,25 @@ type ConnectResult struct {
 	Error   string       `json:"error"`
 	HostKey *HostKey     `json:"hostKey"`
 	Sudo    bool         `json:"sudo"` // つなぎ直したあとも sudo モードが ON か
+}
+
+// checkKeyFile は鍵のファイルのパスを確かめる。PC の画面のほか (スマホとエージェント) からは、保存済みのサーバーにある鍵だけを使える。
+// スマホから PC のほかのファイルを鍵として読ませたり、\\host\share のパスで Windows の資格情報をほかのホストへ送らせたりしないため
+func (a *App) checkKeyFile(req ConnectRequest) error {
+	if req.Auth != "key" {
+		return nil
+	}
+	if p := req.KeyFile; !filepath.IsAbs(p) || strings.HasPrefix(p, `\\`) || strings.HasPrefix(p, "//") {
+		return errors.New("鍵のファイルは、この PC のドライブの絶対パスで指定してください")
+	}
+	if a.dev == "" {
+		return nil
+	}
+	list, _ := a.saved.List()
+	if slices.ContainsFunc(list, func(s store.Server) bool { return s.Auth == "key" && s.KeyFile == req.KeyFile }) {
+		return nil
+	}
+	return errors.New("PC の画面のほかからは、保存済みのサーバーの鍵だけを使えます")
 }
 
 func (a *App) dial(req ConnectRequest) (*remote.Server, ConnectResult) {
@@ -240,6 +261,9 @@ func idNum(id string) int {
 // Connect はサーバーにつなぎ、保存済みのサーバーに書く。
 // 鍵が未登録なら HostKey を返すので、画面で確かめてから Trust を付けて呼び直す
 func (a *App) Connect(req ConnectRequest) ConnectResult {
+	if err := a.checkKeyFile(req); err != nil {
+		return ConnectResult{Error: err.Error()}
+	}
 	s, r := a.dial(req)
 	if s == nil {
 		return r

@@ -27,6 +27,12 @@ func TestAgentHandler(t *testing.T) {
 		json.NewDecoder(res.Body).Decode(&out)
 		return res.StatusCode, out
 	}
+	// /hello は合言葉そのものを返さず、合言葉を知っていることだけを示す
+	req, _ := http.NewRequest("GET", srv.URL+"/hello", nil)
+	req.Header.Set("X-Drag-Nonce", "0123456789abcdef")
+	if res, err := http.DefaultClient.Do(req); err != nil || res.Header.Get("X-Drag-Proof") != helloProof("secret", "0123456789abcdef") {
+		t.Fatalf("hello %v", err)
+	}
 	if code, _ := call("", `{"m":"Servers","a":[]}`); code != http.StatusForbidden {
 		t.Fatalf("合言葉なし %d", code)
 	}

@@ -1,20 +1,35 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // client は、動いている DRAG のエージェントの窓口を呼ぶ。窓口のポートと合言葉は、設定フォルダの agent.json にある
 type client struct {
-	url, token string
+	addr, token string
+}
+
+// helloProof は、DRAG が合言葉を知っていることを示す値。DRAG の agent.go の helloProof と同じ
+func helloProof(token, nonce string) string {
+	m := hmac.New(sha256.New, []byte(token))
+	m.Write([]byte("DRAG agent " + nonce))
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 // open は agent.json を読む。dev なら開発用の DRAG (wails dev) の設定フォルダを見る
@@ -38,7 +53,7 @@ func open(dev bool) (*client, error) {
 	if err := json.Unmarshal(b, &info); err != nil || info.Port == 0 {
 		return nil, errors.New("agent.json を読めません。DRAG を起動し直してください")
 	}
-	return &client{url: "http://127.0.0.1:" + strconv.Itoa(info.Port) + "/call", token: info.Token}, nil
+	return &client{addr: "127.0.0.1:" + strconv.Itoa(info.Port), token: info.Token}, nil
 }
 
 // call は DRAG のメソッドを呼び、戻り値を out に読む
@@ -50,15 +65,42 @@ func (c *client) call(out any, method string, args ...any) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", c.url, bytes.NewReader(body))
+	unreachable := errors.New("DRAG につながりません。PC で DRAG が動いているか確かめてください")
+	conn, err := net.DialTimeout("tcp", c.addr, 5*time.Second)
+	if err != nil {
+		return unreachable
+	}
+	defer conn.Close()
+	br := bufio.NewReader(conn)
+	// 合言葉やパスワードを送る前に、同じ接続で、待っているのが DRAG かを確かめる。
+	// DRAG が終わったあとに、同じポートをほかのプロセスが取っているかもしれない
+	nonce := rand.Text()
+	hello, _ := http.NewRequest("GET", "http://"+c.addr+"/hello", nil)
+	hello.Header.Set("X-Drag-Nonce", nonce)
+	if hello.Write(conn) != nil {
+		return unreachable
+	}
+	hr, err := http.ReadResponse(br, hello)
+	if err != nil {
+		return unreachable
+	}
+	io.Copy(io.Discard, hr.Body)
+	hr.Body.Close()
+	if !hmac.Equal([]byte(hr.Header.Get("X-Drag-Proof")), []byte(helloProof(c.token, nonce))) {
+		return errors.New("agent.json のポートで待っているのは、いま動いている DRAG ではありません。DRAG を起動し直したなら、dragctl も起動し直してください")
+	}
+	req, err := http.NewRequest("POST", "http://"+c.addr+"/call", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	if req.Write(conn) != nil {
+		return unreachable
+	}
+	res, err := http.ReadResponse(br, req)
 	if err != nil {
-		return errors.New("DRAG につながりません。PC で DRAG が動いているか確かめてください")
+		return unreachable
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +15,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -73,9 +78,28 @@ func (a *App) stopAgent() {
 	os.Remove(agentInfoPath())
 }
 
-// agentHandler は POST /call で {"m": メソッド, "a": [引数]} を受け、{"r": 戻り値} か {"e": エラー} を返す
+// helloProof は、GET /hello で DRAG が合言葉を知っていることを示す値。dragctl の helloProof と同じ。
+// 合言葉そのものは送らない
+func helloProof(token, nonce string) string {
+	m := hmac.New(sha256.New, []byte(token))
+	m.Write([]byte("DRAG agent " + nonce))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+// agentHandler は POST /call で {"m": メソッド, "a": [引数]} を受け、{"r": 戻り値} か {"e": エラー} を返す。
+// GET /hello は X-Drag-Nonce の値への helloProof を X-Drag-Proof で返す。dragctl は合言葉やパスワードを送る前に、
+// 同じ接続でこれを確かめる。DRAG が終わったあとに同じポートを取ったほかのプロセスへ送らないため
 func (a *App) agentHandler(token string) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /hello", func(w http.ResponseWriter, r *http.Request) {
+		nonce := r.Header.Get("X-Drag-Nonce")
+		if len(nonce) < 16 || len(nonce) > 128 {
+			http.Error(w, "bad nonce", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("X-Drag-Proof", helloProof(token, nonce))
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("POST /call", func(w http.ResponseWriter, r *http.Request) {
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) != 1 {
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -138,6 +162,61 @@ func agentNote(method string, raw []json.RawMessage) string {
 	return ""
 }
 
+// agentAsks は、エージェントの頼みのうち、PC の画面で利用者の答えを待っているもの
+type agentAsks struct {
+	mu   sync.Mutex
+	next int
+	m    map[string]chan bool
+}
+
+// askLimit は、エージェントの頼みに PC の画面で答えるのを待つ時間
+const askLimit = 2 * time.Minute
+
+// askPC は、エージェントの頼みを PC の画面に出し、利用者が許すまで待つ。kind は "pair" (登録 URL)、"public" か "lan" (待ち受けを ON)。
+// エージェントが読んだファイルやコマンドの出力に仕込まれた指示で、利用者の知らないうちにスマホを登録させないため。
+// 設定の AgentAsk が OFF なら聞かずに通す
+func (a *App) askPC(kind, route string) error {
+	if !loadPhoneSettings().AgentAsk {
+		return nil
+	}
+	a.asks.mu.Lock()
+	a.asks.next++
+	id := "q" + strconv.Itoa(a.asks.next)
+	ch := make(chan bool, 1)
+	a.asks.m[id] = ch
+	a.asks.mu.Unlock()
+	defer func() {
+		a.asks.mu.Lock()
+		delete(a.asks.m, id)
+		a.asks.mu.Unlock()
+		runtime.EventsEmit(a.ctx, "agent:asked", id)
+	}()
+	a.showWindow()
+	runtime.EventsEmit(a.ctx, "agent:ask", id, kind, route)
+	select {
+	case ok := <-ch:
+		if !ok {
+			return errors.New("PC の画面で断られました")
+		}
+		return nil
+	case <-time.After(askLimit):
+		return errors.New("PC の画面で 2 分のあいだに許されませんでした")
+	}
+}
+
+// AnswerAgent は、エージェントの頼みに PC の画面で答える。スマホとエージェントからは呼べない
+func (a *App) AnswerAgent(id string, ok bool) {
+	a.asks.mu.Lock()
+	ch := a.asks.m[id]
+	a.asks.mu.Unlock()
+	if ch != nil {
+		select {
+		case ch <- ok:
+		default:
+		}
+	}
+}
+
 // AgentPairing は、エージェントに渡すスマホの登録 URL
 type AgentPairing struct {
 	URL     string `json:"url"`
@@ -146,17 +225,27 @@ type AgentPairing struct {
 }
 
 // AgentPair は、AI エージェントにスマホの登録 URL を出す。route は "public" (直接公開) か "lan"。
-// 出したことはスマホの履歴に残し、PC の画面にも知らせる
+// PC の画面で利用者が許したときだけ出す。出したことはスマホの履歴に残し、PC の画面にも知らせる
 func (a *App) AgentPair(route string) (AgentPairing, error) {
 	if route != phone.RouteLAN && route != phone.RoutePublic {
 		return AgentPairing{}, errors.New(`route は "public" か "lan" です`)
 	}
+	pairErr := func(err error) error {
+		if route == phone.RoutePublic {
+			return fmt.Errorf("直接公開の登録 URL を出せません。直接公開を ON にしてください: %w", err)
+		}
+		return err
+	}
+	// 出せないときは、PC の画面に聞く前に返す
+	if st := a.phone.Status(route); !st.Running || st.URL == "" {
+		return AgentPairing{}, pairErr(errors.New("スマホの待ち受けが止まっているか、まだ証明書を取っています"))
+	}
+	if err := a.askPC("pair", route); err != nil {
+		return AgentPairing{}, err
+	}
 	u, exp, err := a.phone.NewPairURL(route)
 	if err != nil {
-		if route == phone.RoutePublic {
-			err = fmt.Errorf("直接公開の登録 URL を出せません。直接公開を ON にしてください: %w", err)
-		}
-		return AgentPairing{}, err
+		return AgentPairing{}, pairErr(err)
 	}
 	a.phone.Note("agent", route, "スマホの登録 URL を発行")
 	a.emit("agent:pair", route)

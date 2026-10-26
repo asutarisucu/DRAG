@@ -92,15 +92,19 @@ func (s *Server) TrashDelete(names []string) error {
 			names = append(names, e.Name)
 		}
 	}
-	var in strings.Builder
+	var paths []string
 	for _, n := range names {
 		if n == "" || strings.Contains(n, "/") || n == "." || n == ".." {
 			return errors.New("ゴミ箱の中の名前が違います")
 		}
-		in.WriteString(path.Join(root, "files", n) + "\n" + path.Join(root, "info", n+".trashinfo") + "\n")
+		paths = append(paths, path.Join(root, "files", n), path.Join(root, "info", n+".trashinfo"))
+	}
+	in, err := argLines(paths...)
+	if err != nil {
+		return err
 	}
 	// フォルダの中に読めないものがあっても消せるよう、rm を使う。パスは標準入力で渡す
-	cmd, stdin := s.command(`while IFS= read -r p; do rm -rf -- "$p" || exit 1; done`, in.String())
+	cmd, stdin := s.command(`while IFS= read -r p; do rm -rf -- "$p" || exit 1; done`, in)
 	out, err := s.combined(cmd, stdin)
 	if err != nil {
 		if denied(out) {

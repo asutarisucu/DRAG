@@ -114,14 +114,22 @@ type LogChunk struct {
 	End   int64  `json:"end"`
 }
 
+// tailLimit は ReadTail で1回に読む量の上限。画面は 64 KiB ずつ読む
+const tailLimit = 1 << 20
+
 // ReadTail は、end より前の size バイトほどを、行の頭から読む。end が負ならファイルの末尾から。
-// 大きいログは末尾から読み、上へスクロールしたら前を読み足すのに使う
+// 大きいログは末尾から読み、上へスクロールしたら前を読み足すのに使う。
+// 値はスマホからも来るので、読む量はファイルの大きさと tailLimit に収める
 func (s *Server) ReadTail(p string, end, size int64) (LogChunk, error) {
-	if end < 0 {
-		fi, err := s.fs().Stat(p)
-		if err != nil {
-			return LogChunk{}, err
-		}
+	if size < 0 {
+		return LogChunk{}, errors.New("読む大きさが負です")
+	}
+	size = min(size, tailLimit)
+	fi, err := s.fs().Stat(p)
+	if err != nil {
+		return LogChunk{}, err
+	}
+	if end < 0 || end > fi.Size() {
 		end = fi.Size()
 	}
 	start := max(0, end-size)
@@ -150,7 +158,11 @@ func (s *Server) ReadTail(p string, end, size int64) (LogChunk, error) {
 // 返した関数で止める
 func (s *Server) Follow(p string, from int64, onData func([]byte), onEnd func(error)) (func(), error) {
 	// tail -c +N は N バイト目 (1 から数える) から出す
-	return s.stream(fmt.Sprintf(`IFS= read -r p; exec tail -c +%s -F -- "$p"`, strconv.FormatInt(from+1, 10)), p+"\n", onData, onEnd)
+	in, err := argLines(p)
+	if err != nil {
+		return nil, err
+	}
+	return s.stream(fmt.Sprintf(`IFS= read -r p; exec tail -c +%s -F -- "$p"`, strconv.FormatInt(from+1, 10)), in, onData, onEnd)
 }
 
 // stream は script を sudo モードに合わせて動かし、標準出力を onData に渡し続ける。

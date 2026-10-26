@@ -208,7 +208,11 @@ type Usage struct {
 
 // DirUsage はフォルダの中のファイルを数える。読めないところは数えない
 func (s *Server) DirUsage(dir string) (Usage, error) {
-	cmd, stdin := s.command(`IFS= read -r d; find "$d" -type f -printf "%s\n" 2>/dev/null | awk "{s+=\$1; n++} END {print s+0, n+0}"`, dir+"\n")
+	in, err := argLines(dir)
+	if err != nil {
+		return Usage{}, err
+	}
+	cmd, stdin := s.command(`IFS= read -r d; find "$d" -type f -printf "%s\n" 2>/dev/null | awk "{s+=\$1; n++} END {print s+0, n+0}"`, in)
 	out, err := s.combined(cmd, stdin)
 	if err != nil {
 		return Usage{}, errors.New(strings.TrimSpace(out))
@@ -235,7 +239,11 @@ type DiskDirs struct {
 // BigDirs は、roots のそれぞれの下の2段目までのフォルダを大きい順に返す。du -x なので、ほかのファイルシステムには入らない。
 // sudo モードなら読めないフォルダも数える
 func (s *Server) BigDirs(roots []string, n int) (DiskDirs, error) {
-	cmd, stdin := s.command(`set --; while IFS= read -r d; do set -- "$@" "$d"; done; LC_ALL=C du -x -k -d 2 -- "$@"; exit 0`, strings.Join(roots, "\n")+"\n")
+	in, err := argLines(roots...)
+	if err != nil {
+		return DiskDirs{}, err
+	}
+	cmd, stdin := s.command(`set --; while IFS= read -r d; do set -- "$@" "$d"; done; LC_ALL=C du -x -k -d 2 -- "$@"; exit 0`, in)
 	sess, err := s.ssh.NewSession()
 	if err != nil {
 		return DiskDirs{}, err

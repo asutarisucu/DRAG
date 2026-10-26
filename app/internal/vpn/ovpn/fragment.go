@@ -35,10 +35,13 @@ func putFrag(typ, seq, id, size int) []byte {
 
 // fragmenter は、分けて送る番号と、受けてつなぎかけのもの
 type fragmenter struct {
-	max  int // 1 つに入れる大きさ。4 の倍数
-	mu   sync.Mutex
-	seq  int
-	part map[int]*fragPart // 受けるほうは1つのゴルーチンだけが触る
+	max int // 1 つに入れる大きさ。4 の倍数
+	// limit は、受けるものの1つの大きさの上限。.ovpn の fragment の値で、サーバーも同じ値で分ける。
+	// 頭の size と番号だけで大きなバッファを取らせないため、これを超えるものは捨てる
+	limit int
+	mu    sync.Mutex
+	seq   int
+	part  map[int]*fragPart // 受けるほうは1つのゴルーチンだけが触る
 }
 
 type fragPart struct {
@@ -49,7 +52,7 @@ type fragPart struct {
 }
 
 func newFragmenter(fragment int) *fragmenter {
-	return &fragmenter{max: max(fragment-fragOverhead, 64) &^ 3, part: map[int]*fragPart{}}
+	return &fragmenter{max: max(fragment-fragOverhead, 64) &^ 3, limit: fragment, part: map[int]*fragPart{}}
 }
 
 // split は送るものに頭を付け、大きければ分ける
@@ -94,7 +97,7 @@ func (f *fragmenter) join(p []byte) []byte {
 	if h.typ() == fragLast {
 		size = h.size()
 	}
-	if size == 0 || size&3 != 0 {
+	if size == 0 || size&3 != 0 || size > f.limit || len(p) > size {
 		return nil
 	}
 	now := time.Now()

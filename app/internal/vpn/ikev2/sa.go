@@ -36,7 +36,7 @@ func deriveIKE(s *suite, skeyseed, ni, nr []byte, spiI, spiR [8]byte, weInitiate
 	ai, ar := take(il), take(il)
 	ei, er := take(el), take(el)
 	sa.pi, sa.pr = take(pl), take(pl)
-	i, r := cipherKeys{s: s, encr: ei, integ: ai}, cipherKeys{s: s, encr: er, integ: ar}
+	i, r := newCipherKeys(s, ei, ai), newCipherKeys(s, er, ar)
 	if weInitiated {
 		sa.out, sa.in = i, r
 	} else {

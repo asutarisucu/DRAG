@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { DeleteVPN, PhoneState, SetPhoneLAN, SetPhonePublic, VPNs } from '../../wailsjs/go/main/App'
+import { DeleteVPN, PhoneState, SetAgentAsk, SetPhoneLAN, SetPhonePublic, VPNs } from '../../wailsjs/go/main/App'
 import type { main } from '../../wailsjs/go/models'
 import { useMobile } from '../mobile'
 import { isRemote } from '../remote'
@@ -183,6 +183,9 @@ function PhonePage() {
       </Row>
       <Row label={t('settings.cert')} desc={certDesc}>
         <span className="text-[12px] text-muted">{t('settings.certKind')}</span>
+      </Row>
+      <Row label={t('settings.agentAsk')} desc={t('settings.agentAskDesc')}>
+        <Switch on={st.settings.agentAsk} onChange={on => SetAgentAsk(on).then(done, failed)} />
       </Row>
     </>
   )

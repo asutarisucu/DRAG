@@ -157,3 +157,56 @@ func TestIKEv2Rekey(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// IKE の SA の提案は PRF が無ければ選ばない。鍵を作る PRF が無いまま進むと nil の関数を呼ぶ
+func TestPickProposalNeedsPRFForIKE(t *testing.T) {
+	noPRF := proposal{num: 1, proto: protoIKE, spi: make([]byte, 8), transforms: []transform{{tEncr, encrAESGCM16, 128}, {tDH, 19, 0}}}
+	if _, _, ok := pickProposal([]proposal{noPRF}, protoIKE); ok {
+		t.Fatal("PRF の無い IKE の提案を選んだ")
+	}
+	withPRF := noPRF
+	withPRF.transforms = append(withPRF.transforms, transform{tPRF, prfSHA256, 0})
+	if _, s, ok := pickProposal([]proposal{withPRF}, protoIKE); !ok || s.prf != prfSHA256 {
+		t.Fatal("PRF のある IKE の提案を選ばない")
+	}
+	// ESP の SA には PRF が無い
+	esp := proposal{num: 1, proto: protoESP, spi: make([]byte, 4), transforms: []transform{{tEncr, encrAESGCM16, 128}, {tESN, 0, 0}}}
+	if _, _, ok := pickProposal([]proposal{esp}, protoESP); !ok {
+		t.Fatal("ESP の提案を選ばない")
+	}
+}
+
+// 1024 ビットの MODP (グループ 2) は提案せず、受けもしない
+func TestNoMODP1024(t *testing.T) {
+	for _, p := range ikeProposals(nil) {
+		for _, tr := range p.transforms {
+			if tr.typ == tDH && tr.id == 2 {
+				t.Fatal("グループ 2 を提案した")
+			}
+		}
+	}
+	if acceptable(transform{tDH, 2, 0}) {
+		t.Fatal("グループ 2 を受ける")
+	}
+	if !acceptable(transform{tDH, 14, 0}) {
+		t.Fatal("グループ 14 を受けない")
+	}
+}
+
+// AEAD の IV は、同じ鍵で重ならないよう 1 ずつ増やす
+func TestAEADIVsAreUnique(t *testing.T) {
+	s := &suite{encr: encrAESGCM16, keyLen: 16}
+	k := newCipherKeys(s, make([]byte, 20), nil)
+	seen := map[string]bool{}
+	for range 1000 {
+		b, err := k.seal(func(int) []byte { return nil }, []byte("x"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if iv := string(b[:8]); seen[iv] {
+			t.Fatal("IV が重なった")
+		} else {
+			seen[iv] = true
+		}
+	}
+}

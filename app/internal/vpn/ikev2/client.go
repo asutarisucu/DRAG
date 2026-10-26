@@ -8,8 +8,10 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -106,9 +108,15 @@ func randBytes(n int) []byte {
 	return b
 }
 
+// ikeDH は IKE の SA に出す DH のグループ。1024 ビットの MODP (グループ 2) は、事前に計算しておけば解けるので入れない
+var ikeDH = []uint16{19, 31, 14, 20, 21}
+
 // ikeProposals は IKE の SA に出す提案。AEAD の組と、CBC と HMAC の組
 func ikeProposals(spi []byte) []proposal {
-	dh := []transform{{tDH, 19, 0}, {tDH, 31, 0}, {tDH, 14, 0}, {tDH, 20, 0}, {tDH, 21, 0}, {tDH, 2, 0}}
+	var dh []transform
+	for _, g := range ikeDH {
+		dh = append(dh, transform{tDH, g, 0})
+	}
 	prf := []transform{{tPRF, prfSHA256, 0}, {tPRF, prfSHA384, 0}, {tPRF, prfSHA512, 0}, {tPRF, prfSHA1, 0}}
 	p1 := proposal{num: 1, proto: protoIKE, spi: spi, transforms: append(append([]transform{{tEncr, encrAESGCM16, 256}, {tEncr, encrAESGCM16, 128}, {tEncr, encrChaCha, 0}}, prf...), dh...)}
 	p2 := proposal{num: 2, proto: protoIKE, spi: spi, transforms: append(append(append([]transform{{tEncr, encrAESCBC, 256}, {tEncr, encrAESCBC, 128}},
@@ -186,7 +194,12 @@ func (c *Client) connect(ctx context.Context, server *net.UDPAddr) error {
 			continue
 		}
 		if n := findNotify(hm.payloads, nInvalidKE); n != nil && len(n.data) == 2 && try < 3 {
-			group = binary.BigEndian.Uint16(n.data)
+			// 認証の前の返事なので、経路の途中の誰でも送れる。出した提案に無いグループには替えない
+			g := binary.BigEndian.Uint16(n.data)
+			if !slices.Contains(ikeDH, g) {
+				return fmt.Errorf("サーバーが、対応していない DH グループ %d を求めました", g)
+			}
+			group = g
 			c.logf("サーバーが DH グループ %d を求めました", group)
 			continue
 		}
@@ -478,6 +491,12 @@ func (c *Client) write(b []byte) error {
 }
 
 func (c *Client) recvLoop() {
+	// サーバーから来たパケットを扱えずに panic しても、アプリごと落とさずに VPN だけを切る
+	defer func() {
+		if r := recover(); r != nil {
+			c.fail(fmt.Errorf("サーバーからのパケットを扱えません: %v", r))
+		}
+	}()
 	buf := make([]byte, 65535)
 	for {
 		n, err := c.conn.Read(buf)

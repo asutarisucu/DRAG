@@ -7,8 +7,12 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -16,6 +20,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +45,7 @@ type Pushed struct {
 
 const (
 	sendWindow = 6    // 返事を待たずに送る制御パケットの数
+	recvWindow = 12   // 並べ直すために取っておく制御パケットの数。OpenVPN の TLS_RELIABLE_N_REC_BUFFERS と同じ
 	chunkSize  = 1100 // 制御パケット1つに載せる TLS のバイト数
 	transition = 60 * time.Second
 )
@@ -305,6 +311,10 @@ func (c *Client) peerInfo() string {
 	}, "\n") + "\n"
 }
 
+// verifyServer はサーバーの証明書を確かめる。OpenVPN v2.6.23 の ssl_verify.c と同じ項目を見る。
+// OpenVPN は OpenSSL の ssl_server の用途の確かめに任せているが、DRAG は Go の TLS を使うので自分で確かめる。
+// 用途はもっと厳しくし、サーバーの用途 (EKU の serverAuth か、EKU の無い古い証明書なら nsCertType の server) を
+// はっきり持つものだけを通す。同じ CA が出したクライアント証明書をサーバーとして通さないため
 func (c *Client) verifyServer(raw [][]byte, _ [][]*x509.Certificate) error {
 	if len(raw) == 0 {
 		return errors.New("VPN のサーバーが証明書を出しません")
@@ -317,21 +327,147 @@ func (c *Client) verifyServer(raw [][]byte, _ [][]*x509.Certificate) error {
 		}
 		certs[i] = cert
 	}
-	inter := x509.NewCertPool()
-	for _, cert := range certs[1:] {
-		inter.AddCert(cert)
+	leaf := certs[0]
+	chain := certs[:1]
+	// CA が無いのは、peer-fingerprint の指紋だけでサーバーを決めるとき (下で確かめる)
+	if c.cfg.CA != nil {
+		inter := x509.NewCertPool()
+		for _, cert := range certs[1:] {
+			inter.AddCert(cert)
+		}
+		chains, err := leaf.Verify(x509.VerifyOptions{Roots: c.cfg.CA, Intermediates: inter, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}})
+		if err != nil {
+			return fmt.Errorf("VPN のサーバーの証明書を確かめられません: %w", err)
+		}
+		chain = chains[0]
+		if !serverPurpose(leaf) {
+			return errors.New("VPN のサーバーの証明書が、サーバーの用途の証明書ではありません")
+		}
+		// key usage があるなら、TLS のサーバーに使えるものか
+		if hasExt(leaf, oidKeyUsage) && leaf.KeyUsage&(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement) == 0 {
+			return errors.New("VPN のサーバーの証明書の key usage が TLS のサーバーに使えるものではありません")
+		}
 	}
-	use := x509.ExtKeyUsageAny
-	if c.cfg.ServerEKU {
-		use = x509.ExtKeyUsageServerAuth
+	if c.cfg.RequireKU && !hasExt(leaf, oidKeyUsage) {
+		return errors.New("VPN のサーバーの証明書に key usage がありません")
 	}
-	if _, err := certs[0].Verify(x509.VerifyOptions{Roots: c.cfg.CA, Intermediates: inter, KeyUsages: []x509.ExtKeyUsage{use}}); err != nil {
-		return fmt.Errorf("VPN のサーバーの証明書を確かめられません: %w", err)
+	if len(c.cfg.KeyUsages) > 0 {
+		// OpenVPN の並びにする。digitalSignature が 0x80、encipherOnly が 0x01
+		var nku uint
+		for i := range 8 {
+			if leaf.KeyUsage&(1<<i) != 0 {
+				nku |= 1 << (7 - i)
+			}
+		}
+		if !slices.ContainsFunc(c.cfg.KeyUsages, func(ku uint) bool { return ku != 0 && nku&ku == ku }) {
+			return fmt.Errorf("VPN のサーバーの証明書の key usage %02x が remote-cert-ku と合いません", nku)
+		}
+	}
+	if c.cfg.EKU != "" && !slices.Contains(ekus(leaf), c.cfg.EKU) {
+		return fmt.Errorf("VPN のサーバーの証明書の用途に %s がありません", c.cfg.EKU)
 	}
 	if n := c.cfg.VerifyName; n != "" {
-		cn := certs[0].Subject.CommonName
+		cn := leaf.Subject.CommonName
 		if cn != n && !(c.cfg.VerifyPrefix && strings.HasPrefix(cn, n)) {
 			return fmt.Errorf("VPN のサーバーの証明書の名前 %s が verify-x509-name と違います", cn)
+		}
+	}
+	if len(c.cfg.Hashes) > 0 {
+		if c.cfg.HashDepth >= len(chain) {
+			return errors.New("verify-hash で確かめる CA の証明書がありません")
+		}
+		der := chain[c.cfg.HashDepth].Raw
+		var fp []byte
+		if len(c.cfg.Hashes[0]) == sha1.Size {
+			h := sha1.Sum(der)
+			fp = h[:]
+		} else {
+			h := sha256.Sum256(der)
+			fp = h[:]
+		}
+		if !slices.ContainsFunc(c.cfg.Hashes, func(h []byte) bool { return subtle.ConstantTimeCompare(h, fp) == 1 }) {
+			return fmt.Errorf("VPN のサーバーの証明書の指紋 %X が合いません", fp)
+		}
+	}
+	if len(c.cfg.CRLs) > 0 {
+		if err := checkCRL(chain, c.cfg.CRLs, time.Now()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var (
+	oidKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 15}
+	oidExtKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidNSCertType  = asn1.ObjectIdentifier{2, 16, 840, 1, 113730, 1, 1}
+)
+
+func hasExt(cert *x509.Certificate, oid asn1.ObjectIdentifier) bool {
+	return slices.ContainsFunc(cert.Extensions, func(e pkix.Extension) bool { return e.Id.Equal(oid) })
+}
+
+// ekus は証明書の拡張鍵用途の OID。拡張が無ければ nil
+func ekus(cert *x509.Certificate) []string {
+	for _, e := range cert.Extensions {
+		if e.Id.Equal(oidExtKeyUsage) {
+			var oids []asn1.ObjectIdentifier
+			if _, err := asn1.Unmarshal(e.Value, &oids); err != nil {
+				return nil
+			}
+			out := make([]string, len(oids))
+			for i, o := range oids {
+				out[i] = o.String()
+			}
+			return out
+		}
+	}
+	return nil
+}
+
+// serverPurpose は、証明書がサーバーの用途をはっきり持つか。
+// 拡張鍵用途があれば serverAuth を、無ければ Netscape の証明書の種類 (nsCertType) の server を見る
+func serverPurpose(cert *x509.Certificate) bool {
+	if hasExt(cert, oidExtKeyUsage) {
+		return slices.Contains(ekus(cert), oidServerAuth)
+	}
+	for _, e := range cert.Extensions {
+		if e.Id.Equal(oidNSCertType) {
+			var bits asn1.BitString
+			if _, err := asn1.Unmarshal(e.Value, &bits); err != nil {
+				return false
+			}
+			return bits.At(1) == 1 // SSL server
+		}
+	}
+	return false
+}
+
+// checkCRL は、chain のどの証明書も、発行した CA の CRL で失効していないかを確かめる。
+// OpenVPN は OpenSSL の X509_V_FLAG_CRL_CHECK_ALL を立てるので、CRL の無い CA があれば断る
+func checkCRL(chain []*x509.Certificate, crls []*x509.RevocationList, now time.Time) error {
+	for i, cert := range chain {
+		issuer := cert
+		if i+1 < len(chain) {
+			issuer = chain[i+1]
+		}
+		var rl *x509.RevocationList
+		for _, r := range crls {
+			if bytes.Equal(r.RawIssuer, cert.RawIssuer) && r.CheckSignatureFrom(issuer) == nil {
+				rl = r
+				break
+			}
+		}
+		if rl == nil {
+			return fmt.Errorf("%s を発行した CA の CRL が <crl-verify> にありません", cert.Subject.CommonName)
+		}
+		if !rl.NextUpdate.IsZero() && now.After(rl.NextUpdate) {
+			return fmt.Errorf("%s の CRL の期限が切れています", cert.Issuer.CommonName)
+		}
+		for _, r := range rl.RevokedCertificateEntries {
+			if r.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				return fmt.Errorf("VPN のサーバーの証明書 %s は失効しています", cert.Subject.CommonName)
+			}
 		}
 	}
 	return nil
@@ -647,11 +783,16 @@ func (c *Client) handleControl(p *ctrlPacket) {
 		}
 	}
 	if p.op != opAck {
-		ks.acks = append(ks.acks, p.id)
-		if p.id >= ks.recvNext {
+		// 窓より先のものは取っておかずに捨てる。サーバーは返事 (ACK) が来ないので送り直す。
+		// tls-auth も tls-crypt も無ければ、経路の途中の誰でも制御パケットを送れるので、取っておく数を決めておく
+		if p.id >= ks.recvNext && p.id-ks.recvNext < recvWindow {
+			ks.acks = append(ks.acks, p.id)
 			if _, dup := ks.recvBuf[p.id]; !dup {
 				ks.recvBuf[p.id] = p
 			}
+		} else if p.id < ks.recvNext {
+			// 受けたのに ACK が届かず、送り直されたもの
+			ks.acks = append(ks.acks, p.id)
 		}
 		for {
 			q, ok := ks.recvBuf[ks.recvNext]
@@ -677,17 +818,28 @@ func (c *Client) handleControl(p *ctrlPacket) {
 
 // renegotiate は、サーバーが始めた鍵の取り替えに応じる。同じ設定のまま、新しい世代の TLS と鍵を作る
 func (c *Client) renegotiate(ks *keyState) {
+	// 失敗した世代は残さない。残すと、サーバーがあとでその key_id に替えようとしても新しく始められない
+	drop := func(err error) {
+		c.logf("鍵の取り替えに失敗しました: %v", err)
+		c.mu.Lock()
+		if c.keys[ks.id] == ks {
+			c.keys[ks.id] = nil
+		}
+		c.mu.Unlock()
+		ks.conn.Close()
+	}
 	if err := c.sendReliable(ks, opSoftReset, nil); err != nil {
+		drop(err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), transition)
 	defer cancel()
 	if err := c.handshake(ctx, ks); err != nil {
-		c.logf("鍵の取り替えに失敗しました: %v", err)
+		drop(err)
 		return
 	}
 	if err := c.makeKeys(ks); err != nil {
-		c.logf("鍵の取り替えに失敗しました: %v", err)
+		drop(err)
 		return
 	}
 	go c.readControl(ks)
@@ -785,7 +937,12 @@ func (c *Client) sendData(payload []byte) error {
 	if peer >= 0 {
 		head = []byte{opDataV2<<3 | ks.id, byte(peer >> 16), byte(peer >> 8), byte(peer)}
 	}
-	return c.tr.send(ks.data.seal(head, payload))
+	b, err := ks.data.seal(head, payload)
+	if err != nil {
+		c.fail(err)
+		return err
+	}
+	return c.tr.send(b)
 }
 
 // frame は圧縮の印を付ける。DRAG は圧縮しない

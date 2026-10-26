@@ -6,6 +6,7 @@ package phone
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"encoding/json"
@@ -50,6 +51,8 @@ type Status struct {
 	// 直接公開だけ。証明書の期限 (Unix ミリ秒。まだ無ければ 0) と、証明書を取っている途中か
 	CertUntil int64 `json:"certUntil"`
 	Pending   bool  `json:"pending"`
+	// LAN 内だけ。自己署名の証明書の SHA-256 の指紋。スマホのブラウザの警告の画面で、同じ証明書かを確かめるのに使う
+	Fingerprint string `json:"fingerprint"`
 }
 
 const (
@@ -126,7 +129,17 @@ func (s *Server) Start(addr string) error {
 	if ip != nil {
 		u = "https://" + ip.String() + ":" + port
 	}
-	return s.listen(RouteLAN, addr, &tls.Config{Certificates: []tls.Certificate{cert}}, Status{Running: true, URL: u})
+	return s.listen(RouteLAN, addr, &tls.Config{Certificates: []tls.Certificate{cert}}, Status{Running: true, URL: u, Fingerprint: fingerprint(cert.Leaf.Raw)})
+}
+
+// fingerprint は、ブラウザの証明書の画面と同じく、SHA-256 を2桁ずつ空白で区切って書く
+func fingerprint(der []byte) string {
+	h := sha256.Sum256(der)
+	parts := make([]string, len(h))
+	for i, b := range h {
+		parts[i] = fmt.Sprintf("%02X", b)
+	}
+	return strings.Join(parts, " ")
 }
 
 func (s *Server) listen(route, addr string, tc *tls.Config, st Status) error {
@@ -520,10 +533,27 @@ type replyMsg struct {
 	Error  string `json:"e,omitempty"`
 }
 
+// call はスマホからの呼び出しを1つ動かす。呼び出しの中で panic しても、アプリごと落とさずにエラーを返す
+func (s *Server) call(dev Device, m callMsg) (res any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			res, err = nil, fmt.Errorf("%s を動かせません: %v", m.Method, r)
+		}
+	}()
+	return s.opts.Call(dev, m.Method, m.Args)
+}
+
 func (s *Server) serveWS(route string, dev Device, ws *websocket.Conn, ip string) {
 	ws.SetReadLimit(32 << 20)
 	c := &client{route: route, dev: dev, ws: ws, out: make(chan []byte, 4096), done: make(chan struct{})}
+	// cookie を確かめてからここまでに、端末を無効にされたか経路を止められていれば入れない。
+	// Revoke と StopRoute は s.clients にあるものだけを切るので、同じ区間で確かめてから加える
 	s.mu.Lock()
+	if l := s.routes[route]; l == nil || !l.status.Running || !s.devs.has(dev.ID) {
+		s.mu.Unlock()
+		ws.Close(websocket.StatusPolicyViolation, "revoked")
+		return
+	}
 	s.clients[c] = struct{}{}
 	s.mu.Unlock()
 	s.devs.seen(dev.ID, ip)
@@ -566,7 +596,7 @@ func (s *Server) serveWS(route string, dev Device, ws *websocket.Conn, ip string
 		}
 		// PC アプリの画面と同じく、呼び出しは並行して動かす。順番が要る入力は画面の側で1つずつ送る
 		go func() {
-			res, err := s.opts.Call(dev, m.Method, m.Args)
+			res, err := s.call(dev, m)
 			rep := replyMsg{ID: m.ID, Result: res}
 			if err != nil {
 				rep = replyMsg{ID: m.ID, Error: err.Error()}

@@ -64,6 +64,10 @@ type Config struct {
 	// MS-CHAPv2 でなければ 0 が並ぶ
 	OnAuth func(hlak []byte) error
 	Logf   func(format string, args ...any)
+	// RequireMSCHAPv2 は、下の層でサーバーを確かめないとき (L2TP/IPsec の PSK は利用者で共有する) に立てる。
+	// PAP と CHAP-MD5 と認証なしを断って MS-CHAPv2 を求め、サーバーの Success の応答でサーバーを確かめる。
+	// 立てないと、パスワードの送り方をサーバーが決められ、PAP なら平文で送る
+	RequireMSCHAPv2 bool
 }
 
 // Result は IPCP でもらったもの
@@ -84,6 +88,7 @@ type Conn struct {
 
 	lcpOurs, lcpTheirs   bool // 自分の Configure-Request が受け付けられたか、相手のものを受け付けたか
 	lcpReq               []byte
+	authNaks             int    // 認証の方式を求め直した回数
 	auth                 uint16 // 相手が求めた認証のプロトコル。0 なら認証なし
 	chapAlg              byte
 	chap                 struct{ auth, peer, nt []byte } // MS-CHAPv2 の途中の値
@@ -206,9 +211,7 @@ func (c *Conn) loop() {
 		case <-c.done:
 			return
 		case f := <-c.in:
-			c.mu.Lock()
-			c.handle(f)
-			c.mu.Unlock()
+			c.handleLocked(f)
 		case <-t.C:
 			// 返事が来ていない要求を送り直す
 			c.mu.Lock()
@@ -223,6 +226,30 @@ func (c *Conn) loop() {
 			c.mu.Unlock()
 		}
 	}
+}
+
+// handleLocked はフレームを1つ扱う。サーバーから来たフレームで panic しても、アプリごと落とさずに PPP を終える
+func (c *Conn) handleLocked(f []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer func() {
+		if r := recover(); r != nil {
+			c.fail(fmt.Errorf("VPN のサーバーからのフレームを扱えません: %v", r))
+		}
+	}()
+	c.handle(f)
+}
+
+// body は、LCP と同じ形のパケットのコード、id、中身。長さの欄が 4 より小さいか、届いた長さを超えるものは捨てる (RFC 1661 5)
+func body(p []byte) (code, id byte, data []byte, ok bool) {
+	if len(p) < 4 {
+		return 0, 0, nil, false
+	}
+	n := int(binary.BigEndian.Uint16(p[2:4]))
+	if n < 4 || n > len(p) {
+		return 0, 0, nil, false
+	}
+	return p[0], p[1], p[4:n], true
 }
 
 func (c *Conn) handle(f []byte) {
@@ -265,14 +292,14 @@ func (c *Conn) handle(f []byte) {
 }
 
 func (c *Conn) handleLCP(p []byte) {
-	if len(p) < 4 {
+	code, id, data, ok := body(p)
+	if !ok {
 		return
 	}
-	code, id, data := p[0], p[1], p[4:min(len(p), int(binary.BigEndian.Uint16(p[2:4])))]
 	switch code {
 	case confReq:
 		var ack, nak, rej []byte
-		auth, alg := uint16(0), byte(0)
+		auth, alg, other := uint16(0), byte(0), false
 		for _, o := range parseOpts(data) {
 			typ, v := o[0][0], o[1]
 			raw := opt(typ, v)
@@ -285,19 +312,26 @@ func (c *Conn) handleLCP(p []byte) {
 					continue
 				}
 				switch p := binary.BigEndian.Uint16(v[:2]); {
-				case p == protoPAP:
+				case p == protoPAP && !c.cfg.RequireMSCHAPv2:
 					auth = p
 					ack = append(ack, raw...)
-				case p == protoCHAP && len(v) == 3 && (v[2] == 0x81 || v[2] == 0x05):
+				case p == protoCHAP && len(v) == 3 && (v[2] == 0x81 || v[2] == 0x05 && !c.cfg.RequireMSCHAPv2):
 					auth, alg = p, v[2]
 					ack = append(ack, raw...)
 				default:
-					// MS-CHAPv2 にしてほしいと返す
-					nak = append(nak, opt(optAuth, []byte{0xc2, 0x23, 0x81})...)
+					other = true
 				}
 			default:
 				rej = append(rej, raw...)
 			}
+		}
+		// 求める認証でなければ、MS-CHAPv2 にしてほしいと返す。認証の無い要求にも、オプションを足して返せる (RFC 1661 5.3)
+		if other || auth == 0 && c.cfg.RequireMSCHAPv2 {
+			if c.authNaks++; c.authNaks > maxAuthNaks {
+				c.fail(errors.New("VPN のサーバーが MS-CHAPv2 での認証に応じません"))
+				return
+			}
+			nak = append(nak, opt(optAuth, []byte{0xc2, 0x23, 0x81})...)
 		}
 		switch {
 		case rej != nil:
@@ -327,6 +361,9 @@ func (c *Conn) handleLCP(p []byte) {
 	}
 }
 
+// maxAuthNaks は、認証の方式を求め直す回数の上限。RFC 1661 の Max-Failure の既定と同じ
+const maxAuthNaks = 5
+
 // lcpUp は、LCP が両方向でまとまったら認証に進む
 func (c *Conn) lcpUp() {
 	if !c.lcpOurs || !c.lcpTheirs || c.authDone || c.papReq != nil {
@@ -346,10 +383,10 @@ func (c *Conn) lcpUp() {
 }
 
 func (c *Conn) handleCHAP(p []byte) {
-	if len(p) < 4 {
+	code, id, data, ok := body(p)
+	if !ok {
 		return
 	}
-	code, id, data := p[0], p[1], p[4:min(len(p), int(binary.BigEndian.Uint16(p[2:4])))]
 	switch code {
 	case 1: // Challenge
 		if len(data) < 1 || len(data) < 1+int(data[0]) {
@@ -431,10 +468,10 @@ func (c *Conn) authed(hlak []byte) {
 }
 
 func (c *Conn) handleIPCP(p []byte) {
-	if len(p) < 4 || !c.authDone {
+	code, id, data, ok := body(p)
+	if !ok || !c.authDone {
 		return
 	}
-	code, id, data := p[0], p[1], p[4:min(len(p), int(binary.BigEndian.Uint16(p[2:4])))]
 	switch code {
 	case confReq:
 		var ack, rej []byte
@@ -467,6 +504,11 @@ func (c *Conn) handleIPCP(p []byte) {
 		c.sendIPCPReq()
 	case confRej:
 		for _, o := range parseOpts(data) {
+			if o[0][0] == optIPAddr {
+				// アドレスをもらえなければ、VPN の中で送れない
+				c.fail(errors.New("VPN のサーバーが IP アドレスを渡しません"))
+				return
+			}
 			delete(c.ipcpOpts, o[0][0])
 		}
 		c.sendIPCPReq()
@@ -485,9 +527,14 @@ func (c *Conn) ipcpUp() {
 		return
 	default:
 	}
-	c.result = Result{Addr: netip.AddrFrom4([4]byte(c.ipcpOpts[optIPAddr]))}
+	addr, ok := c.ipcpOpts[optIPAddr]
+	if !ok || len(addr) != 4 {
+		c.fail(errors.New("VPN のサーバーが IP アドレスを渡しません"))
+		return
+	}
+	c.result = Result{Addr: netip.AddrFrom4([4]byte(addr))}
 	for _, t := range []byte{optDNS1, optDNS2} {
-		if v, ok := c.ipcpOpts[t]; ok {
+		if v, ok := c.ipcpOpts[t]; ok && len(v) == 4 {
 			if ip := netip.AddrFrom4([4]byte(v)); !ip.IsUnspecified() {
 				c.result.DNS = append(c.result.DNS, ip)
 			}

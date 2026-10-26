@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"hash"
 	"math/big"
+	"sync/atomic"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
@@ -184,6 +185,9 @@ func suiteOf(p proposal) (*suite, error) {
 		if prfHash(s.prf) == nil {
 			return nil, fmt.Errorf("PRF %d には対応していません", s.prf)
 		}
+	} else if p.proto == protoIKE {
+		// IKE の SA は鍵を PRF で作る
+		return nil, errors.New("PRF が選ばれていません")
 	}
 	if t, ok := p.get(tInteg); ok && t.id != 0 {
 		s.integ = t.id
@@ -268,6 +272,13 @@ type cipherKeys struct {
 	s     *suite
 	encr  []byte
 	integ []byte
+	// ivs は AEAD の IV にする数。同じ鍵で IV が重なると GCM と ChaCha20-Poly1305 は破れるので、
+	// 乱数ではなく 1 ずつ増やして、SA の中で一意にする (RFC 4106 3.1、RFC 7634 2)
+	ivs *atomic.Uint64
+}
+
+func newCipherKeys(s *suite, encr, integ []byte) cipherKeys {
+	return cipherKeys{s: s, encr: encr, integ: integ, ivs: new(atomic.Uint64)}
 }
 
 func (k cipherKeys) aeadCipher() (cipher.AEAD, []byte, error) {
@@ -291,8 +302,7 @@ func (k cipherKeys) seal(ad func(encLen int) []byte, plain []byte) ([]byte, erro
 		if err != nil {
 			return nil, err
 		}
-		iv := make([]byte, 8)
-		rand.Read(iv)
+		iv := binary.BigEndian.AppendUint64(nil, k.ivs.Add(1))
 		encLen := 8 + len(plain) + a.Overhead()
 		ct := a.Seal(nil, append(append([]byte{}, salt...), iv...), plain, ad(encLen))
 		return append(iv, ct...), nil
@@ -359,9 +369,8 @@ type dhKey struct {
 	priv  func(peer []byte) ([]byte, error)
 }
 
-// MODP の素数 (RFC 7296 付録 B、RFC 3526)
+// MODP の素数 (RFC 3526)
 var modp = map[uint16]string{
-	2:  "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE65381FFFFFFFFFFFFFFFF",
 	14: "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF",
 }
 
@@ -385,7 +394,7 @@ func newDH(group uint16) (*dhKey, error) {
 		curve = ecdh.P521()
 	case 31:
 		curve = ecdh.X25519()
-	case 2, 14:
+	case 14:
 		p, _ := new(big.Int).SetString(modp[group], 16)
 		size := (p.BitLen() + 7) / 8
 		x, err := rand.Int(rand.Reader, p)

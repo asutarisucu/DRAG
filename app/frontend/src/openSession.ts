@@ -1,7 +1,7 @@
 import { OpenShell } from '../wailsjs/go/main/App'
 import { setMTab } from './mobile'
 import { attachCommand, sessionKey, sessionKeyOf } from './sessions'
-import { sendInput } from './shellInput'
+import { typeLine } from './shellInput'
 import { terminalOf } from './terminals'
 import { toast } from './toasts'
 import { focusWin, openWin, winsOf } from './windows'
@@ -28,7 +28,7 @@ export async function openSessionWindow(serverId: string, s: { kind: string; nam
       serverId, kind: 'session', title: s.user ? `${s.user}/${s.name}` : s.name, icon: 'layers', shellId: id,
       detachable: true, replayFromIdle: false, sessionKey: key, rect: pos,
     }, { w: desk?.width ?? 800, h: desk?.height ?? 500 })
-    sendInput(id, attachCommand(s) + '\r')
+    typeLine(id, attachCommand(s), true)
   } catch (e) {
     toast(String(e), 'warn')
   }

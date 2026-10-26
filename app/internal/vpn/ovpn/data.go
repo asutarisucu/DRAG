@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"math"
 	"sync"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -76,9 +77,17 @@ func newDataKeys(name, auth string, km []byte) (*dataKeys, error) {
 	return k, nil
 }
 
+// errIDsUsedUp は、同じ鍵で packet_id を使い切ったとき。0 に戻すと、AEAD では同じ鍵で同じ nonce を使うことになる。
+// DRAG は自分から鍵を替えないので、サーバーが替えないまま使い切ったら、送るのをやめる
+var errIDsUsedUp = errors.New("鍵が替わらないまま、データのパケットの番号を使い切りました。VPN につなぎ直してください")
+
 // seal はデータのパケットを作る。head は opcode と key_id (と DATA_V2 なら peer-id) の部分
-func (k *dataKeys) seal(head, payload []byte) []byte {
+func (k *dataKeys) seal(head, payload []byte) ([]byte, error) {
 	k.mu.Lock()
+	if k.nextID == math.MaxUint32 {
+		k.mu.Unlock()
+		return nil, errIDsUsedUp
+	}
 	k.nextID++
 	id := k.nextID
 	k.mu.Unlock()
@@ -92,7 +101,7 @@ func (k *dataKeys) seal(head, payload []byte) []byte {
 		n := len(ct) - k.aeadOut.Overhead()
 		out := append(append([]byte{}, head...), pid...)
 		out = append(out, ct[n:]...) // タグを先に置く
-		return append(out, ct[:n]...)
+		return append(out, ct[:n]...), nil
 	}
 	// CBC。packet_id を暗号の中に入れ、IV と暗号文に HMAC を付ける
 	plain := append(pid, payload...)
@@ -109,7 +118,7 @@ func (k *dataKeys) seal(head, payload []byte) []byte {
 	m.Write(ct)
 	out := append(append([]byte{}, head...), m.Sum(nil)...)
 	out = append(out, iv...)
-	return append(out, ct...)
+	return append(out, ct...), nil
 }
 
 var errReplay = errors.New("同じデータのパケットをもう一度受けました")

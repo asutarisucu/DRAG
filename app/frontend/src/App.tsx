@@ -6,7 +6,7 @@ import { EventsOn, OnFileDrop, OnFileDropOff, WindowHide, WindowIsMaximised, Win
 import { ConnectDialog, type Connected } from './components/ConnectDialog'
 import { Desktop } from './components/Desktop'
 import { FileTree } from './components/FileTree'
-import { PairDialog, usePhoneDevices } from './components/PairDialog'
+import { AgentAsks, PairDialog, usePhoneDevices } from './components/PairDialog'
 import { Icon, type IconName } from './components/Icon'
 import { Resizer } from './components/Resizer'
 import { SessionsView } from './components/SessionsView'
@@ -251,6 +251,7 @@ export default function App() {
       {connecting && <ConnectDialog preset={connecting.preset} onClose={() => setConnecting(null)} onConnected={added} />}
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {pairOpen && <PairDialog onClose={() => setPairOpen(false)} />}
+      {!isRemote && <AgentAsks />}
       <SudoDialog who={id => { const s = servers.find(x => x.id === id); return s ? `${s.user}@${s.name}` : '' }} />
       <Toasts />
     </div>

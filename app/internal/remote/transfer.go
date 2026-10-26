@@ -197,7 +197,11 @@ func (s *Server) Stat(p string) (Props, error) {
 		return Props{}, err
 	}
 	defer sess.Close()
-	cmd, stdin := s.command(`IFS= read -r p; exec stat -c "%F|%s|%A|%U|%G|%Y" -- "$p"`, p+"\n")
+	in, err := argLines(p)
+	if err != nil {
+		return Props{}, err
+	}
+	cmd, stdin := s.command(`IFS= read -r p; exec stat -c "%F|%s|%A|%U|%G|%Y" -- "$p"`, in)
 	sess.Stdin = strings.NewReader(stdin)
 	out, err := sess.CombinedOutput(cmd)
 	if err != nil {

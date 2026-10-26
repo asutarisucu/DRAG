@@ -6,8 +6,11 @@ package ovpn
 
 import (
 	"bufio"
+	"crypto/sha1"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -20,10 +23,15 @@ import (
 type Config struct {
 	Remotes      []Remote
 	CA           *x509.CertPool
-	Cert         *tls.Certificate // クライアント証明書。ユーザー名とパスワードだけで入るときは nil
-	ServerEKU    bool             // remote-cert-tls server
-	VerifyName   string           // verify-x509-name の値
-	VerifyPrefix bool             // verify-x509-name の name-prefix
+	Cert         *tls.Certificate       // クライアント証明書。ユーザー名とパスワードだけで入るときは nil
+	VerifyName   string                 // verify-x509-name の値
+	VerifyPrefix bool                   // verify-x509-name の name-prefix
+	EKU          string                 // remote-cert-eku の OID。remote-cert-tls server ならサーバーの用途
+	RequireKU    bool                   // remote-cert-tls か remote-cert-ku。サーバーの証明書に key usage が無ければ断る
+	KeyUsages    []uint                 // remote-cert-ku の値。OpenVPN と同じく digitalSignature を 0x80 とする並びで、どれか1つのビットをすべて持てばよい
+	Hashes       [][]byte               // verify-hash か peer-fingerprint の指紋
+	HashDepth    int                    // 指紋を当てる証明書。0 はサーバーの証明書 (peer-fingerprint)、1 はそれに署名した CA (verify-hash)
+	CRLs         []*x509.RevocationList // <crl-verify>
 	TLSAuth      *staticKey
 	TLSAuthDir   int // key-direction。-1 なら向きを分けない
 	TLSCrypt     *staticKey
@@ -125,7 +133,53 @@ func Parse(text string) (*Config, error) {
 		case "tls-crypt-v2", "pkcs12":
 			return nil, fmt.Errorf("%s にはまだ対応していません", f[0])
 		case "remote-cert-tls":
-			c.ServerEKU = arg(1) == "server"
+			switch arg(1) {
+			case "server":
+				c.EKU = oidServerAuth
+			case "client":
+				c.EKU = oidClientAuth
+			default:
+				return nil, errors.New("remote-cert-tls は server か client です")
+			}
+			c.RequireKU = true
+		case "remote-cert-eku":
+			if c.EKU = ekuOID(arg(1)); c.EKU == "" {
+				return nil, fmt.Errorf("remote-cert-eku の %s には対応していません", arg(1))
+			}
+		case "remote-cert-ku":
+			c.RequireKU = true
+			for _, v := range f[1:] {
+				ku, err := strconv.ParseUint(v, 16, 32)
+				if err != nil {
+					return nil, fmt.Errorf("remote-cert-ku の %s を読めません", v)
+				}
+				c.KeyUsages = append(c.KeyUsages, uint(ku))
+			}
+		case "ns-cert-type":
+			// サーバーの用途は、いつも確かめている (verifyServer)
+			if arg(1) != "server" {
+				return nil, fmt.Errorf("ns-cert-type %s には対応していません", arg(1))
+			}
+		case "verify-hash", "peer-fingerprint":
+			if _, ok := blocks[f[0]]; ok {
+				break
+			}
+			algo := arg(2)
+			if f[0] == "verify-hash" && algo == "" {
+				algo = "SHA1"
+			}
+			if err := c.addHashes(f[0], arg(1), algo); err != nil {
+				return nil, err
+			}
+		case "crl-verify":
+			if arg(2) == "dir" {
+				return nil, errors.New("crl-verify の dir には対応していません。CRL を .ovpn の中に <crl-verify> で書いてください")
+			}
+			if _, ok := blocks["crl-verify"]; !ok {
+				return nil, errors.New("crl-verify の CRL を .ovpn の中に <crl-verify> で書いてください")
+			}
+		case "tls-verify":
+			return nil, errors.New("tls-verify (スクリプトで証明書を確かめる形) には対応していません")
 		case "verify-x509-name":
 			switch arg(2) {
 			case "", "name":
@@ -174,13 +228,42 @@ func Parse(text string) (*Config, error) {
 	if len(c.Remotes) == 0 {
 		return nil, errors.New("remote の行がありません")
 	}
-	ca := blocks["ca"]
-	if ca == "" {
+	// 埋め込みの指紋は、OpenVPN と同じく SHA256 で読む
+	for _, name := range []string{"verify-hash", "peer-fingerprint"} {
+		if b, ok := blocks[name]; ok {
+			if err := c.addHashes(name, b, "SHA256"); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if b, ok := blocks["crl-verify"]; ok {
+		rest := []byte(b)
+		for {
+			var p *pem.Block
+			if p, rest = pem.Decode(rest); p == nil {
+				break
+			}
+			rl, err := x509.ParseRevocationList(p.Bytes)
+			if err != nil {
+				return nil, fmt.Errorf("<crl-verify> を読めません: %w", err)
+			}
+			c.CRLs = append(c.CRLs, rl)
+		}
+		if len(c.CRLs) == 0 {
+			return nil, errors.New("<crl-verify> に CRL がありません")
+		}
+	}
+	// peer-fingerprint だけでサーバーを決めるときは、CA を使わない
+	if ca := blocks["ca"]; ca != "" {
+		c.CA = x509.NewCertPool()
+		if !c.CA.AppendCertsFromPEM([]byte(ca)) {
+			return nil, errors.New("<ca> の証明書を読めません")
+		}
+	} else if c.HashDepth != 0 || len(c.Hashes) == 0 {
 		return nil, errors.New("<ca> がありません")
 	}
-	c.CA = x509.NewCertPool()
-	if !c.CA.AppendCertsFromPEM([]byte(ca)) {
-		return nil, errors.New("<ca> の証明書を読めません")
+	if c.CA == nil && len(c.CRLs) > 0 {
+		return nil, errors.New("<crl-verify> を使うには <ca> が要ります")
 	}
 	if cert, key := blocks["cert"], blocks["key"]; cert != "" || key != "" {
 		kp, err := tls.X509KeyPair([]byte(cert), []byte(key))
@@ -215,6 +298,68 @@ func Parse(text string) (*Config, error) {
 		}
 	}
 	return c, nil
+}
+
+// サーバーとクライアントの用途の OID
+const (
+	oidServerAuth = "1.3.6.1.5.5.7.3.1"
+	oidClientAuth = "1.3.6.1.5.5.7.3.2"
+)
+
+// ekuOID は remote-cert-eku の値を OID にする。OpenVPN は OID か OpenSSL の長い名前で書く。読めなければ空
+func ekuOID(v string) string {
+	switch v {
+	case "TLS Web Server Authentication":
+		return oidServerAuth
+	case "TLS Web Client Authentication":
+		return oidClientAuth
+	}
+	var oid asn1.ObjectIdentifier
+	for _, p := range strings.Split(v, ".") {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 {
+			return ""
+		}
+		oid = append(oid, n)
+	}
+	if len(oid) < 2 {
+		return ""
+	}
+	return oid.String()
+}
+
+// addHashes は verify-hash か peer-fingerprint の指紋を足す。text は1行に1つで、AB:CD:... の形
+func (c *Config) addHashes(name, text, algo string) error {
+	depth, size := 0, sha256.Size
+	if name == "verify-hash" {
+		depth = 1
+		switch algo {
+		case "SHA1":
+			size = sha1.Size
+		case "SHA256":
+		default:
+			return fmt.Errorf("verify-hash の %s には対応していません", algo)
+		}
+	}
+	if len(c.Hashes) > 0 && c.HashDepth != depth {
+		return errors.New("verify-hash と peer-fingerprint は一緒に使えません")
+	}
+	c.HashDepth = depth
+	for _, l := range strings.Split(text, "\n") {
+		l = strings.TrimSpace(l)
+		if l == "" || l[0] == '#' || l[0] == ';' {
+			continue
+		}
+		h, err := hex.DecodeString(strings.ReplaceAll(l, ":", ""))
+		if err != nil || len(h) != size {
+			return fmt.Errorf("%s の指紋 %s を読めません", name, l)
+		}
+		c.Hashes = append(c.Hashes, h)
+	}
+	if len(c.Hashes) == 0 {
+		return fmt.Errorf("%s に指紋がありません", name)
+	}
+	return nil
 }
 
 func compressMode(alg string) compMode {

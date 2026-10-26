@@ -1,6 +1,7 @@
 package remote
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -64,7 +65,9 @@ func (s *Server) Sessions() ([]Session, error) {
 			list[i].LastUsed = used[list[i].Name]
 		}
 	}
-	return append(list, s.otherScreens()...), nil
+	// 名前はシェルに打って開くので、端末が文字として扱わないものを含むセッションは並べない
+	list = slices.DeleteFunc(append(list, s.otherScreens()...), func(x Session) bool { return hasControl(x.Name) || hasControl(x.User) })
+	return list, nil
 }
 
 // othersScript は、ほかのユーザーの screen のソケットを並べる。1行目はログインしたユーザーの名前。
@@ -93,7 +96,11 @@ func (s *Server) otherScreens() []Session {
 	if c != nil && time.Since(c.at) < 20*time.Second {
 		return c.list
 	}
-	cmd, stdin := s.command(othersScript, s.cfg.User+"\n")
+	in, err := argLines(s.cfg.User)
+	if err != nil {
+		return nil
+	}
+	cmd, stdin := s.command(othersScript, in)
 	out, _ := s.combined(cmd, stdin)
 	list := []Session{}
 	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {

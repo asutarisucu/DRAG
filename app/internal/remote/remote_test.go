@@ -419,6 +419,30 @@ func TestSessionsListsScreenAndTmux(t *testing.T) {
 	}
 }
 
+// シェル自身が前面のときだけ、打った行をシェルが読む。sudo がパスワードを聞いている間は違う
+func TestAtPrompt(t *testing.T) {
+	s := dialTrusted(t)
+	sh, err := s.OpenShell(80, 24, "", ShellEvents{Output: func([]byte, int64) {}, Foreground: func(string) {}, Exit: func(bool) {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+	time.Sleep(400 * time.Millisecond)
+	if !sh.AtPrompt() {
+		t.Fatal("待っているシェルで false")
+	}
+	sh.Write([]byte("sudo -k true\r"))
+	time.Sleep(time.Second)
+	if sh.AtPrompt() {
+		t.Fatal("sudo がパスワードを聞いているのに true")
+	}
+	sh.Write([]byte("drag\r"))
+	time.Sleep(time.Second)
+	if !sh.AtPrompt() {
+		t.Fatal("sudo が終わっても false")
+	}
+}
+
 func TestOpenShellKnowsPIDAndStartsInCwd(t *testing.T) {
 	s := dialTrusted(t)
 	var mu sync.Mutex
@@ -698,5 +722,61 @@ func TestTrashListAndDelete(t *testing.T) {
 	}
 	if list, _ = s.TrashList(); len(list) != 0 {
 		t.Fatalf("空にならない %+v", list)
+	}
+}
+
+// 標準入力で渡す値に改行があると、行がずれて別のパスになるので断る
+func TestArgLinesRejectsNewlines(t *testing.T) {
+	if got, err := argLines("/a b", "/c"); err != nil || got != "/a b\n/c\n" {
+		t.Fatalf("%q %v", got, err)
+	}
+	for _, v := range []string{"/tmp/x\n/home/u", "/tmp/x\x00y"} {
+		if _, err := argLines("/ok", v); err == nil {
+			t.Errorf("%q を通した", v)
+		}
+	}
+}
+
+// 改行を含む cwd は PTY を通るとログインシェルへの入力になるので、ホームで開く
+func TestOpenShellIgnoresMultilineCwd(t *testing.T) {
+	s := dialTrusted(t)
+	var mu sync.Mutex
+	var out strings.Builder
+	exited := make(chan struct{})
+	sh, err := s.OpenShell(80, 24, "/var/log\necho DRAG-INJECTED", ShellEvents{
+		Output: func(p []byte, _ int64) {
+			mu.Lock()
+			out.Write(p)
+			mu.Unlock()
+		},
+		Foreground: func(string) {},
+		Exit:       func(bool) { close(exited) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(500 * time.Millisecond)
+	sh.Write([]byte("pwd; exit\r"))
+	select {
+	case <-exited:
+	case <-time.After(10 * time.Second):
+		t.Fatal("シェルが終わらない")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(out.String(), "/home/asuta\r\n") || strings.Contains(out.String(), "DRAG-INJECTED\r\n") {
+		t.Fatalf("出力 %q", out.String())
+	}
+}
+
+// ReadTail の位置と大きさはスマホからも来るので、負や巨大な値でもファイルの範囲だけを読む
+func TestReadTailBounds(t *testing.T) {
+	s := dialTrusted(t)
+	if _, err := s.ReadTail("/etc/hostname", 0, -1); err == nil {
+		t.Fatal("負の大きさで読んだ")
+	}
+	c, err := s.ReadTail("/etc/hostname", 1<<40, 1<<40)
+	if err != nil || c.Start != 0 || c.End <= 0 || c.End > 256 {
+		t.Fatalf("%+v %v", c, err)
 	}
 }

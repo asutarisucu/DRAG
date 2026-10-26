@@ -8,6 +8,7 @@ import (
 	"io"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,7 +74,12 @@ func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, 
 		sess.Close()
 		return nil, err
 	}
-	// Start より前に書くと sshd に捨てられる
+	// Start より前に書くと sshd に捨てられる。
+	// PTY を通るので、改行や Ctrl+C のような制御文字は端末が受け取ってしまい、残りがログインシェルへの入力になる。
+	// 制御文字を含むフォルダはホームで開く
+	if hasControl(cwd) {
+		cwd = ""
+	}
 	fmt.Fprintf(in, "%s\n", cwd)
 
 	sh := &Shell{srv: s, sess: sess, in: in, ev: ev, cols: cols, rows: rows}
@@ -89,16 +95,20 @@ func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, 
 			ev.Exit(errors.As(err, &missing))
 		}()
 		var pre []byte
+		started := false
 		b := make([]byte, 32*1024)
 		for {
 			n, err := out.Read(b)
-			if sh.PID == 0 {
-				// PID の行より前は、入力した cwd のエコーとログイン前の出力なので捨てる
+			if !started {
+				// PID の行より前は、入力した cwd のエコーとログイン前の出力なので捨てる。
+				// PID の行はサーバーが書くので、0 のような値でも、知らせるのは1回だけにする
 				pre = append(pre, b[:n]...)
 				if m := re.FindSubmatchIndex(pre); m != nil {
+					started = true
 					sh.PID, _ = strconv.Atoi(string(pre[m[2]:m[3]]))
 					close(found)
 					sh.output(pre[m[1]:])
+					pre = nil
 				}
 			} else {
 				sh.output(b[:n])
@@ -110,6 +120,10 @@ func (s *Server) OpenShell(cols, rows int, cwd string, ev ShellEvents) (*Shell, 
 	}()
 	select {
 	case <-found:
+		if sh.PID <= 0 {
+			sess.Close()
+			return nil, fmt.Errorf("シェルの PID を読めません")
+		}
 		if s.mon != nil {
 			s.mon.add(sh)
 		}
@@ -150,6 +164,17 @@ func (sh *Shell) setForeground(cmdline string) {
 	sh.fg = cmdline
 	sh.mu.Unlock()
 	sh.ev.Foreground(cmdline)
+}
+
+// hasControl は、端末が文字として扱わないバイト (C0 の制御文字と DEL) を含むか
+func hasControl(v string) bool {
+	return strings.ContainsFunc(v, func(r rune) bool { return r < 0x20 || r == 0x7f })
+}
+
+// AtPrompt は、シェル自身が前面にいて、打った行をシェルがコマンドとして読むところかを、サーバーで読んで確かめる。
+// sudo や ssh がパスワードを聞いているときは、それらが前面にいるので false。確かめられないときも false
+func (sh *Shell) AtPrompt() bool {
+	return sh.srv.mon != nil && sh.srv.mon.atPrompt(sh)
 }
 
 // Foreground は前面のコマンド。シェル自身なら空

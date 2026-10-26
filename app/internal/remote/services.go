@@ -60,7 +60,11 @@ func (s *Server) ServiceAction(name, verb string) error {
 	if !slices.Contains([]string{"start", "stop", "restart"}, verb) {
 		return fmt.Errorf("できない操作です: %s", verb)
 	}
-	cmd, stdin := s.command(`IFS= read -r u; exec systemctl `+verb+` -- "$u"`, name+"\n")
+	in, err := argLines(name)
+	if err != nil {
+		return err
+	}
+	cmd, stdin := s.command(`IFS= read -r u; exec systemctl `+verb+` -- "$u"`, in)
 	out, err := s.combined(cmd, stdin)
 	if err == nil {
 		return nil
@@ -103,5 +107,9 @@ func (s *Server) JournalStream(unit string, onData func([]byte), onEnd func(erro
 	if !s.canReadJournal() && !s.Sudo() {
 		return nil, ErrDenied
 	}
-	return s.stream(`IFS= read -r u; exec journalctl -u "$u" -n 300 -f --no-pager -o short 2>&1`, unit+"\n", onData, onEnd)
+	in, err := argLines(unit)
+	if err != nil {
+		return nil, err
+	}
+	return s.stream(`IFS= read -r u; exec journalctl -u "$u" -n 300 -f --no-pager -o short 2>&1`, in, onData, onEnd)
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"encoding/binary"
 	"errors"
+	"math"
 	"sync"
 )
 
@@ -23,7 +24,7 @@ type childSA struct {
 func newChildSA(s *suite, keymat []byte, inSPI, outSPI uint32, weInitiated bool, prop proposal) *childSA {
 	el, il := s.encrKeyLen(), s.integKeyLen()
 	take := func() cipherKeys {
-		k := cipherKeys{s: s, encr: keymat[:el], integ: keymat[el : el+il]}
+		k := newCipherKeys(s, keymat[:el], keymat[el:el+il])
 		keymat = keymat[el+il:]
 		return k
 	}
@@ -42,6 +43,11 @@ func childKeyLen(s *suite) int { return 2 * (s.encrKeyLen() + s.integKeyLen()) }
 // seal は IP のパケットを ESP にする
 func (c *childSA) seal(ip []byte) ([]byte, error) {
 	c.mu.Lock()
+	if c.seq == math.MaxUint32 {
+		// 拡張した番号 (ESN) を使わないので、一周させずに止める (RFC 4303 3.3.3)。ふつうはその前にサーバーが鍵を替える
+		c.mu.Unlock()
+		return nil, errors.New("ESP の SA の番号を使い切りました")
+	}
 	c.seq++
 	seq := c.seq
 	c.mu.Unlock()

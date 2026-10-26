@@ -16,6 +16,8 @@ import (
 type monitor struct {
 	in  io.Writer
 	out *bufio.Reader
+	// runMu は、見張りのゴルーチンと atPrompt が sh に書く順を守る
+	runMu sync.Mutex
 
 	mu     sync.Mutex
 	shells map[*Shell]struct{}
@@ -61,6 +63,8 @@ func (m *monitor) remove(sh *Shell) {
 }
 
 func (m *monitor) run(script string) ([]string, error) {
+	m.runMu.Lock()
+	defer m.runMu.Unlock()
 	if _, err := fmt.Fprintf(m.in, "%s\necho %s\n", script, monitorEnd); err != nil {
 		return nil, err
 	}
@@ -76,6 +80,17 @@ func (m *monitor) run(script string) ([]string, error) {
 		}
 		lines = append(lines, l)
 	}
+}
+
+// atPrompt は、sh の前面のプロセスグループがシェル自身かを、いま読んで確かめる。読めなければ false
+func (m *monitor) atPrompt(sh *Shell) bool {
+	lines, err := m.run(fmt.Sprintf("{ read -r l < /proc/%d/stat && echo \"$l\"; } 2>/dev/null", sh.PID))
+	if err != nil || len(lines) != 1 {
+		return false
+	}
+	l := lines[0]
+	f := strings.Fields(l[strings.LastIndexByte(l, ')')+1:])
+	return len(f) >= 6 && f[5] == strconv.Itoa(sh.PID)
 }
 
 // poll は前面のプロセスグループの番号を読み、変わったシェルだけコマンドを読み直して知らせる

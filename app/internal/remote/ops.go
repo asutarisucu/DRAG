@@ -75,6 +75,10 @@ func (s *Server) Rename(from, to string) error {
 // Copy はファイルやフォルダを複製する。SFTP には複製の命令が無いので、サーバーの cp を使う。
 // パスは引用符の扱いがシェルごとに違うので、コマンドに埋めずに標準入力で渡す
 func (s *Server) Copy(from, to string) error {
+	in, err := argLines(from, to)
+	if err != nil {
+		return err
+	}
 	if s.exists(to) {
 		return ErrExists
 	}
@@ -83,7 +87,7 @@ func (s *Server) Copy(from, to string) error {
 		return err
 	}
 	defer sess.Close()
-	cmd, stdin := s.command(`IFS= read -r s; IFS= read -r d; exec cp -a -- "$s" "$d"`, from+"\n"+to+"\n")
+	cmd, stdin := s.command(`IFS= read -r s; IFS= read -r d; exec cp -a -- "$s" "$d"`, in)
 	sess.Stdin = strings.NewReader(stdin)
 	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
@@ -114,6 +118,10 @@ func (s *Server) Trash(p string) (TrashItem, error) {
 		return TrashItem{}, err
 	}
 	name := path.Base(p)
+	// 完全に削除するときは名前を1行ずつ rm に渡すので、改行を含む名前はゴミ箱に入れない
+	if strings.Contains(name, "\n") {
+		return TrashItem{}, errors.New("改行を含む名前はゴミ箱へ移せません")
+	}
 	// info のファイルを O_EXCL で作れた名前を、ゴミ箱の中での名前にする
 	var info string
 	for i := 1; ; i++ {

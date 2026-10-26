@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -171,5 +172,72 @@ func TestPairTokensStayValidUntilUsed(t *testing.T) {
 	}
 	if len(s.routes[RouteLAN].pairs) != pairLimit {
 		t.Fatalf("トークンが %d 個残った", len(s.routes[RouteLAN].pairs))
+	}
+}
+
+// 前の版が「入力 」で残した、シェルに打った行は、開いたときに消す
+func TestOpenDevicesDropsOldTypedLines(t *testing.T) {
+	dir := t.TempDir()
+	d := openDevices(dir)
+	d.log(Login{Kind: "op", What: "入力 hunter2"})
+	d.log(Login{Kind: "op", What: "コマンド ls"})
+	d.log(Login{Kind: "login", What: "入力 x"})
+	got := openDevices(dir).history()
+	if len(got) != 2 || got[0].What != "入力 x" || got[1].What != "コマンド ls" {
+		t.Fatalf("%+v", got)
+	}
+	if again := openDevices(dir).history(); len(again) != 2 {
+		t.Fatalf("消したものを書いていない %+v", again)
+	}
+}
+
+// LAN 内の指紋は、スマホが受け取る証明書のもの
+func TestLANFingerprintMatchesServedCert(t *testing.T) {
+	s, u, _ := start(t, func(Device, string, []json.RawMessage) (any, error) { return nil, nil })
+	conn, err := tls.Dial("tcp", strings.TrimPrefix(u, "https://"), &tls.Config{InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	got := s.Status(RouteLAN).Fingerprint
+	if want := fingerprint(conn.ConnectionState().PeerCertificates[0].Raw); got != want || len(got) != 32*3-1 {
+		t.Fatalf("%q と %q", got, want)
+	}
+}
+
+// 呼び出しの中で panic しても、エラーとして返し、つながったまま続ける
+func TestCallRecoversPanic(t *testing.T) {
+	s := New(Options{Dir: t.TempDir(), Call: func(Device, string, []json.RawMessage) (any, error) { panic("boom") }})
+	if _, err := s.call(Device{}, callMsg{Method: "X"}); err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("%v", err)
+	}
+}
+
+// cookie を確かめたあとに無効にされた端末は、WebSocket を受けても加えずに切る
+func TestServeWSRefusesRevokedDevice(t *testing.T) {
+	s, _, _ := start(t, func(Device, string, []json.RawMessage) (any, error) { return nil, nil })
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		s.serveWS(RouteLAN, Device{ID: "revoked"}, ws, "192.0.2.1")
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.CloseNow()
+	if _, _, err := ws.Read(ctx); websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+		t.Fatalf("%v", err)
+	}
+	s.mu.Lock()
+	n := len(s.clients)
+	s.mu.Unlock()
+	if n != 0 || len(s.History()) != 0 {
+		t.Fatalf("加えた %d、履歴 %d", n, len(s.History()))
 	}
 }

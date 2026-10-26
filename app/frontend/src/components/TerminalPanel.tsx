@@ -5,7 +5,7 @@ import type { remote } from '../../wailsjs/go/models'
 import { attachCommand, sessionKeyOf } from '../sessions'
 import { attachShell, decode, foregroundOf, onForeground } from '../shellBus'
 import { getMTab, isMobile, setMTab, useMobile } from '../mobile'
-import { sendInput } from '../shellInput'
+import { sendInput, typeLine } from '../shellInput'
 import { useSettings } from '../settings'
 import { pathArg, registerTerminal, terminalOf } from '../terminals'
 import { toast } from '../toasts'
@@ -215,26 +215,25 @@ export function TerminalPanel({ serverId, home, generation, visible, fontSize, o
       toast(tRef.current('toast.busy'), 'warn')
       return
     }
+    if (!typeLine(id, attachCommand(s), true)) return
     noAutoRef.current = true
-    sendInput(id, attachCommand(s) + '\r')
     termRef.current?.focus()
   }
 
   // ファイルツリーから cd やパスを送る窓口。前面で別のコマンドが動いているときは送らない
   useEffect(() => {
-    const send = (text: string) => {
+    const send = (text: string, enter: boolean) => {
       const id = shellRef.current
       if (!id) return
       if (foregroundOf(id)) {
         toast(tRef.current('toast.busy'), 'warn')
         return
       }
-      sendInput(id, text)
-      termRef.current?.focus()
+      if (typeLine(id, text, enter)) termRef.current?.focus()
     }
     return registerTerminal(serverId, {
-      cd: path => send(`cd ${path}\r`),
-      insert: text => send(text),
+      cd: path => send(`cd ${path}`, true),
+      insert: text => send(text, false),
       popOut: pos => popOutRef.current(pos),
       takeBack: winId => takeBackRef.current(winId),
       setDropLabel,

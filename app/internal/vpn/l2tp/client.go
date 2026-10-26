@@ -124,7 +124,8 @@ func (c *Client) open(ctx context.Context) error {
 		return err
 	}
 	go c.timerLoop()
-	c.ppp = ppp.New(ppp.Config{User: c.cfg.User, Pass: c.cfg.Pass, Logf: c.cfg.Logf}, c.sendFrame)
+	// PSK を知る人は誰でもサーバーになれるので、パスワードを平文で渡さず、MS-CHAPv2 でサーバーも確かめる
+	c.ppp = ppp.New(ppp.Config{User: c.cfg.User, Pass: c.cfg.Pass, Logf: c.cfg.Logf, RequireMSCHAPv2: true}, c.sendFrame)
 	go func() {
 		select {
 		case <-c.ppp.Done():

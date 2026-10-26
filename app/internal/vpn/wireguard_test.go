@@ -187,6 +187,9 @@ func TestParseWireGuardErrors(t *testing.T) {
 		"[Interface]\nPrivateKey = abc\n":                                                     "鍵の形",
 		"[Interface]\nPrivateKey = " + strings.Repeat("A", 43) + "=\n":                        "Address",
 		"[Interface]\nPrivateKey = " + strings.Repeat("A", 43) + "=\nAddress = 10.0.0.2/32\n": "[Peer]",
+		"[Interface]\nMTU = -1\n":                                                             "MTU は",
+		"[Interface]\nMTU = 4294967295\n":                                                     "MTU は",
+		"[Peer]\nPersistentKeepalive = 70000\n":                                               "PersistentKeepalive は",
 	} {
 		if _, err := parseWireGuard(conf); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: %v", conf, err)

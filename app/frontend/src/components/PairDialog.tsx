@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NewPairing, PhoneDevices, PhoneHistory, PhoneState, RevokePhone } from '../../wailsjs/go/main/App'
+import { AnswerAgent, NewPairing, PhoneDevices, PhoneHistory, PhoneState, RevokePhone } from '../../wailsjs/go/main/App'
 import type { main, phone } from '../../wailsjs/go/models'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { toast } from '../toasts'
@@ -23,6 +23,31 @@ export function usePhoneDevices() {
     return EventsOn('phone:changed', load)
   }, [load])
   return { devices, history }
+}
+
+// AgentAsks は、AI エージェントの頼み (スマホの登録 URL、待ち受けを ON) を1つずつ出し、PC の利用者に答えてもらう。
+// 閉じたときは断ったことにする
+export function AgentAsks() {
+  const { t } = useTranslation()
+  const [asks, setAsks] = useState<{ id: string; kind: string; route: string }[]>([])
+  useEffect(() => EventsOn('agent:ask', (id: string, kind: string, route: string) => setAsks(l => [...l, { id, kind, route }])), [])
+  useEffect(() => EventsOn('agent:asked', (id: string) => setAsks(l => l.filter(a => a.id !== id))), [])
+  const ask = asks[0]
+  if (!ask) return null
+  const answer = (ok: boolean) => {
+    AnswerAgent(ask.id, ok)
+    setAsks(l => l.filter(a => a.id !== ask.id))
+  }
+  return (
+    <Modal title={t('pair.ask.title')} width={480} onClose={() => answer(false)}>
+      <p className="mt-0 mb-2">{t(`pair.ask.${ask.kind}`, { route: ask.route && t(`pair.routes.${ask.route}`) })}</p>
+      <p className="mt-0 mb-0 text-muted">{t('pair.ask.hint')}</p>
+      <div className="mt-[18px] flex items-center justify-end gap-2">
+        <button className="btn" onClick={() => answer(false)} autoFocus>{t('pair.ask.deny')}</button>
+        <button className="btn-primary" onClick={() => answer(true)}>{t('pair.ask.allow')}</button>
+      </div>
+    </Modal>
+  )
 }
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -97,6 +122,12 @@ export function PairDialog({ onClose }: { onClose: () => void }) {
               </svg>
             )}
           <div className="font-mono text-[11.5px] break-all text-muted">{pair ? pair.url.replace(/\/pair\?.*/, '') : ''}</div>
+          {pair?.fingerprint && (
+            <div className="grid gap-1 text-left text-[11.5px] text-muted" data-fingerprint>
+              <span>{t('pair.fingerprint')}</span>
+              <span className="font-mono break-words text-soft">{pair.fingerprint}</span>
+            </div>
+          )}
           <div className="text-[12px] text-muted">
             {pair && left > 0 && t('pair.left', { time: `${Math.floor(left / 60)}:${pad2(left % 60)}` })}
             {pair && left === 0 && <>{t('pair.expired')} <button className="text-accent-text hover:underline" onClick={regen}>{t('pair.regen')}</button></>}

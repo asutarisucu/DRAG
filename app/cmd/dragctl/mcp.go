@@ -13,6 +13,7 @@ import (
 const instructions = `DRAG は、SSH の先のサーバーを GUI で扱う PC アプリ。この道具で、PC で動いている DRAG を操作する。
 スマホを外から使うときは、直接公開 (route=public) の登録 URL を出して利用者に渡す。LAN の URL は家の中でしか開けない。
 登録 URL は5分で切れ、1回しか使えない。開いた人が誰でも登録できるので、利用者本人にだけ渡す。
+登録 URL を出すときと、待ち受けを ON にするときは、PC の画面で利用者が許すまで (最大2分) 待つ。利用者が DRAG の設定でこの確かめを省いていれば待たない。
 サーバーは drag_servers の ID (s1 など) か名前で指す`
 
 type noArgs struct{}
@@ -107,14 +108,14 @@ func newMCPServer(c *client, version string) *mcp.Server {
 
 	tool(s, "drag_status", "スマホの待ち受け (LAN 内と直接公開の URL・証明書) と、DRAG がつないでいるサーバーを返す",
 		func(noArgs) (any, error) { return c.status() })
-	tool(s, "drag_phone_pair_url", "スマホの登録 URL を出す。5分で切れ、1回しか使えない。出したことは DRAG の履歴に残り、PC にも知らせが出る",
+	tool(s, "drag_phone_pair_url", "スマホの登録 URL を出す。DRAG の設定で省いていなければ、PC の画面で利用者が許してから出す。5分で切れ、1回しか使えない。出したことは DRAG の履歴に残り、PC にも知らせが出る",
 		func(a routeArgs) (any, error) {
 			if a.Route == "" {
 				a.Route = "public"
 			}
 			return call("AgentPair", a.Route)
 		})
-	tool(s, "drag_phone_listen", "スマホの待ち受けを切り替える。直接公開を ON にすると、Let's Encrypt で証明書を取ってから使えるようになる",
+	tool(s, "drag_phone_listen", "スマホの待ち受けを切り替える。ON にするときは、DRAG の設定で省いていなければ、PC の画面で利用者が許してから切り替える。直接公開を ON にすると、Let's Encrypt で証明書を取ってから使えるようになる",
 		func(a listenArgs) (any, error) { return c.listen(a.Route, a.On, a.Port) })
 	tool(s, "drag_phone_devices", "登録済みのスマホの一覧",
 		func(noArgs) (any, error) { return call("PhoneDevices") })
