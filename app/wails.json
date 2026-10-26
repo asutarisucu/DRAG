@@ -6,6 +6,13 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "info": {
+    "companyName": "asutarisucu",
+    "productName": "DRAG",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 asutarisucu",
+    "comments": "SSH の先のサーバーを GUI で扱う"
+  },
   "author": {
     "name": "asutarisucu",
     "email": "asutaricusu.s@gmail.com"

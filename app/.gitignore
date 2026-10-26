@@ -3,3 +3,5 @@ frontend/dist
 frontend/e2e/out
 frontend/package.json.md5
 node_modules
+build/windows/installer/tmp
+build/windows/installer/wails_tools.nsh

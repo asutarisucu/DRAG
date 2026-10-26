@@ -32,6 +32,9 @@ Unicode true
 ####
 ## Include the wails tools
 ####
+# makensis reads this file in the system code page, so keep it ASCII.
+# wails.json has a lowercase name; name the executable and the installer after outputfilename instead.
+!define INFO_PROJECTNAME "DRAG"
 !include "wails_tools.nsh"
 
 # The version information for this two must consist of 4 parts
@@ -64,14 +67,16 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+# Japanese when Windows displays in Japanese, English otherwise.
+!insertmacro MUI_LANGUAGE "Japanese"
+!insertmacro MUI_LANGUAGE "English"
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
 #!finalize 'signtool --file "%1"'
 
 Name "${INFO_PRODUCTNAME}"
-OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
+OutFile "..\..\bin\${INFO_PROJECTNAME}-${INFO_PRODUCTVERSION}-${ARCH}-installer.exe" # Name of the installer's file.
 !ifdef WAILS_INSTALL_SCOPE
   !if "${WAILS_INSTALL_SCOPE}" == "user"
     InstallDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
@@ -95,6 +100,8 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+    # dragctl for AI agents. Build it before wails build: go build -o build/bin/dragctl.exe ./cmd/dragctl
+    File "..\..\bin\dragctl.exe"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

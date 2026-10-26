@@ -19,6 +19,23 @@ AI エージェント用の `dragctl.exe` は別に作ります。
 go build -o build/bin/dragctl.exe ./cmd/dragctl
 ```
 
+### インストーラー
+
+NSIS の `makensis` を PATH に入れておき、`dragctl.exe` を作ってから `-nsis` を付けてビルドします。
+NSIS は zip 版を展開したものでも動きます。
+
+```
+go build -o build/bin/dragctl.exe ./cmd/dragctl
+wails build -nsis
+```
+
+`build/bin/DRAG-<バージョン>-amd64-installer.exe` ができます。バージョンは `wails.json` の `info.productVersion` です。
+`DRAG.exe` と `dragctl.exe` を Program Files に入れ、スタートメニューとデスクトップにショートカットを作ります。
+WebView2 が無い PC では、入れるときに Microsoft から取ってきます。
+アンインストールしても、設定フォルダ (`%AppData%\DRAG`) は残ります。
+
+`build/windows/installer/wails_tools.nsh` と `tmp/` は、`wails build -nsis` のたびに Wails が作り直すので、git に入れていません。
+
 ## AI エージェントから使う
 
 `dragctl.exe` は、PC で動いている DRAG を AI エージェントから操作する道具です。
